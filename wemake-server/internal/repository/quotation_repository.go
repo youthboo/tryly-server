@@ -23,6 +23,9 @@ func quotationSelectBase() string {
 		fp.image_url AS factory_logo_url,
 		fp.rating::double precision AS factory_rating_avg,
 		q.price_per_piece, q.mold_cost, q.lead_time_days, q.shipping_method_id,
+		COALESCE(r.status, 'OP') AS rfq_status,
+		COALESCE(r.request_kind, 'PR') AS request_kind,
+		r.sample_qty,
 		NULLIF(TRIM(COALESCE(to_jsonb(sm)->>'method_name', to_jsonb(sm)->>'name')), '') AS shipping_method_name,
 		q.factory_highlight,
 		q.status, q.create_time, q.log_timestamp,
@@ -38,6 +41,7 @@ func quotationSelectBase() string {
 		0::double precision AS sample_cost,
 		'[]'::jsonb AS certifications
 		FROM quotations q
+		LEFT JOIN rfqs r ON r.rfq_id = q.rfq_id
 		LEFT JOIN users u ON u.user_id = q.factory_id
 		LEFT JOIN factory_profiles fp ON fp.user_id = q.factory_id
 		LEFT JOIN lbi_shipping_methods sm ON sm.shipping_method_id = q.shipping_method_id`
@@ -127,6 +131,9 @@ func (r *QuotationRepository) ListByRFQID(rfqID int64) ([]domain.Quotation, erro
 		fp.rating::double precision AS factory_rating_avg,
 		COALESCE(r.quantity, 1)::double precision AS quote_quantity,
 		q.price_per_piece, q.mold_cost, q.lead_time_days, q.shipping_method_id,
+		COALESCE(r.status, 'OP') AS rfq_status,
+		COALESCE(r.request_kind, 'PR') AS request_kind,
+		r.sample_qty,
 		NULL::text AS shipping_method_name,
 		q.factory_highlight,
 		q.status, q.create_time, q.log_timestamp,

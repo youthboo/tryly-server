@@ -15,8 +15,10 @@ const maxRFQImages = 5
 var (
 	ErrMaxRFQReferenceImages = errors.New("at most 5 reference_images are allowed")
 	ErrInvalidSubCategory    = errors.New("sub_category_id is invalid for the selected category")
+	ErrInvalidCategory       = errors.New("category_id is invalid")
 	ErrInvalidShippingMethod = errors.New("shipping_method_id is invalid")
 	ErrRFQDetailsRequired    = errors.New("description/details must not be empty")
+	ErrRFQDetailsTooShort    = errors.New("sample request details must be at least 20 characters")
 	ErrRFQInspectionInvalid  = errors.New("inspection_type is invalid")
 	ErrRFQKindInvalid        = errors.New("request_kind must be PR, PS, or MS")
 	ErrRFQSampleQtyInvalid   = errors.New("sample request quantity is outside allowed range")
@@ -57,6 +59,7 @@ func (s *RFQService) Create(rfq *domain.RFQ) error {
 	if rfq.RequestKind == "" {
 		return ErrRFQKindInvalid
 	}
+	normalizeSampleFields(rfq)
 	if err := validateRFQKindRules(rfq); err != nil {
 		return err
 	}
@@ -145,7 +148,14 @@ func (s *RFQService) PreviewFactories(kind string, categoryID int64, subCategory
 		return nil, ErrRFQKindInvalid
 	}
 	if categoryID <= 0 {
-		return nil, ErrInvalidSubCategory
+		return nil, ErrInvalidCategory
+	}
+	var categoryExists bool
+	if err := s.repo.DB().Get(&categoryExists, `SELECT EXISTS(SELECT 1 FROM categories WHERE category_id = $1)`, categoryID); err != nil {
+		return nil, err
+	}
+	if !categoryExists {
+		return nil, ErrInvalidCategory
 	}
 	if subCategoryID != nil {
 		valid, err := s.repo.SubCategoryBelongsToCategory(*subCategoryID, categoryID)
@@ -215,6 +225,7 @@ func (s *RFQService) Patch(userID, rfqID int64, rfq *domain.RFQ) error {
 	if rfq.RequestKind == "" {
 		rfq.RequestKind = domain.RequestKindProduction
 	}
+	normalizeSampleFields(rfq)
 	rfq.CreatedAt = existing.CreatedAt
 	rfq.UploadedAt = existing.UploadedAt
 	rfq.UpdatedAt = time.Now()
@@ -276,6 +287,9 @@ func validateRFQKindRules(rfq *domain.RFQ) error {
 		if rfq.Quantity < 1 || rfq.Quantity > 10 {
 			return ErrRFQSampleQtyInvalid
 		}
+		if len([]rune(strings.TrimSpace(rfq.Details))) < 20 {
+			return ErrRFQDetailsTooShort
+		}
 		zero := float64(0)
 		rfq.TargetUnitPrice = &zero
 		rfq.SampleRequired = true
@@ -286,6 +300,9 @@ func validateRFQKindRules(rfq *domain.RFQ) error {
 		if rfq.Quantity < 1 || rfq.Quantity > 5 {
 			return ErrRFQSampleQtyInvalid
 		}
+		if len([]rune(strings.TrimSpace(rfq.Details))) < 20 {
+			return ErrRFQDetailsTooShort
+		}
 		zero := float64(0)
 		rfq.TargetUnitPrice = &zero
 		rfq.SampleRequired = true
@@ -295,6 +312,20 @@ func validateRFQKindRules(rfq *domain.RFQ) error {
 		return ErrRFQKindInvalid
 	}
 	return nil
+}
+
+func normalizeSampleFields(rfq *domain.RFQ) {
+	if rfq == nil {
+		return
+	}
+	if rfq.RequestKind != domain.RequestKindProductSample && rfq.RequestKind != domain.RequestKindMaterialSample {
+		return
+	}
+	// Sample mode ignores fields outside sample scope.
+	rfq.RequiredDeliveryDate = nil
+	rfq.CertificationsRequired = []string{}
+	rfq.InspectionType = nil
+	rfq.MaterialGrade = nil
 }
 
 func (s *RFQService) notifyMatchingFactories(rfq *domain.RFQ) {

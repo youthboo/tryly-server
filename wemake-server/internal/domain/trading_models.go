@@ -59,6 +59,9 @@ type Quotation struct {
 	Items             []QuotationItem `db:"-" json:"items,omitempty"`
 	QuoteTotal        float64         `db:"-" json:"quote_total"`
 	Factory           *FactoryBrief   `db:"-" json:"factory,omitempty"`
+	RFQStatus         string          `db:"rfq_status" json:"rfq_status,omitempty"`
+	RequestKind       string          `db:"request_kind" json:"request_kind,omitempty"`
+	SampleQty         *int            `db:"sample_qty" json:"sample_qty,omitempty"`
 }
 
 type FactoryBrief struct {

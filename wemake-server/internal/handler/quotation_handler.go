@@ -105,7 +105,16 @@ func (h *QuotationHandler) ListQuotationsByRFQ(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch quotations"})
 	}
-	return c.JSON(items)
+	rfqMeta := fiber.Map{"rfq_id": int64(rfqID)}
+	if len(items) > 0 {
+		rfqMeta["request_kind"] = items[0].RequestKind
+		rfqMeta["sample_qty"] = items[0].SampleQty
+		rfqMeta["status"] = items[0].RFQStatus
+	}
+	return c.JSON(fiber.Map{
+		"rfq":        rfqMeta,
+		"quotations": items,
+	})
 }
 
 func (h *QuotationHandler) ListMine(c *fiber.Ctx) error {

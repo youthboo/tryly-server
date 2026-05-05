@@ -95,7 +95,7 @@ func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.Create(rfq); err != nil {
-		if err == service.ErrInvalidSubCategory || err == service.ErrInvalidShippingMethod || err == service.ErrMaxRFQReferenceImages || err == service.ErrRFQInspectionInvalid || err == service.ErrRFQDetailsRequired || err == service.ErrRFQKindInvalid || err == service.ErrRFQSampleQtyInvalid {
+		if err == service.ErrInvalidSubCategory || err == service.ErrInvalidShippingMethod || err == service.ErrMaxRFQReferenceImages || err == service.ErrRFQInspectionInvalid || err == service.ErrRFQDetailsRequired || err == service.ErrRFQDetailsTooShort || err == service.ErrRFQKindInvalid || err == service.ErrRFQSampleQtyInvalid {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create rfq"})
@@ -179,6 +179,9 @@ func (h *RFQHandler) ListRFQs(c *fiber.Ctx) error {
 	}
 	kind := strings.TrimSpace(strings.ToUpper(c.Query("kind")))
 	if kind != "" {
+		if kind != domain.RequestKindProduction && kind != domain.RequestKindProductSample && kind != domain.RequestKindMaterialSample {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "INVALID_KIND"})
+		}
 		filtered := make([]domain.RFQ, 0, len(rfqs))
 		for _, item := range rfqs {
 			if strings.EqualFold(item.RequestKind, kind) {
@@ -191,8 +194,15 @@ func (h *RFQHandler) ListRFQs(c *fiber.Ctx) error {
 }
 
 func (h *RFQHandler) PreviewFactories(c *fiber.Ctx) error {
-	kind := c.Query("kind")
-	categoryID, err := strconv.ParseInt(strings.TrimSpace(c.Query("category_id")), 10, 64)
+	kind := strings.TrimSpace(c.Query("kind"))
+	if kind == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "INVALID_KIND"})
+	}
+	rawCategory := strings.TrimSpace(c.Query("category_id"))
+	if rawCategory == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "MISSING_CATEGORY"})
+	}
+	categoryID, err := strconv.ParseInt(rawCategory, 10, 64)
 	if err != nil || categoryID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "MISSING_CATEGORY"})
 	}
@@ -209,7 +219,7 @@ func (h *RFQHandler) PreviewFactories(c *fiber.Ctx) error {
 		if err == service.ErrRFQKindInvalid {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "INVALID_KIND"})
 		}
-		if err == service.ErrInvalidSubCategory {
+		if err == service.ErrInvalidSubCategory || err == service.ErrInvalidCategory {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "CATEGORY_NOT_FOUND"})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to preview factories"})
