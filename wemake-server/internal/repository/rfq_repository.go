@@ -299,7 +299,7 @@ func (r *RFQRepository) getAddressByID(addressID int64) (*domain.Address, error)
 // ListMatchingForFactory returns open RFQs whose category (and optional sub-category) match
 // the factory's registered maps — used for the factory RFQ board only.
 // To view a specific RFQ detail regardless of category, use GetByIDAny via GetForViewer.
-func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, kind string) ([]domain.RFQ, error) {
+func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, kind string, showDismissed bool) ([]domain.RFQ, error) {
 	st := status
 	if st == "" {
 		st = "OP"
@@ -311,7 +311,16 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 	var rfqs []domain.RFQ
 	query := `
 		SELECT DISTINCT r.rfq_id, r.user_id, COALESCE(r.category_id, 0) AS category_id, r.sub_category_id, r.title, r.quantity, r.details, COALESCE(r.address_id, 0) AS address_id,
-		       r.shipping_method_id, r.status, COALESCE(r.request_kind, 'PR') AS request_kind, r.uploaded_at, r.created_at, r.updated_at,
+		       r.shipping_method_id, r.status, COALESCE(r.request_kind, 'PR') AS request_kind,
+		       (frd.factory_id IS NOT NULL) AS is_dismissed,
+		       frd.dismissed_at,
+		       NOT EXISTS (
+		       	SELECT 1 FROM quotations qac
+		       	WHERE qac.rfq_id = r.rfq_id
+		       	  AND qac.factory_id = $1
+		       	  AND qac.status IN ('PD', 'AC')
+		       ) AS can_dismiss,
+		       r.uploaded_at, r.created_at, r.updated_at,
 		       r.material_grade, r.target_unit_price, r.target_lead_time_days, r.required_delivery_date, r.delivery_address_id,
 		       r.certifications_required, r.sample_required, r.sample_qty, r.inspection_type, r.conversation_id,
 		       r.reference_images, COALESCE(r.rfq_type, 'RFQ') AS rfq_type, COALESCE(r.initiated_by, 'buyer') AS initiated_by,
@@ -321,8 +330,10 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 		       r.boq_sent_at, r.boq_responded_at, r.boq_response, r.boq_decline_reason
 		FROM rfqs r
 		LEFT JOIN lbi_sub_categories sc ON sc.sub_category_id = r.sub_category_id
+		LEFT JOIN factory_rfq_dismissals frd ON frd.rfq_id = r.rfq_id AND frd.factory_id = $1
 		WHERE r.status = $2
 		  AND COALESCE(r.request_kind, 'PR') = ANY($3)
+		  AND ($4::boolean OR frd.factory_id IS NULL)
 		  AND (
 			(
 				COALESCE(r.request_kind, 'PR') IN ('PR', 'PS')
@@ -357,7 +368,7 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 		  )
 		ORDER BY r.created_at DESC
 	`
-	err := r.db.Select(&rfqs, query, factoryID, st, pq.Array(kinds))
+	err := r.db.Select(&rfqs, query, factoryID, st, pq.Array(kinds), showDismissed)
 	if err != nil {
 		return rfqs, err
 	}
@@ -368,6 +379,38 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 		domain.EnrichRFQBudgetFields(&rfqs[i])
 	}
 	return rfqs, nil
+}
+
+func (r *RFQRepository) EnrichFactoryDismissalState(rfq *domain.RFQ, factoryID int64) error {
+	if rfq == nil {
+		return nil
+	}
+	type row struct {
+		IsDismissed bool       `db:"is_dismissed"`
+		DismissedAt *time.Time `db:"dismissed_at"`
+		CanDismiss  bool       `db:"can_dismiss"`
+	}
+	var state row
+	if err := r.db.Get(&state, `
+		SELECT
+			(frd.factory_id IS NOT NULL) AS is_dismissed,
+			frd.dismissed_at,
+			NOT EXISTS (
+				SELECT 1 FROM quotations q
+				WHERE q.rfq_id = $2
+				  AND q.factory_id = $1
+				  AND q.status IN ('PD', 'AC')
+			) AS can_dismiss
+		FROM rfqs r
+		LEFT JOIN factory_rfq_dismissals frd ON frd.rfq_id = r.rfq_id AND frd.factory_id = $1
+		WHERE r.rfq_id = $2
+	`, factoryID, rfq.RFQID); err != nil {
+		return err
+	}
+	rfq.IsDismissed = state.IsDismissed
+	rfq.DismissedAt = state.DismissedAt
+	rfq.CanDismiss = state.CanDismiss
+	return nil
 }
 
 func (r *RFQRepository) ListMatchingFactoryIDs(rfq *domain.RFQ) ([]int64, error) {

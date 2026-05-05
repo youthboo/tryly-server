@@ -259,6 +259,13 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	rfqs.Post("/:rfq_id/quotations", quotationHandler.CreateQuotation)
 	rfqs.Get("/:rfq_id/quotations", quotationHandler.ListQuotationsByRFQ)
 
+	factoryRFQs := api.Group("/factory/rfqs")
+	factoryRFQs.Get("/", rfqHandler.ListMatching)
+	factoryRFQs.Get("/:rfq_id", rfqHandler.GetRFQ)
+	factoryRFQs.Post("/:rfq_id/dismiss", rfqHandler.DismissRFQ)
+	factoryRFQs.Delete("/:rfq_id/dismiss", rfqHandler.UndismissRFQ)
+	factoryRFQs.Get("/:rfq_id/quotations", quotationHandler.ListQuotationsByRFQ)
+
 	quotations := api.Group("/quotations")
 	quotations.Post("/preview", quotationHandler.Preview)
 	quotations.Post("/", quotationHandler.CreateDetailed)

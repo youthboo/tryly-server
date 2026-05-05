@@ -64,6 +64,9 @@ type RFQ struct {
 	ShippingMethodID   *int64     `db:"shipping_method_id" json:"shipping_method_id,omitempty"`
 	Status             string     `db:"status" json:"status"`
 	RequestKind        string     `db:"request_kind" json:"request_kind"`
+	IsDismissed        bool       `db:"is_dismissed" json:"is_dismissed"`
+	DismissedAt        *time.Time `db:"dismissed_at" json:"dismissed_at,omitempty"`
+	CanDismiss         bool       `db:"can_dismiss" json:"can_dismiss"`
 	UploadedAt         *time.Time `db:"uploaded_at" json:"uploaded_at,omitempty"`
 	CreatedAt          time.Time  `db:"created_at" json:"created_at"`
 	UpdatedAt          time.Time  `db:"updated_at" json:"updated_at"`
@@ -114,6 +117,12 @@ type RFQ struct {
 	BudgetTotal    *float64 `db:"-" json:"budget_total"`
 	BudgetPerPiece *float64 `db:"-" json:"budget_per_piece"`
 	EstimatedTotal *float64 `db:"-" json:"estimated_total"`
+}
+
+type FactoryRFQDismissal struct {
+	FactoryID   int64     `db:"factory_id" json:"factory_id"`
+	RFQID       int64     `db:"rfq_id" json:"rfq_id"`
+	DismissedAt time.Time `db:"dismissed_at" json:"dismissed_at"`
 }
 
 // EnrichRFQBudgetFields sets budget_total, budget_per_piece, estimated_total from

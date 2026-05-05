@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"database/sql"
 	"strconv"
 	"strings"
 	"time"
@@ -243,7 +244,8 @@ func (h *RFQHandler) ListMatching(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "factory role required"})
 	}
 	status := c.Query("status")
-	items, err := h.service.ListMatchingForFactory(userID, status, c.Query("kind"))
+	showDismissed := strings.EqualFold(strings.TrimSpace(c.Query("show_dismissed")), "true")
+	items, err := h.service.ListMatchingForFactory(userID, status, c.Query("kind"), showDismissed)
 	if err != nil {
 		if err == service.ErrRFQKindInvalid {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "INVALID_KIND"})
@@ -251,6 +253,71 @@ func (h *RFQHandler) ListMatching(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch matching rfqs"})
 	}
 	return c.JSON(items)
+}
+
+func (h *RFQHandler) DismissRFQ(c *fiber.Ctx) error {
+	userID, err := getUserIDFromHeader(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+	}
+	u, err := h.auth.GetUserByID(userID)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
+	}
+	if u.Role != domain.RoleFactory {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "FORBIDDEN"})
+	}
+	rfqID, err := c.ParamsInt("rfq_id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
+	}
+	item, created, err := h.service.DismissRFQ(userID, int64(rfqID))
+	if err != nil {
+		switch err {
+		case service.ErrHasActiveQuotation:
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "HAS_ACTIVE_QUOTATION"})
+		case service.ErrQuotationAccepted:
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "QUOTATION_ACCEPTED"})
+		case sql.ErrNoRows:
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "RFQ_NOT_FOUND"})
+		default:
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to dismiss rfq"})
+		}
+	}
+	status := fiber.StatusOK
+	if created {
+		status = fiber.StatusCreated
+	}
+	return c.Status(status).JSON(fiber.Map{
+		"rfq_id":       item.RFQID,
+		"dismissed":    true,
+		"dismissed_at": item.DismissedAt,
+	})
+}
+
+func (h *RFQHandler) UndismissRFQ(c *fiber.Ctx) error {
+	userID, err := getUserIDFromHeader(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+	}
+	u, err := h.auth.GetUserByID(userID)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
+	}
+	if u.Role != domain.RoleFactory {
+		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "FORBIDDEN"})
+	}
+	rfqID, err := c.ParamsInt("rfq_id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
+	}
+	if err := h.service.UndismissRFQ(userID, int64(rfqID)); err != nil {
+		if err == sql.ErrNoRows {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "RFQ_NOT_FOUND"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to undismiss rfq"})
+	}
+	return c.JSON(fiber.Map{"rfq_id": int64(rfqID), "dismissed": false})
 }
 
 func (h *RFQHandler) GetRFQ(c *fiber.Ctx) error {

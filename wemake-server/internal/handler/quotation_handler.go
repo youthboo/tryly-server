@@ -88,7 +88,10 @@ func (h *QuotationHandler) CreateQuotation(c *fiber.Ctx) error {
 		if errors.Is(err, service.ErrFactorySuspended) {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "factory account is suspended"})
 		}
-		if errors.Is(err, service.ErrPaymentTermsInvalid) || errors.Is(err, service.ErrInvalidShippingMethod) || errors.Is(err, service.ErrInvalidLineItem) || errors.Is(err, service.ErrFactoryHighlightInvalid) {
+		if errors.Is(err, service.ErrFactoryHighlightInvalid) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "HIGHLIGHT_TOO_LONG"})
+		}
+		if errors.Is(err, service.ErrPaymentTermsInvalid) || errors.Is(err, service.ErrInvalidShippingMethod) || errors.Is(err, service.ErrInvalidLineItem) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create quotation"})
@@ -303,6 +306,9 @@ func (h *QuotationHandler) CreateDetailed(c *fiber.Ctx) error {
 		if errors.Is(err, service.ErrFactorySuspended) {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "factory account is suspended"})
 		}
+		if errors.Is(err, service.ErrFactoryHighlightInvalid) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "HIGHLIGHT_TOO_LONG"})
+		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.Status(fiber.StatusCreated).JSON(item)
@@ -437,12 +443,15 @@ func (h *QuotationHandler) PatchQuotation(c *fiber.Ctx) error {
 	)
 	if err != nil {
 		if errors.Is(err, service.ErrQuotationLocked) {
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "LOCKED"})
 		}
 		if errors.Is(err, service.ErrNotQuotationParty) {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
 		}
-		if errors.Is(err, service.ErrInvalidShippingMethod) || errors.Is(err, service.ErrFactoryHighlightInvalid) {
+		if errors.Is(err, service.ErrFactoryHighlightInvalid) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "HIGHLIGHT_TOO_LONG"})
+		}
+		if errors.Is(err, service.ErrInvalidShippingMethod) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update quotation"})

@@ -23,6 +23,8 @@ var (
 	ErrRFQKindInvalid        = errors.New("request_kind must be PR, PS, or MS")
 	ErrRFQSampleQtyInvalid   = errors.New("sample request quantity is outside allowed range")
 	ErrRFQWrongScope         = errors.New("WRONG_SCOPE")
+	ErrHasActiveQuotation    = errors.New("HAS_ACTIVE_QUOTATION")
+	ErrQuotationAccepted     = errors.New("QUOTATION_ACCEPTED")
 )
 
 type RFQService struct {
@@ -121,7 +123,7 @@ func (s *RFQService) Cancel(userID, rfqID int64) error {
 	return s.repo.Cancel(userID, rfqID)
 }
 
-func (s *RFQService) ListMatchingForFactory(factoryID int64, status string, kind string) ([]domain.RFQ, error) {
+func (s *RFQService) ListMatchingForFactory(factoryID int64, status string, kind string, showDismissed bool) ([]domain.RFQ, error) {
 	if s.factoryRepo != nil {
 		approvalStatus, err := s.factoryRepo.GetApprovalStatus(factoryID)
 		if err != nil {
@@ -135,7 +137,7 @@ func (s *RFQService) ListMatchingForFactory(factoryID int64, status string, kind
 	if normalizedKind != "" && normalizeRFQKind(normalizedKind) == "" {
 		return nil, ErrRFQKindInvalid
 	}
-	return s.repo.ListMatchingForFactory(factoryID, strings.TrimSpace(strings.ToUpper(status)), normalizedKind)
+	return s.repo.ListMatchingForFactory(factoryID, strings.TrimSpace(strings.ToUpper(status)), normalizedKind, showDismissed)
 }
 
 type PreviewFactoriesResult struct {
@@ -201,9 +203,50 @@ func (s *RFQService) GetForViewer(userID int64, role string, rfqID int64) (*doma
 				return nil, sql.ErrNoRows
 			}
 		}
-		return s.repo.GetByIDAny(rfqID)
+		rfq, err := s.repo.GetByIDAny(rfqID)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.repo.EnrichFactoryDismissalState(rfq, userID); err != nil {
+			return nil, err
+		}
+		return rfq, nil
 	}
 	return s.GetByID(userID, rfqID)
+}
+
+func (s *RFQService) DismissRFQ(factoryID, rfqID int64) (*domain.FactoryRFQDismissal, bool, error) {
+	exists, err := s.repo.RFQExists(rfqID)
+	if err != nil {
+		return nil, false, err
+	}
+	if !exists {
+		return nil, false, sql.ErrNoRows
+	}
+	status, hasQuotation, err := s.repo.FactoryQuotationStatus(factoryID, rfqID)
+	if err != nil {
+		return nil, false, err
+	}
+	if hasQuotation {
+		switch status {
+		case "AC":
+			return nil, false, ErrQuotationAccepted
+		case "PD":
+			return nil, false, ErrHasActiveQuotation
+		}
+	}
+	return s.repo.DismissFactoryRFQ(factoryID, rfqID)
+}
+
+func (s *RFQService) UndismissRFQ(factoryID, rfqID int64) error {
+	exists, err := s.repo.RFQExists(rfqID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return sql.ErrNoRows
+	}
+	return s.repo.UndismissFactoryRFQ(factoryID, rfqID)
 }
 
 func validateRFQEnums(rfq *domain.RFQ) error {
