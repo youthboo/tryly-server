@@ -16,6 +16,10 @@ func NewMessageRepository(db *sqlx.DB) *MessageRepository {
 	return &MessageRepository{db: db}
 }
 
+func (r *MessageRepository) BeginTx() (*sqlx.Tx, error) {
+	return r.db.Beginx()
+}
+
 func (r *MessageRepository) Create(item *domain.Message) error {
 	return r.CreateTx(r.db, item)
 }

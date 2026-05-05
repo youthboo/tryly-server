@@ -17,8 +17,8 @@ type ConversationService struct {
 	messages *MessageService
 }
 
-var ErrConversationNotFoundOrForbidden = errors.New("conversation not found or forbidden")
 var ErrConversationForbidden = errors.New("conversation forbidden")
+var ErrConversationNotFound = errors.New("conversation not found")
 
 func NewConversationService(repo *repository.ConversationRepository, rfqs *repository.RFQRepository, messages *MessageService) *ConversationService {
 	return &ConversationService{repo: repo, rfqs: rfqs, messages: messages}
@@ -78,9 +78,19 @@ func (s *ConversationService) CreateFromShowcase(showcaseID, customerID int64) (
 }
 
 func (s *ConversationService) MarkAsRead(convID, userID int64) error {
-	err := s.repo.MarkAsRead(convID, userID)
+	conv, err := s.repo.GetByID(convID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrConversationNotFound
+		}
+		return err
+	}
+	if conv.CustomerID != userID && conv.FactoryID != userID {
+		return ErrConversationForbidden
+	}
+	err = s.repo.MarkAsRead(convID, userID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return ErrConversationNotFoundOrForbidden
+		return ErrConversationNotFound
 	}
 	return err
 }

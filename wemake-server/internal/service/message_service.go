@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 )
 
@@ -44,6 +45,7 @@ var allowedMessageTypes = map[string]struct{}{
 
 type messageRepository interface {
 	Create(item *domain.Message) error
+	BeginTx() (*sqlx.Tx, error)
 	CreateTx(exec interface {
 		Exec(query string, args ...interface{}) (sql.Result, error)
 	}, item *domain.Message) error
@@ -84,8 +86,42 @@ func (s *MessageService) Create(item *domain.Message) error {
 	if err := s.validateCreate(item); err != nil {
 		return err
 	}
+	// Read receipt invariant: a new outgoing message is always unread.
+	item.IsRead = false
 	item.CreatedAt = time.Now().UTC()
-	if err := s.repo.Create(item); err != nil {
+	if item.ConvID == nil {
+		if err := s.repo.Create(item); err != nil {
+			return err
+		}
+		s.notifyReceiver(item)
+		return nil
+	}
+	conv, err := s.convRepo.GetByID(*item.ConvID)
+	if err != nil {
+		return err
+	}
+	unreadField := "unread_factory"
+	if item.ReceiverID == conv.CustomerID {
+		unreadField = "unread_customer"
+	}
+	tx, err := s.repo.BeginTx()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := s.repo.CreateTx(tx, item); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`
+		UPDATE conversations
+		SET `+unreadField+` = COALESCE(`+unreadField+`, 0) + 1,
+		    last_message = $2,
+		    updated_at = $3
+		WHERE conv_id = $1
+	`, *item.ConvID, item.Content, item.CreatedAt); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
 		return err
 	}
 	s.notifyReceiver(item)
@@ -111,6 +147,7 @@ func (s *MessageService) CreateTx(tx interface {
 	if err := s.validateCreate(item); err != nil {
 		return err
 	}
+	item.IsRead = false
 	item.CreatedAt = time.Now().UTC()
 	return s.repo.CreateTx(tx, item)
 }

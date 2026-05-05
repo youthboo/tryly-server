@@ -104,7 +104,10 @@ func (h *ConversationHandler) MarkAsRead(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid conv_id"})
 	}
 	if err := h.service.MarkAsRead(int64(convID), userID); err != nil {
-		if errors.Is(err, service.ErrConversationNotFoundOrForbidden) {
+		if errors.Is(err, service.ErrConversationForbidden) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
+		}
+		if errors.Is(err, service.ErrConversationNotFound) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "conversation not found"})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to mark conversation as read"})
