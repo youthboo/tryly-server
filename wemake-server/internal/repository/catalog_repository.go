@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"strings"
+
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 )
@@ -13,10 +15,20 @@ func NewCatalogRepository(db *sqlx.DB) *CatalogRepository {
 	return &CatalogRepository{db: db}
 }
 
-func (r *CatalogRepository) GetCategories() ([]domain.Category, error) {
+func (r *CatalogRepository) GetCategories(scope string) ([]domain.Category, error) {
 	var categories []domain.Category
-	query := "SELECT category_id, name FROM categories ORDER BY category_id ASC"
-	err := r.db.Select(&categories, query)
+	scope = strings.TrimSpace(strings.ToUpper(scope))
+	query := "SELECT category_id, name, COALESCE(scope, 'PD') AS scope FROM categories"
+	args := []interface{}{}
+	if scope == "" {
+		scope = "PD"
+	}
+	if scope != "ALL" {
+		query += " WHERE COALESCE(scope, 'PD') = $1"
+		args = append(args, scope)
+	}
+	query += " ORDER BY category_id ASC"
+	err := r.db.Select(&categories, query, args...)
 	return categories, err
 }
 

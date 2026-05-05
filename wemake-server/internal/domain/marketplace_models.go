@@ -16,6 +16,7 @@ const (
 type Category struct {
 	CategoryID int64  `db:"category_id" json:"category_id"`
 	Name       string `db:"name" json:"name"`
+	Scope      string `db:"scope" json:"scope,omitempty"`
 }
 
 type SubCategory struct {

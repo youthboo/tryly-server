@@ -229,6 +229,25 @@ func (r *RFQRepository) ShippingMethodExists(shippingMethodID int64) (bool, erro
 	return exists, err
 }
 
+func (r *RFQRepository) CategoryScope(categoryID int64) (string, bool, error) {
+	var scope sql.NullString
+	err := r.db.Get(&scope, `
+		SELECT COALESCE(scope, 'PD') AS scope
+		FROM categories
+		WHERE category_id = $1
+	`, categoryID)
+	if err == sql.ErrNoRows {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	if !scope.Valid || strings.TrimSpace(scope.String) == "" {
+		return "PD", true, nil
+	}
+	return strings.TrimSpace(strings.ToUpper(scope.String)), true, nil
+}
+
 // GetByIDAny loads RFQ by id without customer ownership check.
 func (r *RFQRepository) GetByIDAny(rfqID int64) (*domain.RFQ, error) {
 	var rfq domain.RFQ
@@ -327,13 +346,12 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 				AND EXISTS (
 					SELECT 1
 					FROM factory_showcases fs
+					INNER JOIN categories cat ON cat.category_id = fs.category_id
 					WHERE fs.factory_id = $1
 					  AND fs.content_type = 'MT'
 					  AND fs.status = 'AC'
-					  AND (
-						fs.sub_category_id = r.sub_category_id
-						OR (r.sub_category_id IS NULL AND fs.category_id = r.category_id)
-					  )
+					  AND COALESCE(cat.scope, 'PD') = 'MT'
+					  AND fs.category_id = r.category_id
 				)
 			)
 		  )
@@ -365,16 +383,15 @@ func (r *RFQRepository) ListMatchingFactoryIDsForKind(kind string, categoryID in
 		query := `
 			SELECT DISTINCT fs.factory_id
 			FROM factory_showcases fs
+			INNER JOIN categories cat ON cat.category_id = fs.category_id
 			LEFT JOIN factory_profiles fp ON fp.user_id = fs.factory_id
 			WHERE fs.content_type = 'MT'
 			  AND fs.status = 'AC'
+			  AND COALESCE(cat.scope, 'PD') = 'MT'
 			  AND COALESCE(fp.approval_status, 'AP') <> 'SU'
-			  AND (
-				fs.sub_category_id = $2
-				OR ($2::bigint IS NULL AND fs.category_id = $1)
-			  )
+			  AND fs.category_id = $1
 		`
-		if err := r.db.Select(&ids, query, nullableZeroInt64(categoryID), nullableInt64Value(subCategoryID)); err != nil {
+		if err := r.db.Select(&ids, query, nullableZeroInt64(categoryID)); err != nil {
 			return nil, err
 		}
 		return ids, nil

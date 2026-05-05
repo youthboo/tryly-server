@@ -2,6 +2,7 @@ package handler
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/service"
@@ -16,11 +17,26 @@ func NewCatalogHandler(service *service.CatalogService) *CatalogHandler {
 }
 
 func (h *CatalogHandler) GetCategories(c *fiber.Ctx) error {
-	items, err := h.service.GetCategories()
+	items, err := h.service.GetCategories(c.Query("scope"))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch categories"})
 	}
 	return c.JSON(items)
+}
+
+func (h *CatalogHandler) GetLBICategories(c *fiber.Ctx) error {
+	scope := strings.TrimSpace(strings.ToUpper(c.Query("scope")))
+	if scope == "" {
+		scope = "PD"
+	}
+	if scope != "PD" && scope != "MT" && scope != "ALL" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "INVALID_SCOPE"})
+	}
+	items, err := h.service.GetCategories(scope)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch categories"})
+	}
+	return c.JSON(fiber.Map{"categories": items})
 }
 
 func (h *CatalogHandler) GetSubCategories(c *fiber.Ctx) error {

@@ -22,6 +22,7 @@ var (
 	ErrRFQInspectionInvalid  = errors.New("inspection_type is invalid")
 	ErrRFQKindInvalid        = errors.New("request_kind must be PR, PS, or MS")
 	ErrRFQSampleQtyInvalid   = errors.New("sample request quantity is outside allowed range")
+	ErrRFQWrongScope         = errors.New("WRONG_SCOPE")
 )
 
 type RFQService struct {
@@ -60,6 +61,9 @@ func (s *RFQService) Create(rfq *domain.RFQ) error {
 		return ErrRFQKindInvalid
 	}
 	normalizeSampleFields(rfq)
+	if err := s.validateCategoryScope(rfq.RequestKind, rfq.CategoryID); err != nil {
+		return err
+	}
 	if err := validateRFQKindRules(rfq); err != nil {
 		return err
 	}
@@ -79,7 +83,7 @@ func (s *RFQService) Create(rfq *domain.RFQ) error {
 		rfq.SampleQty = nil
 	}
 
-	if rfq.SubCategoryID != nil {
+	if rfq.RequestKind != domain.RequestKindMaterialSample && rfq.SubCategoryID != nil {
 		valid, err := s.repo.SubCategoryBelongsToCategory(*rfq.SubCategoryID, rfq.CategoryID)
 		if err != nil {
 			return err
@@ -157,7 +161,13 @@ func (s *RFQService) PreviewFactories(kind string, categoryID int64, subCategory
 	if !categoryExists {
 		return nil, ErrInvalidCategory
 	}
-	if subCategoryID != nil {
+	if err := s.validateCategoryScope(normalizedKind, categoryID); err != nil {
+		return nil, err
+	}
+	if normalizedKind == domain.RequestKindMaterialSample {
+		subCategoryID = nil
+	}
+	if normalizedKind != domain.RequestKindMaterialSample && subCategoryID != nil {
 		valid, err := s.repo.SubCategoryBelongsToCategory(*subCategoryID, categoryID)
 		if err != nil {
 			return nil, err
@@ -226,6 +236,9 @@ func (s *RFQService) Patch(userID, rfqID int64, rfq *domain.RFQ) error {
 		rfq.RequestKind = domain.RequestKindProduction
 	}
 	normalizeSampleFields(rfq)
+	if err := s.validateCategoryScope(rfq.RequestKind, rfq.CategoryID); err != nil {
+		return err
+	}
 	rfq.CreatedAt = existing.CreatedAt
 	rfq.UploadedAt = existing.UploadedAt
 	rfq.UpdatedAt = time.Now()
@@ -243,7 +256,7 @@ func (s *RFQService) Patch(userID, rfqID int64, rfq *domain.RFQ) error {
 	if !rfq.SampleRequired {
 		rfq.SampleQty = nil
 	}
-	if rfq.SubCategoryID != nil {
+	if rfq.RequestKind != domain.RequestKindMaterialSample && rfq.SubCategoryID != nil {
 		valid, err := s.repo.SubCategoryBelongsToCategory(*rfq.SubCategoryID, rfq.CategoryID)
 		if err != nil {
 			return err
@@ -326,6 +339,27 @@ func normalizeSampleFields(rfq *domain.RFQ) {
 	rfq.CertificationsRequired = []string{}
 	rfq.InspectionType = nil
 	rfq.MaterialGrade = nil
+	if rfq.RequestKind == domain.RequestKindMaterialSample {
+		rfq.SubCategoryID = nil
+	}
+}
+
+func (s *RFQService) validateCategoryScope(kind string, categoryID int64) error {
+	scope, found, err := s.repo.CategoryScope(categoryID)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return ErrInvalidCategory
+	}
+	expected := "PD"
+	if kind == domain.RequestKindMaterialSample {
+		expected = "MT"
+	}
+	if scope != expected {
+		return ErrRFQWrongScope
+	}
+	return nil
 }
 
 func (s *RFQService) notifyMatchingFactories(rfq *domain.RFQ) {

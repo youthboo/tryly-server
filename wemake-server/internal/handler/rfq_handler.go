@@ -95,7 +95,7 @@ func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.Create(rfq); err != nil {
-		if err == service.ErrInvalidSubCategory || err == service.ErrInvalidShippingMethod || err == service.ErrMaxRFQReferenceImages || err == service.ErrRFQInspectionInvalid || err == service.ErrRFQDetailsRequired || err == service.ErrRFQDetailsTooShort || err == service.ErrRFQKindInvalid || err == service.ErrRFQSampleQtyInvalid {
+		if err == service.ErrInvalidSubCategory || err == service.ErrInvalidCategory || err == service.ErrInvalidShippingMethod || err == service.ErrMaxRFQReferenceImages || err == service.ErrRFQInspectionInvalid || err == service.ErrRFQDetailsRequired || err == service.ErrRFQDetailsTooShort || err == service.ErrRFQKindInvalid || err == service.ErrRFQSampleQtyInvalid || err == service.ErrRFQWrongScope {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create rfq"})
@@ -218,6 +218,9 @@ func (h *RFQHandler) PreviewFactories(c *fiber.Ctx) error {
 	if err != nil {
 		if err == service.ErrRFQKindInvalid {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "INVALID_KIND"})
+		}
+		if err == service.ErrRFQWrongScope {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "WRONG_SCOPE"})
 		}
 		if err == service.ErrInvalidSubCategory || err == service.ErrInvalidCategory {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "CATEGORY_NOT_FOUND"})
