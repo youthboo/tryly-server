@@ -12,11 +12,28 @@ import (
 )
 
 type ShowcaseService struct {
-	repo *repository.ShowcaseRepository
+	repo        *repository.ShowcaseRepository
+	factoryRepo *repository.FactoryRepository
 }
 
-func NewShowcaseService(repo *repository.ShowcaseRepository) *ShowcaseService {
-	return &ShowcaseService{repo: repo}
+func NewShowcaseService(repo *repository.ShowcaseRepository, factoryRepo *repository.FactoryRepository) *ShowcaseService {
+	return &ShowcaseService{repo: repo, factoryRepo: factoryRepo}
+}
+
+func (s *ShowcaseService) upsertFactoryCategoryMap(factoryID int64, item *domain.FactoryShowcase) {
+	if item.CategoryID != nil && *item.CategoryID > 0 {
+		err := s.factoryRepo.AddFactoryCategory(factoryID, *item.CategoryID)
+		if err != nil && !errors.Is(err, repository.ErrDuplicateFactoryCategory) {
+			// best-effort; ignore errors
+			_ = err
+		}
+	}
+	if item.SubCategoryID != nil && *item.SubCategoryID > 0 {
+		err := s.factoryRepo.AddFactorySubCategory(factoryID, *item.SubCategoryID)
+		if err != nil && !errors.Is(err, repository.ErrDuplicateFactorySubCategory) {
+			_ = err
+		}
+	}
 }
 
 func (s *ShowcaseService) ListExplore(contentType string) ([]domain.ShowcaseExploreItem, error) {
@@ -58,6 +75,7 @@ func (s *ShowcaseService) CreateStructured(factoryID int64, input domain.Showcas
 	if err := s.repo.Create(item); err != nil {
 		return nil, err
 	}
+	s.upsertFactoryCategoryMap(factoryID, item)
 	return item, nil
 }
 
@@ -107,6 +125,7 @@ func (s *ShowcaseService) UpdateStructured(showcaseID, factoryID int64, input do
 	if err := s.repo.Update(item); err != nil {
 		return nil, err
 	}
+	s.upsertFactoryCategoryMap(factoryID, item)
 	return s.repo.GetByID(showcaseID, factoryID)
 }
 
@@ -211,12 +230,12 @@ func (s *ShowcaseService) validateShowcase(item *domain.FactoryShowcase) error {
 	}
 
 	if item.ContentType == "" {
-		add("content_type", "must be one of PD, PM, ID")
+		add("content_type", "must be one of PD, PM, ID, MT")
 	}
 	switch item.ContentType {
-	case "PD", "PM", "ID":
+	case "PD", "PM", "ID", "MT":
 	default:
-		add("content_type", "must be one of PD, PM, ID")
+		add("content_type", "must be one of PD, PM, ID, MT")
 	}
 	if !validShowcaseStatus(item.Status) {
 		add("status", "must be one of DR, AC, HI, AR")
@@ -281,7 +300,7 @@ func (s *ShowcaseService) validateShowcase(item *domain.FactoryShowcase) error {
 		contentLen = len([]rune(*item.Content))
 	}
 	switch item.ContentType {
-	case "PD", "PM":
+	case "PD", "PM", "MT":
 		if contentLen > 50000 {
 			add("content", "content exceeds max length")
 		}
@@ -296,22 +315,14 @@ func (s *ShowcaseService) validateShowcase(item *domain.FactoryShowcase) error {
 			add("image_url", "is required when showcase is active")
 		}
 		switch item.ContentType {
-		case "PD":
-			if item.MOQ == nil {
-				add("moq", "is required for PD")
-			}
-			if item.BasePrice == nil {
-				add("base_price", "is required for PD")
-			}
+		case "PD", "MT":
+			// base_price and lead_time_days are optional
 		case "PM":
-			if item.MOQ == nil {
-				add("moq", "is required for PM")
-			}
-			if item.BasePrice == nil {
-				add("base_price", "is required for PM")
-			}
 			if item.PromoPrice == nil {
 				add("promo_price", "is required for PM")
+			}
+			if item.BasePrice != nil && item.PromoPrice != nil && *item.PromoPrice > *item.BasePrice {
+				add("promo_price", "must not exceed base_price")
 			}
 			if item.StartDate == nil {
 				add("start_date", "is required for PM")
@@ -328,15 +339,15 @@ func (s *ShowcaseService) validateShowcase(item *domain.FactoryShowcase) error {
 
 	if fullValidation {
 		switch item.ContentType {
-		case "PD":
+		case "PD", "MT":
 			if item.PromoPrice != nil {
-				add("promo_price", "must be null for PD")
+				add("promo_price", "must be null for "+item.ContentType)
 			}
 			if item.StartDate != nil {
-				add("start_date", "must be null for PD")
+				add("start_date", "must be null for "+item.ContentType)
 			}
 			if item.EndDate != nil {
-				add("end_date", "must be null for PD")
+				add("end_date", "must be null for "+item.ContentType)
 			}
 		case "PM":
 			if item.StartDate != nil && item.EndDate != nil && item.EndDate.Before(*item.StartDate) {

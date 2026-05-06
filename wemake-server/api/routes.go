@@ -81,7 +81,7 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	frontendService := service.NewFrontendService(frontendRepo)
 	reviewService := service.NewReviewService(reviewRepo)
 	conversationService := service.NewConversationService(conversationRepo, rfqRepo, messageService)
-	showcaseService := service.NewShowcaseService(showcaseRepo)
+	showcaseService := service.NewShowcaseService(showcaseRepo, factoryRepo)
 	boqService := service.NewBOQService(db, conversationRepo, rfqRepo, rfqItemRepo, quotationRepo, quotationItemRepo, orderService, messageService, notificationService, commissionService)
 	profileService := service.NewProfileService(profileRepo, authRepo)
 	factoryService := service.NewFactoryService(factoryRepo)
