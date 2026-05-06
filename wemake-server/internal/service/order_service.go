@@ -139,22 +139,13 @@ func (s *OrderService) CreateFromQuotation(quotationID, userID int64) (*domain.O
 	case "RJ":
 		return nil, ErrQuotationRejected
 	case "PD":
-		if err := s.quotations.RejectOtherPendingQuotationsTx(tx, src.RFQID, quotationID); err != nil {
-			return nil, err
-		}
+		// Multi-factory: ยอมรับเฉพาะ quote นี้ ไม่ reject quotations อื่น
+		// ไม่ปิด RFQ อัตโนมัติ — ลูกค้าสามารถยอมรับโรงงานอื่นได้ต่อ
 		if err := s.quotations.UpdateStatusTx(tx, quotationID, "AC"); err != nil {
 			return nil, err
 		}
-		if err := s.rfqs.CloseOpenRFQForUserTx(tx, src.RFQID, userID); err != nil {
-			return nil, err
-		}
 	case "AC":
-		if err := s.quotations.RejectOtherPendingQuotationsTx(tx, src.RFQID, quotationID); err != nil {
-			return nil, err
-		}
-		if err := s.rfqs.CloseOpenRFQForUserTx(tx, src.RFQID, userID); err != nil {
-			return nil, err
-		}
+		// AC แล้ว — ไม่ทำอะไรกับ quotation อื่น แค่ตรวจสอบว่า order ยังไม่มี
 	default:
 		return nil, ErrQuotationInvalidState
 	}

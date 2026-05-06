@@ -255,6 +255,7 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	rfqs.Get("/:rfq_id", rfqHandler.GetRFQ)
 	rfqs.Patch("/:rfq_id", rfqHandler.PatchRFQ)
 	rfqs.Patch("/:rfq_id/cancel", rfqHandler.CancelRFQ)
+	rfqs.Patch("/:rfq_id/close", rfqHandler.CloseRFQ)
 	rfqs.Post("/:rfq_id/bulk-checkout", orderHandler.BulkCheckout)
 	rfqs.Post("/:rfq_id/quotations", quotationHandler.CreateQuotation)
 	rfqs.Get("/:rfq_id/quotations", quotationHandler.ListQuotationsByRFQ)

@@ -123,6 +123,12 @@ func (s *RFQService) Cancel(userID, rfqID int64) error {
 	return s.repo.Cancel(userID, rfqID)
 }
 
+// Close lets the customer manually stop accepting new quotations for an open RFQ (OP → CL).
+// Unlike Cancel, existing accepted quotations/orders remain untouched.
+func (s *RFQService) Close(userID, rfqID int64) error {
+	return s.repo.CloseRFQ(userID, rfqID)
+}
+
 func (s *RFQService) ListMatchingForFactory(factoryID int64, status string, kind string, showDismissed bool) ([]domain.RFQ, error) {
 	if s.factoryRepo != nil {
 		approvalStatus, err := s.factoryRepo.GetApprovalStatus(factoryID)

@@ -360,3 +360,21 @@ func (h *RFQHandler) CancelRFQ(c *fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{"message": "rfq canceled"})
 }
+
+// CloseRFQ lets the customer manually close (stop accepting new quotes) an open RFQ.
+// PATCH /rfqs/:rfq_id/close
+func (h *RFQHandler) CloseRFQ(c *fiber.Ctx) error {
+	userID, err := getUserIDFromHeader(c)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+	}
+	rfqID, err := c.ParamsInt("rfq_id")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
+	}
+
+	if err := h.service.Close(userID, int64(rfqID)); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to close rfq"})
+	}
+	return c.JSON(fiber.Map{"message": "rfq closed"})
+}

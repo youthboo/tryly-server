@@ -200,6 +200,18 @@ func (r *RFQRepository) CloseOpenRFQForUserTx(tx *sqlx.Tx, rfqID, userID int64) 
 	return err
 }
 
+// CloseRFQ lets a customer manually close (stop accepting new quotes) an open RFQ.
+// Only OP RFQs owned by userID can be closed; pending quotations are NOT expired so
+// existing accepted factories remain active.
+func (r *RFQRepository) CloseRFQ(userID, rfqID int64) error {
+	_, err := r.db.Exec(`
+		UPDATE rfqs
+		SET status = 'CL', updated_at = NOW()
+		WHERE rfq_id = $1 AND user_id = $2 AND status = 'OP'
+	`, rfqID, userID)
+	return err
+}
+
 func (r *RFQRepository) SubCategoryBelongsToCategory(subCategoryID, categoryID int64) (bool, error) {
 	var exists bool
 	query := `
