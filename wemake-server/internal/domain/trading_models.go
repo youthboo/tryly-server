@@ -218,6 +218,8 @@ type OrderDetailResponse struct {
 	Factory           OrderFactorySummary        `json:"factory"`
 	CustomerUserID    int64                      `json:"customer_user_id"`
 	EstimatedDelivery *time.Time                 `json:"estimated_delivery,omitempty"`
+	ShippingDays      int                        `json:"shipping_days"`
+	LeadTimeDays      *int                       `json:"lead_time_days,omitempty"`
 	TrackingNo        *string                    `json:"tracking_no,omitempty"`
 	Courier           *string                    `json:"courier,omitempty"`
 	ShippedAt         *time.Time                 `json:"shipped_at,omitempty"`

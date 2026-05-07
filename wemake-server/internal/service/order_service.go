@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -119,6 +121,38 @@ func NewOrderService(db *sqlx.DB, repo *repository.OrderRepository, schedules *r
 
 var thailandLocation = time.FixedZone("Asia/Bangkok", 7*60*60)
 
+func getShippingDays(db *sqlx.DB) int {
+	var cfg struct {
+		Value string `db:"value"`
+	}
+	err := db.Get(&cfg, `SELECT value FROM platform_configs WHERE key = 'shipping_days'`)
+	if err == nil && cfg.Value != "" {
+		if n, err := strconv.Atoi(cfg.Value); err == nil && n > 0 {
+			return n
+		}
+	}
+
+	if s := os.Getenv("PLATFORM_SHIPPING_DAYS"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			return n
+		}
+	}
+
+	return 7
+}
+
+func calculateEstimatedDelivery(orderDate time.Time, leadTimeDays int64, shippingDays int, deliveryDate *time.Time) time.Time {
+	if deliveryDate != nil {
+		return dateOnly(*deliveryDate)
+	}
+	est := orderDate.AddDate(0, 0, int(leadTimeDays)+shippingDays)
+	return dateOnly(est)
+}
+
+func dateOnly(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+}
+
 // CreateFromQuotation accepts a pending (PD) quotation or continues from an already-accepted (AC) quote.
 // For PD: rejects sibling PD quotations, sets this quote to AC, closes the RFQ (OP→CL), then creates an order in payment-pending state.
 func (s *OrderService) CreateFromQuotation(quotationID, userID int64) (*domain.Order, error) {
@@ -175,9 +209,9 @@ func (s *OrderService) CreateFromQuotation(quotationID, userID int64) (*domain.O
 		status = "PE"
 	}
 
+	shippingDays := getShippingDays(s.db)
 	now := time.Now()
-	est := now.AddDate(0, 0, int(src.LeadTimeDays))
-	deliveryDate := time.Date(est.Year(), est.Month(), est.Day(), 0, 0, 0, 0, est.Location())
+	deliveryDate := calculateEstimatedDelivery(now, src.LeadTimeDays, shippingDays, src.DeliveryDate)
 	order := &domain.Order{
 		QuotationID:       src.QuotationID,
 		UserID:            src.UserID,
@@ -321,6 +355,7 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 		Quantity      int64      `db:"quantity"`
 		MoldCost      float64    `db:"mold_cost"`
 		LeadTimeDays  int64      `db:"lead_time_days"`
+		DeliveryDate  *time.Time `db:"delivery_date"`
 		Status        string     `db:"status"`
 		GrandTotal    float64    `db:"grand_total"`
 		ValidUntil    *time.Time `db:"valid_until"`
@@ -328,7 +363,7 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 	var quotes []lockedQuotation
 	if err := tx.Select(&quotes, `
 		SELECT q.quote_id, q.rfq_id, q.factory_id, q.price_per_piece, r.quantity,
-		       q.mold_cost, q.lead_time_days, q.status, COALESCE(q.grand_total, 0) AS grand_total,
+		       q.mold_cost, q.lead_time_days, q.delivery_date, q.status, COALESCE(q.grand_total, 0) AS grand_total,
 		       COALESCE(q.valid_until, (q.create_time + (q.validity_days::text || ' day')::interval)::date) AS valid_until
 		FROM quotations q
 		INNER JOIN rfqs r ON r.rfq_id = q.rfq_id
@@ -342,6 +377,7 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 		return nil, ErrInvalidQuotationSet
 	}
 
+	shippingDays := getShippingDays(s.db)
 	now := time.Now()
 	orders := make([]domain.Order, 0, len(quotes))
 	for _, q := range quotes {
@@ -374,8 +410,7 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 			status = "PE"
 			deposit = 0
 		}
-		est := now.AddDate(0, 0, int(q.LeadTimeDays))
-		deliveryDate := time.Date(est.Year(), est.Month(), est.Day(), 0, 0, 0, 0, est.Location())
+		deliveryDate := calculateEstimatedDelivery(now, q.LeadTimeDays, shippingDays, q.DeliveryDate)
 		order := &domain.Order{
 			QuotationID:       q.QuoteID,
 			UserID:            input.UserID,
@@ -766,6 +801,8 @@ func (s *OrderService) GetDetailByID(orderID, userID int64, role string) (*domai
 	if row.RFQCategoryName != nil {
 		rfqCategoryName = *row.RFQCategoryName
 	}
+	shippingDays := getShippingDays(s.db)
+	leadTimeDays := int(row.LeadTimeDays)
 
 	return &domain.OrderDetailResponse{
 		OrderID:           row.OrderID,
@@ -781,6 +818,8 @@ func (s *OrderService) GetDetailByID(orderID, userID int64, role string) (*domai
 		Factory:           domain.OrderFactorySummary{FactoryID: row.FactoryID, Name: row.FactoryName},
 		CustomerUserID:    row.UserID,
 		EstimatedDelivery: timePtrInTH(row.EstimatedDelivery),
+		ShippingDays:      shippingDays,
+		LeadTimeDays:      &leadTimeDays,
 		TrackingNo:        row.TrackingNo,
 		Courier:           row.Courier,
 		ShippedAt:         timePtrInTH(row.ShippedAt),
@@ -831,6 +870,8 @@ func (s *OrderService) GetAdminDetailByID(orderID int64) (*domain.OrderDetailRes
 	if row.RFQCategoryName != nil {
 		rfqCategoryName = *row.RFQCategoryName
 	}
+	shippingDays := getShippingDays(s.db)
+	leadTimeDays := int(row.LeadTimeDays)
 	return &domain.OrderDetailResponse{
 		OrderID:           row.OrderID,
 		QuotationID:       row.QuotationID,
@@ -845,6 +886,8 @@ func (s *OrderService) GetAdminDetailByID(orderID int64) (*domain.OrderDetailRes
 		Factory:           domain.OrderFactorySummary{FactoryID: row.FactoryID, Name: row.FactoryName},
 		CustomerUserID:    row.UserID,
 		EstimatedDelivery: timePtrInTH(row.EstimatedDelivery),
+		ShippingDays:      shippingDays,
+		LeadTimeDays:      &leadTimeDays,
 		TrackingNo:        row.TrackingNo,
 		Courier:           row.Courier,
 		ShippedAt:         timePtrInTH(row.ShippedAt),

@@ -17,16 +17,17 @@ type OrderRepository struct {
 }
 
 type QuotationOrderSource struct {
-	QuotationID   int64   `db:"quote_id"`
-	RFQID         int64   `db:"rfq_id"`
-	UserID        int64   `db:"user_id"`
-	FactoryID     int64   `db:"factory_id"`
-	PricePerPiece float64 `db:"price_per_piece"`
-	Quantity      int64   `db:"quantity"`
-	MoldCost      float64 `db:"mold_cost"`
-	LeadTimeDays  int64   `db:"lead_time_days"`
-	Status        string  `db:"status"`
-	GrandTotal    float64 `db:"grand_total"` // VAT-inclusive total from commission calculation
+	QuotationID   int64      `db:"quote_id"`
+	RFQID         int64      `db:"rfq_id"`
+	UserID        int64      `db:"user_id"`
+	FactoryID     int64      `db:"factory_id"`
+	PricePerPiece float64    `db:"price_per_piece"`
+	Quantity      int64      `db:"quantity"`
+	MoldCost      float64    `db:"mold_cost"`
+	LeadTimeDays  int64      `db:"lead_time_days"`
+	DeliveryDate  *time.Time `db:"delivery_date"`
+	Status        string     `db:"status"`
+	GrandTotal    float64    `db:"grand_total"` // VAT-inclusive total from commission calculation
 }
 
 type OrderDetailRow struct {
@@ -55,7 +56,7 @@ func (r *OrderRepository) GetOrderSourceByQuotationID(quotationID, userID int64)
 	var src QuotationOrderSource
 	query := `
 		SELECT q.quote_id, q.rfq_id, rfq.user_id, q.factory_id, q.price_per_piece, rfq.quantity,
-		       q.mold_cost, q.lead_time_days, q.status, COALESCE(q.grand_total, 0) AS grand_total
+		       q.mold_cost, q.lead_time_days, q.delivery_date, q.status, COALESCE(q.grand_total, 0) AS grand_total
 		FROM quotations q
 		INNER JOIN rfqs rfq ON rfq.rfq_id = q.rfq_id
 		WHERE q.quote_id = $1 AND rfq.user_id = $2
@@ -122,7 +123,7 @@ func (r *OrderRepository) GetOrderSourceByQuotationIDTx(tx *sqlx.Tx, quotationID
 	var src QuotationOrderSource
 	query := `
 		SELECT q.quote_id, q.rfq_id, rfq.user_id, q.factory_id, q.price_per_piece, rfq.quantity,
-		       q.mold_cost, q.lead_time_days, q.status, COALESCE(q.grand_total, 0) AS grand_total
+		       q.mold_cost, q.lead_time_days, q.delivery_date, q.status, COALESCE(q.grand_total, 0) AS grand_total
 		FROM quotations q
 		INNER JOIN rfqs rfq ON rfq.rfq_id = q.rfq_id
 		WHERE q.quote_id = $1 AND rfq.user_id = $2
