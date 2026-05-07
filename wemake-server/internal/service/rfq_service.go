@@ -393,7 +393,7 @@ func normalizeSampleFields(rfq *domain.RFQ) {
 	rfq.RequiredDeliveryDate = nil
 	rfq.CertificationsRequired = []string{}
 	rfq.InspectionType = nil
-	rfq.MaterialGrade = nil
+	// MaterialGrade ยังคงส่งได้สำหรับ sample — ลูกค้าระบุวัตถุดิบที่ต้องการได้
 	if rfq.RequestKind == domain.RequestKindMaterialSample {
 		rfq.SubCategoryID = nil
 	}
