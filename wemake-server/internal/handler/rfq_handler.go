@@ -33,7 +33,7 @@ func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
 		AddressID              int64    `json:"address_id"`
 		ShippingMethodID       *int64   `json:"shipping_method_id"`
 		MaterialGrade          *string  `json:"material_grade"`
-		TargetUnitPrice        *float64 `json:"target_unit_price"`
+		TargetPrice            *float64 `json:"target_price"`
 		TargetLeadTimeDays     *int     `json:"target_lead_time_days"`
 		RequiredDeliveryDate   *string  `json:"required_delivery_date"`
 		DeliveryAddressID      *int64   `json:"delivery_address_id"`
@@ -74,7 +74,7 @@ func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
 		AddressID:              req.AddressID,
 		ShippingMethodID:       req.ShippingMethodID,
 		MaterialGrade:          req.MaterialGrade,
-		TargetUnitPrice:        req.TargetUnitPrice,
+		TargetPrice:            req.TargetPrice,
 		TargetLeadTimeDays:     req.TargetLeadTimeDays,
 		DeliveryAddressID:      req.DeliveryAddressID,
 		CertificationsRequired: req.CertificationsRequired,
@@ -125,7 +125,7 @@ func (h *RFQHandler) PatchRFQ(c *fiber.Ctx) error {
 		AddressID              int64    `json:"address_id"`
 		ShippingMethodID       *int64   `json:"shipping_method_id"`
 		MaterialGrade          *string  `json:"material_grade"`
-		TargetUnitPrice        *float64 `json:"target_unit_price"`
+		TargetPrice            *float64 `json:"target_price"`
 		TargetLeadTimeDays     *int     `json:"target_lead_time_days"`
 		RequiredDeliveryDate   *string  `json:"required_delivery_date"`
 		DeliveryAddressID      *int64   `json:"delivery_address_id"`
@@ -148,7 +148,7 @@ func (h *RFQHandler) PatchRFQ(c *fiber.Ctx) error {
 		CategoryID: req.CategoryID, SubCategoryID: req.SubCategoryID, Title: req.Title, Quantity: req.Quantity,
 		Details: details, AddressID: req.AddressID,
 		ShippingMethodID: req.ShippingMethodID,
-		MaterialGrade:    req.MaterialGrade, TargetUnitPrice: req.TargetUnitPrice,
+		MaterialGrade:    req.MaterialGrade, TargetPrice: req.TargetPrice,
 		TargetLeadTimeDays: req.TargetLeadTimeDays,
 		DeliveryAddressID:  req.DeliveryAddressID, CertificationsRequired: req.CertificationsRequired, SampleRequired: req.SampleRequired,
 		SampleQty: req.SampleQty, InspectionType: req.InspectionType, ReferenceImages: req.ReferenceImages,

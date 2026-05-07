@@ -77,7 +77,7 @@ type RFQ struct {
 	ShippingMethodName *string    `db:"shipping_method_name" json:"shipping_method_name"`
 	AddressSummary     *string    `db:"address_summary" json:"address_summary"`
 
-	TargetUnitPrice      *float64   `db:"target_unit_price" json:"target_unit_price,omitempty"`
+	TargetPrice          *float64   `db:"target_price" json:"target_price,omitempty"`
 	TargetLeadTimeDays   *int       `db:"target_lead_time_days" json:"target_lead_time_days,omitempty"`
 	RequiredDeliveryDate *time.Time `db:"required_delivery_date" json:"required_delivery_date,omitempty"`
 	DeliveryAddressID    *int64     `db:"delivery_address_id" json:"delivery_address_id,omitempty"`
@@ -113,7 +113,7 @@ type RFQ struct {
 	BOQDeclineReason  *string        `db:"boq_decline_reason" json:"boq_decline_reason,omitempty"`
 	Items             []RFQItem      `db:"-" json:"items,omitempty"`
 
-	// Budget UX: target_unit_price is treated as total budget (not per-piece).
+	// Budget UX: target_price is total budget (งบประมาณรวม), not per-piece price.
 	BudgetTotal    *float64 `db:"-" json:"budget_total"`
 	BudgetPerPiece *float64 `db:"-" json:"budget_per_piece"`
 	EstimatedTotal *float64 `db:"-" json:"estimated_total"`
@@ -126,7 +126,7 @@ type FactoryRFQDismissal struct {
 }
 
 // EnrichRFQBudgetFields sets budget_total, budget_per_piece, estimated_total from
-// target_unit_price (total budget) and quantity. Idempotent.
+// target_price (งบประมาณรวม / total budget) and quantity. Idempotent.
 func EnrichRFQBudgetFields(rfq *RFQ) {
 	if rfq == nil {
 		return
@@ -135,10 +135,10 @@ func EnrichRFQBudgetFields(rfq *RFQ) {
 	rfq.BudgetTotal = nil
 	rfq.BudgetPerPiece = nil
 	rfq.EstimatedTotal = nil
-	if rfq.TargetUnitPrice == nil {
+	if rfq.TargetPrice == nil {
 		return
 	}
-	total := *rfq.TargetUnitPrice
+	total := *rfq.TargetPrice
 	bt := total
 	et := total
 	rfq.BudgetTotal = &bt

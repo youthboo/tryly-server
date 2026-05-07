@@ -153,7 +153,7 @@ type AdminRFQListItem struct {
 	Quantity         int64      `db:"quantity" json:"quantity"`
 	Status           string     `db:"status" json:"status"`
 	QuotationCount   int64      `db:"quotation_count" json:"quotation_count"`
-	TargetUnitPrice  *float64   `db:"target_unit_price" json:"target_unit_price,omitempty"`
+	TargetPrice      *float64   `db:"target_price" json:"target_price,omitempty"`
 	CreatedAt        time.Time  `db:"created_at" json:"created_at"`
 }
 

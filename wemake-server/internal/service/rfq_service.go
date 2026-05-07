@@ -352,8 +352,11 @@ func validateRFQKindRules(rfq *domain.RFQ) error {
 		if len([]rune(strings.TrimSpace(rfq.Details))) < 20 {
 			return ErrRFQDetailsTooShort
 		}
-		zero := float64(0)
-		rfq.TargetUnitPrice = &zero
+		// ใช้ค่า target_price ที่ลูกค้าส่งมา ถ้าไม่มีค่อย default เป็น 0
+		if rfq.TargetPrice == nil {
+			zero := float64(0)
+			rfq.TargetPrice = &zero
+		}
 		rfq.SampleRequired = true
 	case domain.RequestKindMaterialSample:
 		if rfq.CategoryID <= 0 {
@@ -365,8 +368,11 @@ func validateRFQKindRules(rfq *domain.RFQ) error {
 		if len([]rune(strings.TrimSpace(rfq.Details))) < 20 {
 			return ErrRFQDetailsTooShort
 		}
-		zero := float64(0)
-		rfq.TargetUnitPrice = &zero
+		// ใช้ค่า target_price ที่ลูกค้าส่งมา ถ้าไม่มีค่อย default เป็น 0
+		if rfq.TargetPrice == nil {
+			zero := float64(0)
+			rfq.TargetPrice = &zero
+		}
 		rfq.SampleRequired = true
 	case domain.RequestKindProduction:
 		return nil

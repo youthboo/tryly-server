@@ -676,6 +676,22 @@ func (s *OrderService) VerifyPayment(orderID, userID int64, role, txID string) (
 			return nil, err
 		}
 		order.Status = "PD"
+
+		// Recalculate estimated_delivery starting from payment date (now), not order creation date.
+		// "นับจากหลังจากที่ลูกค้าจ่ายเงิน" — lead_time + shipping days counted from payment confirmation.
+		shippingDays := getShippingDays(s.db)
+		type quoteDelivery struct {
+			LeadTimeDays int64      `db:"lead_time_days"`
+			DeliveryDate *time.Time `db:"delivery_date"`
+		}
+		var qd quoteDelivery
+		if err2 := tx.Get(&qd, `SELECT lead_time_days, delivery_date FROM quotations WHERE quote_id = $1`, order.QuotationID); err2 == nil {
+			est := calculateEstimatedDelivery(now, qd.LeadTimeDays, shippingDays, qd.DeliveryDate)
+			if _, err2 := tx.Exec(`UPDATE orders SET estimated_delivery = $1 WHERE order_id = $2`, est, orderID); err2 != nil {
+				return nil, err2
+			}
+		}
+
 		if s.schedules != nil {
 			if err := s.schedules.PatchStatusByOrderAndInstallmentTx(tx, orderID, 1, "PD"); err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return nil, err

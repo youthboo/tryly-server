@@ -301,7 +301,7 @@ func (r *FrontendRepository) ListRFQsByUserID(userID int64) ([]FrontendRFQRow, e
 			c.name AS category,
 			r.status,
 			COUNT(q.quote_id) AS offer_count,
-			COALESCE(r.target_unit_price, 0) AS budget,
+			COALESCE(r.target_price, 0) AS budget,
 			r.quantity,
 			TO_CHAR(r.created_at, 'YYYY-MM-DD') AS created_at,
 			COALESCE(r.details, '') AS description
@@ -309,7 +309,7 @@ func (r *FrontendRepository) ListRFQsByUserID(userID int64) ([]FrontendRFQRow, e
 		INNER JOIN categories c ON c.category_id = r.category_id
 		LEFT JOIN quotations q ON q.rfq_id = r.rfq_id
 		WHERE r.user_id = $1
-		GROUP BY r.rfq_id, r.title, c.name, r.status, r.target_unit_price, r.quantity, r.created_at, r.details
+		GROUP BY r.rfq_id, r.title, c.name, r.status, r.target_price, r.quantity, r.created_at, r.details
 		ORDER BY r.created_at DESC
 	`
 	err := r.db.Select(&items, query, userID)
@@ -325,7 +325,7 @@ func (r *FrontendRepository) GetRFQByUserID(userID, rfqID int64) (*FrontendRFQRo
 			c.name AS category,
 			r.status,
 			COUNT(q.quote_id) AS offer_count,
-			COALESCE(r.target_unit_price, 0) AS budget,
+			COALESCE(r.target_price, 0) AS budget,
 			r.quantity,
 			TO_CHAR(r.created_at, 'YYYY-MM-DD') AS created_at,
 			COALESCE(r.details, '') AS description
@@ -333,7 +333,7 @@ func (r *FrontendRepository) GetRFQByUserID(userID, rfqID int64) (*FrontendRFQRo
 		INNER JOIN categories c ON c.category_id = r.category_id
 		LEFT JOIN quotations q ON q.rfq_id = r.rfq_id
 		WHERE r.user_id = $1 AND r.rfq_id = $2
-		GROUP BY r.rfq_id, r.title, c.name, r.status, r.target_unit_price, r.quantity, r.created_at, r.details
+		GROUP BY r.rfq_id, r.title, c.name, r.status, r.target_price, r.quantity, r.created_at, r.details
 	`
 	if err := r.db.Get(&item, query, userID, rfqID); err != nil {
 		return nil, err

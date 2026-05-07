@@ -442,7 +442,7 @@ func (r *OrderRepository) GetDetailByParticipant(orderID, userID int64, role str
 			COALESCE(r.title, '') AS rfq_title,
 			r.details AS rfq_details,
 			r.quantity AS rfq_quantity,
-			COALESCE(r.target_unit_price, 0) AS rfq_budget,
+			COALESCE(r.target_price, 0) AS rfq_budget,
 			r.created_at AS rfq_created_at,
 			r.category_id AS rfq_category_id,
 			cat.name AS rfq_category_name,

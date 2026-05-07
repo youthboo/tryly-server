@@ -54,7 +54,7 @@ func (r *RFQRepository) ListAdmin(filter domain.AdminRFQFilter) ([]domain.AdminR
 			r.quantity,
 			r.status,
 			COUNT(q.quote_id)::bigint AS quotation_count,
-			r.target_unit_price,
+			r.target_price,
 			r.created_at
 		FROM rfqs r
 		INNER JOIN users u ON u.user_id = r.user_id
