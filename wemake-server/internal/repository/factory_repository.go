@@ -784,3 +784,11 @@ func (r *FactoryRepository) GetAnalytics(factoryID int64) (*domain.FactoryAnalyt
 
 	return out, nil
 }
+
+// GetFactoryName returns the factory_name for the given factory_id.
+// Returns empty string if not found (caller should use fallback).
+func (r *FactoryRepository) GetFactoryName(factoryID int64) string {
+	var name string
+	_ = r.db.Get(&name, `SELECT COALESCE(factory_name, '') FROM factory_profiles WHERE factory_id = $1`, factoryID)
+	return strings.TrimSpace(name)
+}

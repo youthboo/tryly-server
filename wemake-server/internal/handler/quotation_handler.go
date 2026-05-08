@@ -214,7 +214,7 @@ func (h *QuotationHandler) ListHistory(c *fiber.Ctx) error {
 	if !ok {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "not authorized"})
 	}
-	items, err := h.service.ListRevisionChain(int64(quotationID))
+	items, err := h.service.ListHistory(int64(quotationID))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch history"})
 	}

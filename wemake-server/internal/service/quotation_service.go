@@ -119,6 +119,9 @@ func (s *QuotationService) Create(item *domain.Quotation) error {
 	if err := s.repo.InsertHistory(h); err != nil {
 		return err
 	}
+
+	s.notifyQuotationQuoted(item)
+	s.autoSendQuotationCard(item)
 	return nil
 }
 
@@ -545,8 +548,14 @@ func (s *QuotationService) notifyQuotationQuoted(item *domain.Quotation) {
 	}
 	title := "ได้รับใบเสนอราคา"
 	factoryName := fmt.Sprintf("โรงงาน #%d", item.FactoryID)
+	// 1. ใช้ชื่อที่ติดมากับ item (เช่นกรณี CreateDetailed populate ไว้แล้ว)
 	if item.FactoryName != nil && strings.TrimSpace(*item.FactoryName) != "" {
 		factoryName = strings.TrimSpace(*item.FactoryName)
+	} else if s.factories != nil {
+		// 2. fallback: ดึงจาก factory_profiles โดยตรง (กรณี Create() ธรรมดาที่ไม่ populate ชื่อ)
+		if name := s.factories.GetFactoryName(item.FactoryID); name != "" {
+			factoryName = name
+		}
 	}
 	rfqTitle := strings.TrimSpace(rfq.Title)
 	if rfqTitle == "" {
