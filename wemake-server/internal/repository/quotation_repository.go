@@ -396,18 +396,19 @@ func roundQuotationTotal(v float64) float64 {
 	return float64(int(v*100+0.5)) / 100
 }
 
-func (r *QuotationRepository) UpdateTotals(quoteID int64, vatRate, vatAmount, platformCommissionRate, platformCommissionAmount, grandTotal, factoryNetReceivable float64) error {
+func (r *QuotationRepository) UpdateTotals(quoteID int64, subtotal, vatRate, vatAmount, platformCommissionRate, platformCommissionAmount, grandTotal, factoryNetReceivable float64) error {
 	_, err := r.db.Exec(`
 		UPDATE quotations
-		SET vat_rate = $1,
-		    vat_amount = $2,
-		    platform_commission_rate = $3,
-		    platform_commission_amount = $4,
-		    grand_total = $5,
-		    factory_net_receivable = $6,
+		SET subtotal = $1,
+		    vat_rate = $2,
+		    vat_amount = $3,
+		    platform_commission_rate = $4,
+		    platform_commission_amount = $5,
+		    grand_total = $6,
+		    factory_net_receivable = $7,
 		    log_timestamp = NOW()
-		WHERE quote_id = $7
-	`, vatRate, vatAmount, platformCommissionRate, platformCommissionAmount, grandTotal, factoryNetReceivable, quoteID)
+		WHERE quote_id = $8
+	`, subtotal, vatRate, vatAmount, platformCommissionRate, platformCommissionAmount, grandTotal, factoryNetReceivable, quoteID)
 	return err
 }
 

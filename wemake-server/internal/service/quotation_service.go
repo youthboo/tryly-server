@@ -285,6 +285,7 @@ func (s *QuotationService) PatchBody(
 		if calcErr == nil {
 			if updateErr := s.repo.UpdateTotals(
 				quoteID,
+				breakdown.Subtotal,
 				breakdown.VatRate,
 				breakdown.VatAmount,
 				breakdown.PlatformCommissionRate,
