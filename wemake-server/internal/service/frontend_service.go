@@ -14,11 +14,12 @@ import (
 )
 
 type FrontendService struct {
-	repo *repository.FrontendRepository
+	repo        *repository.FrontendRepository
+	factoryRepo *repository.FactoryRepository
 }
 
-func NewFrontendService(repo *repository.FrontendRepository) *FrontendService {
-	return &FrontendService{repo: repo}
+func NewFrontendService(repo *repository.FrontendRepository, factoryRepo *repository.FactoryRepository) *FrontendService {
+	return &FrontendService{repo: repo, factoryRepo: factoryRepo}
 }
 
 func (s *FrontendService) GetBootstrap(userID int64) (*domain.FrontendBootstrapResponse, error) {
@@ -209,6 +210,19 @@ func (s *FrontendService) GetFactoryDetail(factoryID int64) (*domain.FrontendFac
 		addressParts = append(addressParts, row.ProvinceName.String)
 	}
 
+	// Reuse the same helpers used by /factories/:id and /factories/me so the
+	// FE useFactoryProfile hook receives the identical sub-category contract
+	// (each sub-category carries its parent `category_name`). Soft-fail with
+	// empty arrays when joins return no rows — never block the whole detail.
+	categories, _ := s.factoryRepo.ListFactoryCategories(factoryID)
+	if categories == nil {
+		categories = []domain.FactoryProfileCategory{}
+	}
+	subCategories, _ := s.factoryRepo.ListFactorySubCategories(factoryID)
+	if subCategories == nil {
+		subCategories = []domain.FactoryProfileSubCategory{}
+	}
+
 	return &domain.FrontendFactoryDetail{
 		Factory: mapFactoryCard(repository.FrontendFactoryRow{
 			ID:              row.ID,
@@ -231,10 +245,12 @@ func (s *FrontendService) GetFactoryDetail(factoryID int64) (*domain.FrontendFac
 			AcceptedProductTypes: []string{},
 			Certificates:         []string{},
 		},
-		Reviews:  []domain.FrontendFactoryReview{},
-		Products: []domain.FrontendShowcaseItem{},
-		Promos:   []domain.FrontendShowcaseItem{},
-		Ideas:    []domain.FrontendShowcaseItem{},
+		Reviews:       []domain.FrontendFactoryReview{},
+		Products:      []domain.FrontendShowcaseItem{},
+		Promos:        []domain.FrontendShowcaseItem{},
+		Ideas:         []domain.FrontendShowcaseItem{},
+		Categories:    categories,
+		SubCategories: subCategories,
 	}, nil
 }
 

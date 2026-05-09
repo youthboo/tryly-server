@@ -45,12 +45,18 @@ type FrontendFactoryCard struct {
 }
 
 type FrontendFactoryDetail struct {
-	Factory  FrontendFactoryCard     `json:"factory"`
-	Profile  FrontendFactoryProfile  `json:"profile"`
-	Reviews  []FrontendFactoryReview `json:"reviews"`
-	Products []FrontendShowcaseItem  `json:"products"`
-	Promos   []FrontendShowcaseItem  `json:"promotions"`
-	Ideas    []FrontendShowcaseItem  `json:"ideas"`
+	Factory       FrontendFactoryCard         `json:"factory"`
+	Profile       FrontendFactoryProfile      `json:"profile"`
+	Reviews       []FrontendFactoryReview     `json:"reviews"`
+	Products      []FrontendShowcaseItem      `json:"products"`
+	Promos        []FrontendShowcaseItem      `json:"promotions"`
+	Ideas         []FrontendShowcaseItem      `json:"ideas"`
+	// Categories + SubCategories — same shape as /factories/:id (FactoryProfile*)
+	// so the FE useFactoryProfile hook can reuse the same parser. SubCategories
+	// includes parent `category_name` for grouping under their parent on the
+	// factory profile page (FE expects this — see useFactoryProfile.ts:201).
+	Categories    []FactoryProfileCategory    `json:"categories"`
+	SubCategories []FactoryProfileSubCategory `json:"sub_categories"`
 }
 
 type FrontendFactoryProfile struct {

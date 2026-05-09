@@ -49,7 +49,13 @@ type FactoryProfileCategory struct {
 type FactoryProfileSubCategory struct {
 	SubCategoryID int64  `db:"sub_category_id" json:"sub_category_id"`
 	CategoryID    int64  `db:"category_id" json:"category_id"`
-	Name          string `db:"name" json:"name"`
+	// CategoryName is the parent category's display name — required by FE
+	// to group sub-categories under their parent on the factory profile page.
+	CategoryName string `db:"category_name" json:"category_name"`
+	Name         string `db:"name" json:"name"`
+	// SubCategoryName is an alias of Name for FE compatibility (FE reads
+	// either `sub_category_name` or `name`).
+	SubCategoryName string `db:"sub_category_name" json:"sub_category_name"`
 }
 
 type FactoryProfileCertificate struct {

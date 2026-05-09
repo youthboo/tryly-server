@@ -226,10 +226,17 @@ func (r *FactoryRepository) selectFactoryCategories(factoryID int64) ([]domain.F
 
 func (r *FactoryRepository) selectFactorySubCategories(factoryID int64) ([]domain.FactoryProfileSubCategory, error) {
 	var items []domain.FactoryProfileSubCategory
+	// lbi_sub_categories.category_id references categories; join categories for
+	// parent category_name. sub_category_name aliases Name for the FE.
 	q := `
-		SELECT sc.sub_category_id, sc.name, sc.category_id
+		SELECT sc.sub_category_id,
+		       sc.category_id,
+		       COALESCE(cat.name, '') AS category_name,
+		       sc.name,
+		       sc.name AS sub_category_name
 		FROM map_factory_sub_categories mfs
 		INNER JOIN lbi_sub_categories sc ON mfs.sub_category_id = sc.sub_category_id
+		LEFT JOIN categories cat ON cat.category_id = sc.category_id
 		WHERE mfs.factory_id = $1
 		ORDER BY sc.category_id, sc.sort_order, sc.sub_category_id
 	`
