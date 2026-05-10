@@ -308,30 +308,29 @@ func (r *RFQRepository) getAddressByID(addressID int64) (*domain.Address, error)
 	return &address, nil
 }
 
-// ListMatchingForFactory returns open RFQs whose category (and optional sub-category) match
-// the factory's registered maps — used for the factory RFQ board only.
-// To view a specific RFQ detail regardless of category, use GetByIDAny via GetForViewer.
+// ListMatchingForFactory returns RFQs for the factory board with quotation overlay.
+//
+// Rules:
+//  1. OP RFQs that match category/sub-category and have NOT been quoted → "ยังไม่ได้เสนอ" tab
+//  2. RFQs that this factory HAS quoted (any RFQ status) AND quotation != AC → "ติดตาม BOQ" tab
+//  3. Quotations with status=AC are excluded entirely (customer accepted → became an order)
+//
+// The `status` param is kept for backwards compat but ignored; the WHERE logic enforces the
+// rules above instead.
 func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, kind string, showDismissed bool) ([]domain.RFQ, error) {
-	st := status
-	if st == "" {
-		st = "OP"
-	}
 	kinds := splitRFQKinds(kind)
 	if len(kinds) == 0 {
 		kinds = []string{domain.RequestKindProduction, domain.RequestKindProductSample, domain.RequestKindMaterialSample}
 	}
 	var rfqs []domain.RFQ
 	query := `
-		SELECT DISTINCT r.rfq_id, r.user_id, COALESCE(r.category_id, 0) AS category_id, r.sub_category_id, r.title, r.quantity, r.details, COALESCE(r.address_id, 0) AS address_id,
+		SELECT DISTINCT
+		       r.rfq_id, r.user_id, COALESCE(r.category_id, 0) AS category_id, r.sub_category_id,
+		       r.title, r.quantity, r.details, COALESCE(r.address_id, 0) AS address_id,
 		       r.shipping_method_id, r.status, COALESCE(r.request_kind, 'PR') AS request_kind,
 		       (frd.factory_id IS NOT NULL) AS is_dismissed,
 		       frd.dismissed_at,
-		       NOT EXISTS (
-		       	SELECT 1 FROM quotations qac
-		       	WHERE qac.rfq_id = r.rfq_id
-		       	  AND qac.factory_id = $1
-		       	  AND qac.status IN ('PD', 'AC')
-		       ) AS can_dismiss,
+		       (q.quote_id IS NULL OR q.status NOT IN ('PD','AC')) AS can_dismiss,
 		       r.uploaded_at, r.created_at, r.updated_at,
 		       r.material_grade, r.target_price, r.target_lead_time_days, r.required_delivery_date, r.delivery_address_id,
 		       r.certifications_required, r.sample_required, r.sample_qty, r.inspection_type, r.conversation_id,
@@ -339,13 +338,23 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 		       r.factory_user_id, r.source_showcase_id, r.source_conv_id,
 		       r.boq_currency, r.boq_subtotal, r.boq_discount_amount, r.boq_vat_percent, r.boq_vat_amount, r.boq_grand_total,
 		       r.boq_moq, r.boq_lead_time_days, r.boq_payment_terms, r.boq_validity_days, r.boq_note,
-		       r.boq_sent_at, r.boq_responded_at, r.boq_response, r.boq_decline_reason
+		       r.boq_sent_at, r.boq_responded_at, r.boq_response, r.boq_decline_reason,
+		       -- quotation overlay for this factory
+		       q.status         AS my_quote_status,
+		       q.quote_id       AS my_quote_id,
+		       q.price_per_piece AS my_quoted_price
 		FROM rfqs r
+		LEFT JOIN quotations q
+		       ON q.rfq_id = r.rfq_id AND q.factory_id = $1
 		LEFT JOIN lbi_sub_categories sc ON sc.sub_category_id = r.sub_category_id
 		LEFT JOIN factory_rfq_dismissals frd ON frd.rfq_id = r.rfq_id AND frd.factory_id = $1
-		WHERE r.status = $2
-		  AND COALESCE(r.request_kind, 'PR') = ANY($3)
-		  AND ($4::boolean OR frd.factory_id IS NULL)
+		WHERE
+		  -- Rule 3: ซ่อน quotation ที่ถูกยอมรับแล้ว (กลายเป็น order)
+		  COALESCE(q.status, '') != 'AC'
+		  -- Rule 1 + 2: แสดง OP ที่ยังไม่เสนอ OR RFQ ที่เสนอแล้ว (ไม่ว่า rfq status จะเป็นอะไร)
+		  AND (r.status = 'OP' OR q.quote_id IS NOT NULL)
+		  AND COALESCE(r.request_kind, 'PR') = ANY($2)
+		  AND ($3::boolean OR frd.factory_id IS NULL)
 		  AND (
 			(
 				COALESCE(r.request_kind, 'PR') IN ('PR', 'PS')
@@ -380,7 +389,7 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 		  )
 		ORDER BY r.created_at DESC
 	`
-	err := r.db.Select(&rfqs, query, factoryID, st, pq.Array(kinds), showDismissed)
+	err := r.db.Select(&rfqs, query, factoryID, pq.Array(kinds), showDismissed)
 	if err != nil {
 		return rfqs, err
 	}

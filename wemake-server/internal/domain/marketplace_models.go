@@ -122,6 +122,15 @@ type RFQ struct {
 	BudgetTotal    *float64 `db:"-" json:"budget_total"`
 	BudgetPerPiece *float64 `db:"-" json:"budget_per_piece"`
 	EstimatedTotal *float64 `db:"-" json:"estimated_total"`
+
+	// Factory-board quotation overlay — populated by ListMatchingForFactory only.
+	// nil  = factory has NOT submitted a quotation for this RFQ.
+	// "PD" = submitted, waiting for buyer decision.
+	// "RJ" = buyer rejected the quotation.
+	// "AC" = buyer accepted (rows with AC are excluded from the board entirely).
+	MyQuoteStatus *string  `db:"my_quote_status" json:"my_quote_status,omitempty"`
+	MyQuoteID     *int64   `db:"my_quote_id"     json:"my_quote_id,omitempty"`
+	MyQuotedPrice *float64 `db:"my_quoted_price" json:"my_quoted_price,omitempty"`
 }
 
 type FactoryRFQDismissal struct {
