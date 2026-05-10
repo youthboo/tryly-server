@@ -19,11 +19,21 @@ func NewAddressRepository(db *sqlx.DB) *AddressRepository {
 
 func (r *AddressRepository) ListByUserID(userID int64) ([]domain.Address, error) {
 	var addresses []domain.Address
+	// Join lbi_* master tables so the FE receives the full address text
+	// (sub-district / district / province names in Thai) without a separate
+	// lookup. COALESCE keeps the response stable when an FK is null.
 	query := `
-		SELECT address_id, user_id, address_type, address_detail, sub_district_id, district_id, province_id, zip_code, is_default
-		FROM addresses
-		WHERE user_id = $1
-		ORDER BY is_default DESC, address_id DESC
+		SELECT a.address_id, a.user_id, a.address_type, a.address_detail,
+		       a.sub_district_id, a.district_id, a.province_id, a.zip_code, a.is_default,
+		       COALESCE(sd.name_th, '') AS sub_district_name,
+		       COALESCE(d.name_th,  '') AS district_name,
+		       COALESCE(p.name_th,  '') AS province_name
+		FROM addresses a
+		LEFT JOIN lbi_sub_districts sd ON sd.row_id = a.sub_district_id
+		LEFT JOIN lbi_districts d      ON d.row_id  = a.district_id
+		LEFT JOIN lbi_provinces p      ON p.row_id  = a.province_id
+		WHERE a.user_id = $1
+		ORDER BY a.is_default DESC, a.address_id DESC
 	`
 	err := r.db.Select(&addresses, query, userID)
 	return addresses, err

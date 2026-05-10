@@ -60,7 +60,14 @@ type FrontendFactoryDetail struct {
 }
 
 type FrontendFactoryProfile struct {
+	// Full Thai address line (already formatted with ตำบล/อำเภอ/จังหวัด/zip).
 	Address              string   `json:"address"`
+	// Individual parts kept too in case FE wants to format them differently.
+	AddressDetail        string   `json:"address_detail"`
+	SubDistrictName      string   `json:"sub_district_name"`
+	DistrictName         string   `json:"district_name"`
+	ProvinceName         string   `json:"province_name"`
+	ZipCode              string   `json:"zip_code"`
 	AcceptedProductTypes []string `json:"acceptedProductTypes"`
 	Certificates         []string `json:"certificates"`
 }

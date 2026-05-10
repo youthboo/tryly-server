@@ -64,10 +64,13 @@ type FrontendFactoryDetailRow struct {
 	LeadTimeDesc    sql.NullString  `db:"lead_time_desc"`
 	ImageURL        sql.NullString  `db:"image_url"`
 	PriceRange      sql.NullString  `db:"price_range"`
-	AddressDetail   sql.NullString  `db:"address_detail"`
-	ProvinceName    sql.NullString  `db:"province_name"`
-	Email           string          `db:"email"`
-	Phone           sql.NullString  `db:"phone"`
+	AddressDetail    sql.NullString `db:"address_detail"`
+	SubDistrictName  sql.NullString `db:"sub_district_name"`
+	DistrictName     sql.NullString `db:"district_name"`
+	ProvinceName     sql.NullString `db:"province_name"`
+	ZipCode          sql.NullString `db:"zip_code"`
+	Email            string         `db:"email"`
+	Phone            sql.NullString `db:"phone"`
 }
 
 type FrontendRFQRow struct {
@@ -257,7 +260,10 @@ func (r *FrontendRepository) GetFactoryDetail(factoryID int64) (*FrontendFactory
 			fp.image_url,
 			fp.price_range,
 			a.address_detail,
+			COALESCE(sd.name_th, '') AS sub_district_name,
+			COALESCE(d.name_th,  '') AS district_name,
 			COALESCE(fp_p.name_th, p.name_th) AS province_name,
+			COALESCE(a.zip_code, '') AS zip_code,
 			u.email,
 			u.phone
 		FROM users u
@@ -265,6 +271,8 @@ func (r *FrontendRepository) GetFactoryDetail(factoryID int64) (*FrontendFactory
 		LEFT JOIN lbi_factory_types ft ON ft.factory_type_id = fp.factory_type_id
 		LEFT JOIN lbi_provinces fp_p ON fp_p.row_id = fp.province_id
 		LEFT JOIN addresses a ON a.user_id = u.user_id AND a.is_default = TRUE
+		LEFT JOIN lbi_sub_districts sd ON sd.row_id = a.sub_district_id
+		LEFT JOIN lbi_districts d      ON d.row_id  = a.district_id
 		LEFT JOIN lbi_provinces p ON p.row_id = a.province_id
 		LEFT JOIN (
 			SELECT factory_id::bigint AS factory_id,

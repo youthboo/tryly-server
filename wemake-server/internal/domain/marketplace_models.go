@@ -43,6 +43,11 @@ type Address struct {
 	ProvinceID    int64  `db:"province_id" json:"province_id"`
 	ZipCode       string `db:"zip_code" json:"zip_code"`
 	IsDefault     bool   `db:"is_default" json:"is_default"`
+	// Display names — joined from lbi_* master tables in ListByUserID so the
+	// FE can render the full address string without a separate lookup.
+	SubDistrictName string `db:"sub_district_name" json:"sub_district_name"`
+	DistrictName    string `db:"district_name" json:"district_name"`
+	ProvinceName    string `db:"province_name" json:"province_name"`
 }
 
 type Wallet struct {

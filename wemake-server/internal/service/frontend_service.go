@@ -1,6 +1,7 @@
 package service
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"net/url"
@@ -202,12 +203,35 @@ func (s *FrontendService) GetFactoryDetail(factoryID int64) (*domain.FrontendFac
 		return nil, err
 	}
 
-	addressParts := []string{}
-	if row.AddressDetail.Valid && row.AddressDetail.String != "" {
-		addressParts = append(addressParts, row.AddressDetail.String)
+	// Build full Thai address line so the FE can render it directly.
+	// Bangkok uses แขวง/เขต prefixes; other provinces use ตำบล/อำเภอ.
+	addressDetail := nullStr(row.AddressDetail)
+	subDistrictName := nullStr(row.SubDistrictName)
+	districtName := nullStr(row.DistrictName)
+	provinceName := nullStr(row.ProvinceName)
+	zipCode := nullStr(row.ZipCode)
+
+	subDistrictLabel := "ตำบล"
+	districtLabel := "อำเภอ"
+	if strings.Contains(provinceName, "กรุงเทพ") {
+		subDistrictLabel = "แขวง"
+		districtLabel = "เขต"
 	}
-	if row.ProvinceName.Valid && row.ProvinceName.String != "" {
-		addressParts = append(addressParts, row.ProvinceName.String)
+	addressParts := []string{}
+	if addressDetail != "" {
+		addressParts = append(addressParts, addressDetail)
+	}
+	if subDistrictName != "" {
+		addressParts = append(addressParts, subDistrictLabel+subDistrictName)
+	}
+	if districtName != "" {
+		addressParts = append(addressParts, districtLabel+districtName)
+	}
+	if provinceName != "" {
+		addressParts = append(addressParts, "จ."+provinceName)
+	}
+	if zipCode != "" {
+		addressParts = append(addressParts, zipCode)
 	}
 
 	// Reuse the same helpers used by /factories/:id and /factories/me so the
@@ -241,7 +265,12 @@ func (s *FrontendService) GetFactoryDetail(factoryID int64) (*domain.FrontendFac
 			PriceRange:      row.PriceRange,
 		}),
 		Profile: domain.FrontendFactoryProfile{
-			Address:              strings.Join(addressParts, ", "),
+			Address:              strings.Join(addressParts, " "),
+			AddressDetail:        addressDetail,
+			SubDistrictName:      subDistrictName,
+			DistrictName:         districtName,
+			ProvinceName:         provinceName,
+			ZipCode:              zipCode,
 			AcceptedProductTypes: []string{},
 			Certificates:         []string{},
 		},
@@ -615,6 +644,15 @@ func fallbackString(value string, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+// nullStr extracts the string value from a sql.NullString, trimming whitespace.
+// Returns "" when the value is NULL or empty.
+func nullStr(s sql.NullString) string {
+	if !s.Valid {
+		return ""
+	}
+	return strings.TrimSpace(s.String)
 }
 
 func mapMockCurrentUser(row *repository.FrontendCurrentUserRow) *domain.MockCurrentUser {

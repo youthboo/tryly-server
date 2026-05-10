@@ -65,7 +65,7 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	// Initialize services
 	authService := service.NewAuthService(authRepo, cfg.JWTSecret)
 	catalogService := service.NewCatalogService(catalogRepo)
-	addressService := service.NewAddressService(addressRepo)
+	addressService := service.NewAddressService(addressRepo, factoryRepo)
 	walletService := service.NewWalletService(walletRepo, transactionRepo)
 	notificationService := service.NewNotificationService(notificationRepo)
 	rfqService := service.NewRFQService(rfqRepo, factoryRepo, notificationService)
