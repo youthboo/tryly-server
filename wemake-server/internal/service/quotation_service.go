@@ -211,6 +211,7 @@ func (s *QuotationService) PatchBody(
 	paymentTerms *string,
 	factoryHighlight *string,
 	reason string,
+	validityDays int,
 ) (*domain.Quotation, error) {
 	if strings.TrimSpace(reason) == "" {
 		reason = "อัปเดตใบเสนอราคา"
@@ -252,7 +253,15 @@ func (s *QuotationService) PatchBody(
 		return nil, ErrQuotationLocked
 	}
 	newVersion := q.Version + 1
-	if err := s.repo.UpdateBody(quoteID, pricePerPiece, moldCost, shippingCost, packagingCost, toolingMoldCost, leadTimeDays, shippingMethodID, factoryUserID, newVersion, paymentTerms, nextHighlight); err != nil {
+	// คำนวณ validity_days + valid_until — ถ้าไม่ส่งมา (0) ให้คงค่าเดิมไว้ใน DB
+	var validityDaysPtr *int
+	var validUntilPtr *time.Time
+	if validityDays > 0 {
+		validityDaysPtr = &validityDays
+		vu := time.Now().UTC().AddDate(0, 0, validityDays)
+		validUntilPtr = &vu
+	}
+	if err := s.repo.UpdateBody(quoteID, pricePerPiece, moldCost, shippingCost, packagingCost, toolingMoldCost, leadTimeDays, shippingMethodID, factoryUserID, newVersion, paymentTerms, nextHighlight, validityDaysPtr, validUntilPtr); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrQuotationLocked
 		}

@@ -17,14 +17,16 @@ type ProductionRepository struct {
 }
 
 type ProductionOrderContext struct {
-	OrderID       int64     `db:"order_id"`
-	UserID        int64     `db:"user_id"`
-	FactoryID     int64     `db:"factory_id"`
-	FactoryTypeID *int64    `db:"factory_type_id"`
-	OrderStatus   string    `db:"status"`
-	DepositAmount float64   `db:"deposit_amount"`
-	TotalAmount   float64   `db:"total_amount"`
-	CreatedAt     time.Time `db:"created_at"`
+	OrderID          int64      `db:"order_id"`
+	UserID           int64      `db:"user_id"`
+	FactoryID        int64      `db:"factory_id"`
+	FactoryTypeID    *int64     `db:"factory_type_id"`
+	OrderStatus      string     `db:"status"`
+	DepositAmount    float64    `db:"deposit_amount"`
+	TotalAmount      float64    `db:"total_amount"`
+	CreatedAt        time.Time  `db:"created_at"`
+	// DepositDueDate คือ due_date จาก payment_schedules installment_no=1 (nil ถ้าไม่มี)
+	DepositDueDate   *time.Time `db:"deposit_due_date"`
 }
 
 type ProductionUpdateContext struct {
@@ -134,7 +136,11 @@ func (r *ProductionRepository) ListActiveStepsByFactoryTypeTx(tx *sqlx.Tx, facto
 func (r *ProductionRepository) GetOrderByID(orderID int64) (*ProductionOrderContext, error) {
 	var item ProductionOrderContext
 	err := r.db.Get(&item, `
-		SELECT o.order_id, o.user_id, o.factory_id, fp.factory_type_id, o.status, o.deposit_amount, o.total_amount, o.created_at
+		SELECT o.order_id, o.user_id, o.factory_id, fp.factory_type_id, o.status,
+		       o.deposit_amount, o.total_amount, o.created_at,
+		       (SELECT ps.due_date FROM payment_schedules ps
+		        WHERE ps.order_id = o.order_id AND ps.installment_no = 1
+		        ORDER BY ps.schedule_id ASC LIMIT 1) AS deposit_due_date
 		FROM orders o
 		LEFT JOIN factory_profiles fp ON fp.user_id = o.factory_id
 		WHERE o.order_id = $1
@@ -148,7 +154,11 @@ func (r *ProductionRepository) GetOrderByID(orderID int64) (*ProductionOrderCont
 func (r *ProductionRepository) GetOrderForUpdateTx(tx *sqlx.Tx, orderID int64) (*ProductionOrderContext, error) {
 	var item ProductionOrderContext
 	err := tx.Get(&item, `
-		SELECT o.order_id, o.user_id, o.factory_id, fp.factory_type_id, o.status, o.deposit_amount, o.total_amount, o.created_at
+		SELECT o.order_id, o.user_id, o.factory_id, fp.factory_type_id, o.status,
+		       o.deposit_amount, o.total_amount, o.created_at,
+		       (SELECT ps.due_date FROM payment_schedules ps
+		        WHERE ps.order_id = o.order_id AND ps.installment_no = 1
+		        ORDER BY ps.schedule_id ASC LIMIT 1) AS deposit_due_date
 		FROM orders o
 		LEFT JOIN factory_profiles fp ON fp.user_id = o.factory_id
 		WHERE o.order_id = $1

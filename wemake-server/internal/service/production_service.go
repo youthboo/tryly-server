@@ -502,13 +502,10 @@ func buildProductionLockContext(order *repository.ProductionOrderContext, reason
 		}
 	case "DEPOSIT_EXPIRED":
 		expiredAt := depositDueDateForProduction(order)
-		graceEnds := expiredAt.AddDate(0, 0, 3)
 		return map[string]interface{}{
 			"deposit_amount":      depositAmount,
 			"deposit_currency":    "THB",
 			"expired_at":          expiredAt,
-			"grace_period_ends":   graceEnds,
-			"payment_url":         fmt.Sprintf("/orders/%d/payment?stage=deposit", order.OrderID),
 			"contact_factory_url": fmt.Sprintf("/chat?factory_id=%d&order_id=%d", order.FactoryID, order.OrderID),
 		}
 	case "ORDER_CANCELLED":
@@ -525,6 +522,12 @@ func buildProductionLockContext(order *repository.ProductionOrderContext, reason
 }
 
 func depositDueDateForProduction(order *repository.ProductionOrderContext) time.Time {
+	// ใช้ due_date จาก payment_schedules ถ้ามี (ตรงกับ order_service.lookupDepositDueDate)
+	if order.DepositDueDate != nil {
+		d := order.DepositDueDate.In(thailandLocation)
+		return time.Date(d.Year(), d.Month(), d.Day(), 23, 59, 59, 0, thailandLocation)
+	}
+	// fallback: created_at + 3 วัน
 	due := order.CreatedAt.In(thailandLocation).AddDate(0, 0, 3)
 	return time.Date(due.Year(), due.Month(), due.Day(), 23, 59, 59, 0, thailandLocation)
 }

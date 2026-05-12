@@ -440,6 +440,7 @@ func (h *QuotationHandler) PatchQuotation(c *fiber.Ctx) error {
 		req.PaymentTerms,
 		req.FactoryHighlight,
 		req.Reason,
+		req.ValidityDays,
 	)
 	if err != nil {
 		if errors.Is(err, service.ErrQuotationLocked) {

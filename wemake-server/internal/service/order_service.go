@@ -1349,23 +1349,9 @@ func buildNextAction(row *repository.OrderDetailRow, status string, depositDueDa
 			CTALabelTH: "ชำระเงินเต็มจำนวน",
 		}
 	case "PE":
-		if depositDueDate == nil {
-			return nil
-		}
-		graceEnds := depositDueDate.AddDate(0, 0, 3)
-		if nowTH.After(graceEnds) {
-			return nil
-		}
-		return &domain.OrderNextAction{
-			Actor:      "CUSTOMER",
-			Type:       "PAY_FULL_AMOUNT",
-			Amount:     row.TotalAmount,
-			Currency:   "THB",
-			DueDate:    &graceEnds,
-			CTAURL:     fmt.Sprintf("/orders/%d/payment?stage=full", row.OrderID),
-			CTALabelTH: "ชำระเงินเต็มจำนวน",
-		}
-	case "PR", "QC", "SH", "CP", "CN":
+		// PE = หมดกำหนดชำระแล้ว ไม่มี next_action — background job จะ auto-cancel (PE→CL) หลัง grace 3 วัน
+		return nil
+	case "PR", "QC", "SH", "CP", "CN", "CC":
 		return nil
 	}
 	return nil
@@ -1450,8 +1436,12 @@ func (s *OrderService) ensureDepositPayable(order *domain.Order) error {
 	if status == "PD" || status == "PR" || status == "QC" || status == "SH" || status == "CP" {
 		return ErrDepositAlreadyPaid
 	}
+	// PE = หมดกำหนดแล้ว ไม่มี grace period — ห้ามชำระ รอ job auto-cancel (PE→CL)
+	if status == "PE" {
+		return ErrDepositExpired
+	}
 	dueDate := s.lookupDepositDueDate(order)
-	if dueDate != nil && time.Now().In(thailandLocation).After(dueDate.AddDate(0, 0, 3)) {
+	if dueDate != nil && time.Now().In(thailandLocation).After(*dueDate) {
 		return ErrDepositExpired
 	}
 	return nil

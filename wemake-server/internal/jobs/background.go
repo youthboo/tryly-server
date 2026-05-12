@@ -74,17 +74,27 @@ func runOrderAutoClose(orderService *service.OrderService) {
 
 func expireRFQs(db *sqlx.DB) {
 	// RFQ expiry by deadline_date is disabled because the legacy deadline column was removed.
+	// RFQ auto-close is now handled inside expireQuotations (after PD quotations expire).
 }
 
-// expireQuotations sets status = 'EX' for pending (PD) quotations older than 7 days
-// with no response from the customer.
+// expireQuotations sets status = 'EX' for pending (PD) quotations where the validity window has passed.
+// Expiry is determined by:
+//   - valid_until column (set when factory creates/edits the quotation)
+//   - fallback: create_time + COALESCE(validity_days, 7) days
+//
+// After expiring quotations, it also auto-closes (OP → CL) any RFQ whose
+// remaining quotations are all EX/RJ (no active PD or AC left).
 func expireQuotations(db *sqlx.DB) {
+	// ขั้น 1: PD → EX เมื่อ validity window หมดแล้ว
 	res, err := db.Exec(`
 		UPDATE quotations
 		SET status = 'EX', log_timestamp = NOW()
 		WHERE status = 'PD'
 		  AND COALESCE(is_locked, false) = false
-		  AND create_time < NOW() - INTERVAL '7 days'
+		  AND COALESCE(
+		        valid_until,
+		        create_time + COALESCE(validity_days, 7) * INTERVAL '1 day'
+		      ) < NOW()
 	`)
 	if err != nil {
 		log.Printf("[jobs/expiration] expireQuotations error: %v", err)
@@ -92,7 +102,28 @@ func expireQuotations(db *sqlx.DB) {
 	}
 	n, _ := res.RowsAffected()
 	if n > 0 {
-		log.Printf("[jobs/expiration] expired %d quotation(s)", n)
+		log.Printf("[jobs/expiration] expired %d quotation(s) (PD→EX)", n)
+	}
+
+	// ขั้น 2: OP → CL สำหรับ RFQ ที่ไม่มี quotation สถานะ PD หรือ AC เหลืออยู่แล้ว
+	// (ลูกค้าไม่มีใบเสนอราคาที่ active ให้ยอมรับได้ ควรปิดรับข้อเสนอเพื่อ UX ที่ชัดเจน)
+	res2, err2 := db.Exec(`
+		UPDATE rfqs
+		SET status = 'CL', updated_at = NOW()
+		WHERE status = 'OP'
+		  AND NOT EXISTS (
+		        SELECT 1 FROM quotations q
+		        WHERE q.rfq_id = rfqs.rfq_id
+		          AND q.status IN ('PD', 'AC')
+		  )
+	`)
+	if err2 != nil {
+		log.Printf("[jobs/expiration] expireRFQs (OP→CL) error: %v", err2)
+		return
+	}
+	n2, _ := res2.RowsAffected()
+	if n2 > 0 {
+		log.Printf("[jobs/expiration] auto-closed %d RFQ(s) after all quotations expired (OP→CL)", n2)
 	}
 }
 
@@ -101,8 +132,9 @@ func expirePendingDeposits(db *sqlx.DB) {
 		OrderID int64 `db:"order_id"`
 	}
 
-	var rows []orderRow
-	err := db.Select(&rows, `
+	// ขั้น 1: PP → PE เมื่อครบกำหนดชำระ
+	var peRows []orderRow
+	err := db.Select(&peRows, `
 		WITH expired_orders AS (
 			SELECT o.order_id
 			FROM orders o
@@ -126,17 +158,70 @@ func expirePendingDeposits(db *sqlx.DB) {
 		RETURNING o.order_id
 	`)
 	if err != nil {
-		log.Printf("[jobs/expiration] expirePendingDeposits error: %v", err)
+		log.Printf("[jobs/expiration] expirePendingDeposits (PP→PE) error: %v", err)
 		return
 	}
-	for _, row := range rows {
+	for _, row := range peRows {
 		payload, _ := json.Marshal(map[string]interface{}{"order_id": row.OrderID})
 		if _, err := db.Exec(`INSERT INTO domain_events (event_type, payload) VALUES ($1, $2)`, "order.deposit_expired", payload); err != nil {
 			log.Printf("[jobs/expiration] deposit_expired event error (order %d): %v", row.OrderID, err)
 		}
 	}
-	if len(rows) > 0 {
-		log.Printf("[jobs/expiration] expired %d pending deposit order(s)", len(rows))
+	if len(peRows) > 0 {
+		log.Printf("[jobs/expiration] expired %d pending deposit order(s) PP→PE", len(peRows))
+	}
+
+	// ขั้น 2: PE → CL เมื่อผ่าน grace period (due_date + 3 วัน) แล้วยังไม่ได้ชำระ
+	// พร้อมกันนั้น unlock quotation กลับเป็น PD เพื่อให้ลูกค้า re-order ได้จาก quotation ใบเดิม
+	type clOrderRow struct {
+		OrderID int64 `db:"order_id"`
+		QuoteID int64 `db:"quote_id"`
+	}
+	var clRows []clOrderRow
+	err = db.Select(&clRows, `
+		WITH overdue_orders AS (
+			SELECT o.order_id, o.quote_id
+			FROM orders o
+			WHERE o.status = 'PE'
+			  AND COALESCE(
+				(
+					SELECT ps.due_date::timestamp + TIME '23:59:59'
+					FROM payment_schedules ps
+					WHERE ps.order_id = o.order_id
+					ORDER BY ps.installment_no ASC, ps.schedule_id ASC
+					LIMIT 1
+				),
+				o.created_at + INTERVAL '3 days'
+			  ) + INTERVAL '3 days' < NOW()
+		)
+		UPDATE orders o
+		SET status = 'CL',
+		    updated_at = NOW()
+		FROM overdue_orders e
+		WHERE o.order_id = e.order_id
+		RETURNING o.order_id, o.quote_id
+	`)
+	if err != nil {
+		log.Printf("[jobs/expiration] cancelExpiredDeposits (PE→CL) error: %v", err)
+		return
+	}
+	for _, row := range clRows {
+		// Unlock quotation กลับเป็น PD ให้ลูกค้า re-order ได้จาก quotation ใบเดิม
+		// (quotation จะ expire เองตาม logic expireQuotations ถ้าไม่มีการสั่งซื้อใหม่ภายใน 7 วัน)
+		if _, err := db.Exec(`
+			UPDATE quotations
+			SET status = 'PD', is_locked = FALSE, log_timestamp = NOW()
+			WHERE quote_id = $1 AND status = 'AC'
+		`, row.QuoteID); err != nil {
+			log.Printf("[jobs/expiration] unlock quotation error (order %d, quote %d): %v", row.OrderID, row.QuoteID, err)
+		}
+		payload, _ := json.Marshal(map[string]interface{}{"order_id": row.OrderID, "quote_id": row.QuoteID})
+		if _, err := db.Exec(`INSERT INTO domain_events (event_type, payload) VALUES ($1, $2)`, "order.auto_cancelled", payload); err != nil {
+			log.Printf("[jobs/expiration] auto_cancelled event error (order %d): %v", row.OrderID, err)
+		}
+	}
+	if len(clRows) > 0 {
+		log.Printf("[jobs/expiration] auto-cancelled %d expired deposit order(s) PE→CL (quotations unlocked)", len(clRows))
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
@@ -340,6 +341,8 @@ func (r *QuotationRepository) UpdateBody(
 	newVersion int,
 	paymentTerms *string,
 	factoryHighlight *string,
+	validityDays *int,
+	validUntil *time.Time,
 ) error {
 	query := `
 		UPDATE quotations
@@ -352,13 +355,22 @@ func (r *QuotationRepository) UpdateBody(
 		    shipping_method_id = CASE WHEN $7 > 0 THEN $7 ELSE shipping_method_id END,
 		    payment_terms = CASE WHEN $8::text IS NOT NULL THEN $8 ELSE payment_terms END,
 		    factory_highlight = CASE WHEN $12::text IS NOT NULL THEN $12 ELSE factory_highlight END,
+		    validity_days = CASE WHEN $13::int IS NOT NULL THEN $13 ELSE validity_days END,
+		    valid_until   = CASE WHEN $14::timestamp IS NOT NULL THEN $14 ELSE valid_until END,
 		    version = $9,
 		    last_edited_at = NOW(),
 		    last_edited_by = $10,
 		    log_timestamp = NOW()
 		WHERE quote_id = $11 AND COALESCE(is_locked, false) = false AND status = 'PD'
 	`
-	res, err := r.db.Exec(query, pricePerPiece, moldCost, toolingMoldCost, shippingCost, packagingCost, leadTimeDays, shippingMethodID, nullableStringPtr(paymentTerms), newVersion, editorID, quoteID, nullableStringPtr(factoryHighlight))
+	res, err := r.db.Exec(query,
+		pricePerPiece, moldCost, toolingMoldCost, shippingCost, packagingCost,
+		leadTimeDays, shippingMethodID,
+		nullableStringPtr(paymentTerms),
+		newVersion, editorID, quoteID,
+		nullableStringPtr(factoryHighlight),
+		validityDays, validUntil,
+	)
 	if err != nil {
 		return err
 	}
