@@ -10,7 +10,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
+	userrepo "github.com/yourusername/wemake/internal/repository/user"
 )
 
 type CreateOrderReviewInput struct {
@@ -103,7 +103,7 @@ func (s *OrderService) CreateReview(orderID, userID int64, role string, input Cr
 	}
 	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		if err := s.reviews.CreateForOrderTx(tx, review); err != nil {
-			if errors.Is(err, repository.ErrReviewAlreadyExists) {
+			if errors.Is(err, userrepo.ErrReviewAlreadyExists) {
 				return ErrReviewAlreadyExists
 			}
 			return err

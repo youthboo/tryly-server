@@ -52,6 +52,14 @@ func badRequest(c *fiber.Ctx, message string) error {
 	return jsonError(c, fiber.StatusBadRequest, message)
 }
 
+func parsePositiveInt64Param(c *fiber.Ctx, name string) (int64, error) {
+	value, err := strconv.ParseInt(c.Params(name), 10, 64)
+	if err != nil || value <= 0 {
+		return 0, fiber.NewError(fiber.StatusBadRequest, "invalid "+name)
+	}
+	return value, nil
+}
+
 func jsonError(c *fiber.Ctx, status int, message string) error {
 	return c.Status(status).JSON(fiber.Map{"error": message})
 }
