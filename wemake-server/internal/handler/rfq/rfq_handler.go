@@ -1,4 +1,4 @@
-package handler
+package rfq
 
 import (
 	"database/sql"
@@ -10,14 +10,15 @@ import (
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/repository"
 	"github.com/yourusername/wemake/internal/service"
+	rfqservice "github.com/yourusername/wemake/internal/service/rfq"
 )
 
 type RFQHandler struct {
-	service *service.RFQService
+	service *rfqservice.RFQService
 	auth    *service.AuthService
 }
 
-func NewRFQHandler(rfqService *service.RFQService, authService *service.AuthService) *RFQHandler {
+func NewRFQHandler(rfqService *rfqservice.RFQService, authService *service.AuthService) *RFQHandler {
 	return &RFQHandler{service: rfqService, auth: authService}
 }
 
@@ -97,7 +98,7 @@ func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.Create(rfq); err != nil {
-		if err == service.ErrInvalidSubCategory || err == service.ErrInvalidCategory || err == service.ErrInvalidShippingMethod || err == service.ErrMaxRFQReferenceImages || err == service.ErrRFQInspectionInvalid || err == service.ErrRFQDetailsRequired || err == service.ErrRFQDetailsTooShort || err == service.ErrRFQKindInvalid || err == service.ErrRFQSampleQtyInvalid || err == service.ErrRFQWrongScope {
+		if err == rfqservice.ErrInvalidSubCategory || err == rfqservice.ErrInvalidCategory || err == rfqservice.ErrInvalidShippingMethod || err == rfqservice.ErrMaxRFQReferenceImages || err == rfqservice.ErrRFQInspectionInvalid || err == rfqservice.ErrRFQDetailsRequired || err == rfqservice.ErrRFQDetailsTooShort || err == rfqservice.ErrRFQKindInvalid || err == rfqservice.ErrRFQSampleQtyInvalid || err == rfqservice.ErrRFQWrongScope {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create rfq"})
@@ -218,13 +219,13 @@ func (h *RFQHandler) PreviewFactories(c *fiber.Ctx) error {
 	}
 	result, err := h.service.PreviewFactories(kind, categoryID, subCategoryID)
 	if err != nil {
-		if err == service.ErrRFQKindInvalid {
+		if err == rfqservice.ErrRFQKindInvalid {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "INVALID_KIND"})
 		}
-		if err == service.ErrRFQWrongScope {
+		if err == rfqservice.ErrRFQWrongScope {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "WRONG_SCOPE"})
 		}
-		if err == service.ErrInvalidSubCategory || err == service.ErrInvalidCategory {
+		if err == rfqservice.ErrInvalidSubCategory || err == rfqservice.ErrInvalidCategory {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "CATEGORY_NOT_FOUND"})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to preview factories"})
@@ -248,7 +249,7 @@ func (h *RFQHandler) ListMatching(c *fiber.Ctx) error {
 	showDismissed := strings.EqualFold(strings.TrimSpace(c.Query("show_dismissed")), "true")
 	items, err := h.service.ListMatchingForFactory(userID, status, c.Query("kind"), showDismissed)
 	if err != nil {
-		if err == service.ErrRFQKindInvalid {
+		if err == rfqservice.ErrRFQKindInvalid {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "INVALID_KIND"})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch matching rfqs"})
@@ -275,9 +276,9 @@ func (h *RFQHandler) DismissRFQ(c *fiber.Ctx) error {
 	item, created, err := h.service.DismissRFQ(userID, int64(rfqID))
 	if err != nil {
 		switch err {
-		case service.ErrHasActiveQuotation:
+		case rfqservice.ErrHasActiveQuotation:
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "HAS_ACTIVE_QUOTATION"})
-		case service.ErrQuotationAccepted:
+		case rfqservice.ErrQuotationAccepted:
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "QUOTATION_ACCEPTED"})
 		case sql.ErrNoRows:
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "RFQ_NOT_FOUND"})

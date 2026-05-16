@@ -8,15 +8,15 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
-	"github.com/yourusername/wemake/internal/repository"
+	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
 )
 
 type AdminFactoryRepository struct {
 	db        *sqlx.DB
-	factories *repository.FactoryRepository
+	factories *factoryrepo.FactoryRepository
 }
 
-func NewAdminFactoryRepository(db *sqlx.DB, factories *repository.FactoryRepository) *AdminFactoryRepository {
+func NewAdminFactoryRepository(db *sqlx.DB, factories *factoryrepo.FactoryRepository) *AdminFactoryRepository {
 	return &AdminFactoryRepository{db: db, factories: factories}
 }
 

@@ -1,4 +1,4 @@
-package handler
+package factory
 
 import (
 	"errors"
@@ -8,17 +8,19 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/repository"
+	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
 	"github.com/yourusername/wemake/internal/service"
+	factoryservice "github.com/yourusername/wemake/internal/service/factory"
 )
 
 const errMsgInvalidFactoryID = "invalid factory_id"
 
 type FactoryHandler struct {
-	service *service.FactoryService
+	service *factoryservice.FactoryService
 	auth    *service.AuthService
 }
 
-func NewFactoryHandler(service *service.FactoryService, authService *service.AuthService) *FactoryHandler {
+func NewFactoryHandler(service *factoryservice.FactoryService, authService *service.AuthService) *FactoryHandler {
 	return &FactoryHandler{service: service, auth: authService}
 }
 
@@ -135,7 +137,7 @@ func (h *FactoryHandler) PatchProfile(c *fiber.Ctx) error {
 		if repository.IsNotFoundError(err) {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "factory profile not found"})
 		}
-		if errors.Is(err, repository.ErrInvalidFactoryType) {
+		if errors.Is(err, factoryrepo.ErrInvalidFactoryType) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_type_id"})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update factory"})
@@ -218,10 +220,10 @@ func (h *FactoryHandler) AddCategory(c *fiber.Ctx) error {
 	}
 	err = h.service.AddFactoryCategory(int64(factoryID), body.CategoryID)
 	if err != nil {
-		if errors.Is(err, repository.ErrDuplicateFactoryCategory) {
+		if errors.Is(err, factoryrepo.ErrDuplicateFactoryCategory) {
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "category already linked to this factory"})
 		}
-		if errors.Is(err, repository.ErrInvalidFactoryCategory) {
+		if errors.Is(err, factoryrepo.ErrInvalidFactoryCategory) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid category_id"})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to add category"})
@@ -284,7 +286,7 @@ func (h *FactoryHandler) ReplaceCategories(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "body must include category_ids with at least one positive integer"})
 	}
 	if err := h.service.ReplaceFactoryCategories(int64(factoryID), categoryIDs); err != nil {
-		if errors.Is(err, repository.ErrInvalidFactoryCategory) {
+		if errors.Is(err, factoryrepo.ErrInvalidFactoryCategory) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid category_id"})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to replace categories"})
@@ -342,10 +344,10 @@ func (h *FactoryHandler) AddSubCategory(c *fiber.Ctx) error {
 	}
 	err = h.service.AddFactorySubCategory(int64(factoryID), body.SubCategoryID)
 	if err != nil {
-		if errors.Is(err, repository.ErrDuplicateFactorySubCategory) {
+		if errors.Is(err, factoryrepo.ErrDuplicateFactorySubCategory) {
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "sub-category already linked"})
 		}
-		if errors.Is(err, repository.ErrInvalidFactorySubCategory) {
+		if errors.Is(err, factoryrepo.ErrInvalidFactorySubCategory) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid sub_category_id"})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to add sub-category"})
@@ -414,7 +416,7 @@ func (h *FactoryHandler) ReplaceSubCategories(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.ReplaceFactorySubCategories(int64(factoryID), subCategoryIDs); err != nil {
-		if errors.Is(err, repository.ErrInvalidFactorySubCategory) {
+		if errors.Is(err, factoryrepo.ErrInvalidFactorySubCategory) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid sub_category_id"})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to replace sub-categories"})

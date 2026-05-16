@@ -1,4 +1,4 @@
-package repository
+package rfq
 
 import (
 	"database/sql"

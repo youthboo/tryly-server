@@ -8,15 +8,15 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
+	rfqrepo "github.com/yourusername/wemake/internal/repository/rfq"
 )
 
 type AdminRFQRepository struct {
 	db   *sqlx.DB
-	rfqs *repository.RFQRepository
+	rfqs *rfqrepo.RFQRepository
 }
 
-func NewAdminRFQRepository(db *sqlx.DB, rfqs *repository.RFQRepository) *AdminRFQRepository {
+func NewAdminRFQRepository(db *sqlx.DB, rfqs *rfqrepo.RFQRepository) *AdminRFQRepository {
 	return &AdminRFQRepository{db: db, rfqs: rfqs}
 }
 

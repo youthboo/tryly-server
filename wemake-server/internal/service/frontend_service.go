@@ -10,14 +10,15 @@ import (
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/repository"
+	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
 )
 
 type FrontendService struct {
 	repo        *repository.FrontendRepository
-	factoryRepo *repository.FactoryRepository
+	factoryRepo *factoryrepo.FactoryRepository
 }
 
-func NewFrontendService(repo *repository.FrontendRepository, factoryRepo *repository.FactoryRepository) *FrontendService {
+func NewFrontendService(repo *repository.FrontendRepository, factoryRepo *factoryrepo.FactoryRepository) *FrontendService {
 	return &FrontendService{repo: repo, factoryRepo: factoryRepo}
 }
 

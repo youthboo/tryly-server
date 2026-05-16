@@ -1,15 +1,15 @@
-package service
+package factory
 
 import (
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
+	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
 )
 
 type FactoryService struct {
-	repo *repository.FactoryRepository
+	repo *factoryrepo.FactoryRepository
 }
 
-func NewFactoryService(repo *repository.FactoryRepository) *FactoryService {
+func NewFactoryService(repo *factoryrepo.FactoryRepository) *FactoryService {
 	return &FactoryService{repo: repo}
 }
 

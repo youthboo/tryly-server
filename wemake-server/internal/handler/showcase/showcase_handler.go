@@ -1,4 +1,4 @@
-package handler
+package showcase
 
 import (
 	"database/sql"
@@ -13,7 +13,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/logger"
-	"github.com/yourusername/wemake/internal/service"
+	showcaseservice "github.com/yourusername/wemake/internal/service/showcase"
 )
 
 // Allowed values for GET /showcases?type= (matches factory_showcases.content_type)
@@ -38,10 +38,10 @@ const (
 )
 
 type ShowcaseHandler struct {
-	service *service.ShowcaseService
+	service *showcaseservice.ShowcaseService
 }
 
-func NewShowcaseHandler(service *service.ShowcaseService) *ShowcaseHandler {
+func NewShowcaseHandler(service *showcaseservice.ShowcaseService) *ShowcaseHandler {
 	return &ShowcaseHandler{service: service}
 }
 

@@ -12,18 +12,19 @@ import (
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/repository"
+	rfqrepo "github.com/yourusername/wemake/internal/repository/rfq"
 )
 
 type ConversationService struct {
 	repo     *repository.ConversationRepository
-	rfqs     *repository.RFQRepository
+	rfqs     *rfqrepo.RFQRepository
 	messages *MessageService
 }
 
 var ErrConversationForbidden = errors.New("conversation forbidden")
 var ErrConversationNotFound = errors.New("conversation not found")
 
-func NewConversationService(repo *repository.ConversationRepository, rfqs *repository.RFQRepository, messages *MessageService) *ConversationService {
+func NewConversationService(repo *repository.ConversationRepository, rfqs *rfqrepo.RFQRepository, messages *MessageService) *ConversationService {
 	return &ConversationService{repo: repo, rfqs: rfqs, messages: messages}
 }
 

@@ -1,4 +1,4 @@
-package repository
+package showcase
 
 import (
 	"fmt"

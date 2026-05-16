@@ -15,6 +15,7 @@ import (
 	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/repository"
 	quotationrepo "github.com/yourusername/wemake/internal/repository/quotation"
+	rfqrepo "github.com/yourusername/wemake/internal/repository/rfq"
 	orderservice "github.com/yourusername/wemake/internal/service/order"
 )
 
@@ -42,8 +43,8 @@ type BOQInput struct {
 type BOQService struct {
 	db             *sqlx.DB
 	conversations  *repository.ConversationRepository
-	rfqs           *repository.RFQRepository
-	rfqItems       *repository.RFQItemRepository
+	rfqs           *rfqrepo.RFQRepository
+	rfqItems       *rfqrepo.RFQItemRepository
 	quotations     *quotationrepo.QuotationRepository
 	quotationItems *quotationrepo.QuotationItemRepository
 	orders         *orderservice.OrderService
@@ -55,8 +56,8 @@ type BOQService struct {
 func NewBOQService(
 	db *sqlx.DB,
 	conversations *repository.ConversationRepository,
-	rfqs *repository.RFQRepository,
-	rfqItems *repository.RFQItemRepository,
+	rfqs *rfqrepo.RFQRepository,
+	rfqItems *rfqrepo.RFQItemRepository,
 	quotations *quotationrepo.QuotationRepository,
 	quotationItems *quotationrepo.QuotationItemRepository,
 	orders *orderservice.OrderService,

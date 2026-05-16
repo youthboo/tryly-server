@@ -4,14 +4,15 @@ import (
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/repository"
+	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
 )
 
 type AddressService struct {
 	repo        *repository.AddressRepository
-	factoryRepo *repository.FactoryRepository
+	factoryRepo *factoryrepo.FactoryRepository
 }
 
-func NewAddressService(repo *repository.AddressRepository, factoryRepo *repository.FactoryRepository) *AddressService {
+func NewAddressService(repo *repository.AddressRepository, factoryRepo *factoryrepo.FactoryRepository) *AddressService {
 	return &AddressService{repo: repo, factoryRepo: factoryRepo}
 }
 

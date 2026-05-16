@@ -10,8 +10,9 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
+	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
 	quotationrepo "github.com/yourusername/wemake/internal/repository/quotation"
+	rfqrepo "github.com/yourusername/wemake/internal/repository/rfq"
 	coreservice "github.com/yourusername/wemake/internal/service"
 	orderservice "github.com/yourusername/wemake/internal/service/order"
 )
@@ -31,16 +32,16 @@ var (
 type QuotationService struct {
 	db            *sqlx.DB
 	repo          *quotationrepo.QuotationRepository
-	rfqRepo       *repository.RFQRepository
+	rfqRepo       *rfqrepo.RFQRepository
 	items         *quotationrepo.QuotationItemRepository
 	commission    *coreservice.CommissionService
 	orders        *orderservice.OrderService
-	factories     *repository.FactoryRepository
+	factories     *factoryrepo.FactoryRepository
 	notifications notificationCreator
 	messages      systemMessageSender
 }
 
-func NewQuotationService(db *sqlx.DB, repo *quotationrepo.QuotationRepository, rfqRepo *repository.RFQRepository, items *quotationrepo.QuotationItemRepository, commission *coreservice.CommissionService, orders *orderservice.OrderService, factories *repository.FactoryRepository, notifications notificationCreator, messages systemMessageSender) *QuotationService {
+func NewQuotationService(db *sqlx.DB, repo *quotationrepo.QuotationRepository, rfqRepo *rfqrepo.RFQRepository, items *quotationrepo.QuotationItemRepository, commission *coreservice.CommissionService, orders *orderservice.OrderService, factories *factoryrepo.FactoryRepository, notifications notificationCreator, messages systemMessageSender) *QuotationService {
 	return &QuotationService{db: db, repo: repo, rfqRepo: rfqRepo, items: items, commission: commission, orders: orders, factories: factories, notifications: notifications, messages: messages}
 }
 

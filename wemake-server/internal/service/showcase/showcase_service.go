@@ -1,4 +1,4 @@
-package service
+package showcase
 
 import (
 	"database/sql"
@@ -8,29 +8,30 @@ import (
 	"strings"
 
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
+	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
+	showcaserepo "github.com/yourusername/wemake/internal/repository/showcase"
 )
 
 type ShowcaseService struct {
-	repo        *repository.ShowcaseRepository
-	factoryRepo *repository.FactoryRepository
+	repo        *showcaserepo.ShowcaseRepository
+	factoryRepo *factoryrepo.FactoryRepository
 }
 
-func NewShowcaseService(repo *repository.ShowcaseRepository, factoryRepo *repository.FactoryRepository) *ShowcaseService {
+func NewShowcaseService(repo *showcaserepo.ShowcaseRepository, factoryRepo *factoryrepo.FactoryRepository) *ShowcaseService {
 	return &ShowcaseService{repo: repo, factoryRepo: factoryRepo}
 }
 
 func (s *ShowcaseService) upsertFactoryCategoryMap(factoryID int64, item *domain.FactoryShowcase) {
 	if item.CategoryID != nil && *item.CategoryID > 0 {
 		err := s.factoryRepo.AddFactoryCategory(factoryID, *item.CategoryID)
-		if err != nil && !errors.Is(err, repository.ErrDuplicateFactoryCategory) {
+		if err != nil && !errors.Is(err, factoryrepo.ErrDuplicateFactoryCategory) {
 			// best-effort; ignore errors
 			_ = err
 		}
 	}
 	if item.SubCategoryID != nil && *item.SubCategoryID > 0 {
 		err := s.factoryRepo.AddFactorySubCategory(factoryID, *item.SubCategoryID)
-		if err != nil && !errors.Is(err, repository.ErrDuplicateFactorySubCategory) {
+		if err != nil && !errors.Is(err, factoryrepo.ErrDuplicateFactorySubCategory) {
 			_ = err
 		}
 	}
@@ -385,7 +386,7 @@ func (s *ShowcaseService) validateShowcase(item *domain.FactoryShowcase) error {
 			if err != nil {
 				return err
 			}
-			byID := map[int64]repository.LinkedShowcaseCheckRow{}
+			byID := map[int64]showcaserepo.LinkedShowcaseCheckRow{}
 			for _, row := range rows {
 				byID[row.ShowcaseID] = row
 			}

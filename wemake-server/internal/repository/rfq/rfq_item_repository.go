@@ -1,4 +1,4 @@
-package repository
+package rfq
 
 import (
 	"github.com/jmoiron/sqlx"
