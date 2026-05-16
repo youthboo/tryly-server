@@ -1,7 +1,6 @@
 package message
 
 import (
-	"errors"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -60,25 +59,7 @@ func (h *MessageHandler) CreateMessage(c *fiber.Ctx) error {
 		IsRead:        false,
 	}
 	if err := h.service.Create(item); err != nil {
-		switch {
-		case errors.Is(err, messageservice.ErrInvalidReferenceType):
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "reference_type must be one of RQ, OD, PD, PM, ID"})
-		case errors.Is(err, messageservice.ErrReferencePairRequired):
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "reference_type and reference_id must be provided together"})
-		case errors.Is(err, messageservice.ErrReferenceNotFound):
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "reference_id not found for reference_type=" + item.ReferenceType})
-		case errors.Is(err, messageservice.ErrSenderReceiverSame):
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "receiver_id must differ from sender_id"})
-		case errors.Is(err, messageservice.ErrConversationNotAccessible):
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "conv_id must be a conversation the sender belongs to"})
-		case errors.Is(err, messageservice.ErrConversationReceiverMismatch):
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "receiver_id must match the other participant in conv_id"})
-		case errors.Is(err, messageservice.ErrInvalidMessageType):
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "message_type must be one of TX, QT, IM, BQ"})
-		case errors.Is(err, messageservice.ErrQuoteDataRequired):
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "quote_data is required when message_type is QT"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create message"})
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to create message"), createMessageErrorMap())
 	}
 	return c.Status(fiber.StatusCreated).JSON(item)
 }
@@ -109,10 +90,7 @@ func (h *MessageHandler) ListMessages(c *fiber.Ctx) error {
 	}
 	items, err := h.service.ListByReference(referenceType, referenceID, userID)
 	if err != nil {
-		if errors.Is(err, messageservice.ErrInvalidReferenceType) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "reference_type must be one of RQ, OD, PD, PM, ID"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch messages"})
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to fetch messages"), listByReferenceErrorMap())
 	}
 	return c.JSON(items)
 }

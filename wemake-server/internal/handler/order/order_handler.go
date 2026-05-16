@@ -1,7 +1,6 @@
 package order
 
 import (
-	"errors"
 	"strings"
 	"time"
 
@@ -36,21 +35,7 @@ func (h *OrderHandler) CreateOrder(c *fiber.Ctx) error {
 	}
 	order, err := h.service.CreateFromQuotation(req.QuotationID, userID)
 	if err != nil {
-		if errors.Is(err, orderservice.ErrQuotationRejected) ||
-			errors.Is(err, orderservice.ErrQuotationInvalidState) ||
-			errors.Is(err, orderservice.ErrInsufficientGoodFund) ||
-			errors.Is(err, orderservice.ErrOrderAlreadyExistsForQuote) {
-			return helper.WriteServiceErrorWithNotFound(c, err, "failed to create order", "order not found",
-				helper.BadRequestCase(orderservice.ErrQuotationRejected),
-				helper.BadRequestCase(orderservice.ErrQuotationInvalidState),
-				helper.BadRequestCase(orderservice.ErrInsufficientGoodFund),
-				helper.ConflictCase(orderservice.ErrOrderAlreadyExistsForQuote),
-			)
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error":  "failed to create order",
-			"detail": err.Error(),
-		})
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to create order"), createOrderErrorMap())
 	}
 	return c.Status(fiber.StatusCreated).JSON(order)
 }
@@ -79,22 +64,7 @@ func (h *OrderHandler) BulkCheckout(c *fiber.Ctx) error {
 		IdempotencyKey: req.IdempotencyKey,
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, orderservice.ErrRFQLocked):
-			return c.Status(fiber.StatusLocked).JSON(fiber.Map{"error": err.Error()})
-		case errors.Is(err, orderservice.ErrQuotationInvalidState):
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "QUOTATION_NOT_PENDING"})
-		case errors.Is(err, orderservice.ErrSelfTransaction):
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-		case errors.Is(err, orderservice.ErrInvalidQuotationSet), errors.Is(err, orderservice.ErrPaymentTypeInvalid):
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-		case errors.Is(err, orderservice.ErrNotQuotationParty):
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
-		case errors.Is(err, orderservice.ErrOrderAlreadyExistsForQuote):
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error()})
-		default:
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to bulk checkout"})
-		}
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to bulk checkout"), bulkCheckoutErrorMap())
 	}
 	return c.Status(fiber.StatusCreated).JSON(result)
 }
@@ -278,23 +248,11 @@ func (h *OrderHandler) CreatePayment(c *fiber.Ctx) error {
 	}
 	item, err := h.service.CreatePayment(int64(orderID), userID, u.Role, req.Type, req.Amount)
 	if err != nil {
-		switch {
-		case errors.Is(err, orderservice.ErrDepositAlreadyPaid):
-			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-				"error": fiber.Map{"code": "DEPOSIT_ALREADY_PAID", "message": "deposit already recorded"},
-			})
-		case errors.Is(err, orderservice.ErrDepositExpired):
-			return c.Status(fiber.StatusGone).JSON(fiber.Map{
-				"error": fiber.Map{"code": "DEPOSIT_EXPIRED", "message": "deposit payment window has expired"},
-			})
-		case errors.Is(err, orderservice.ErrPaymentTypeInvalid),
-			errors.Is(err, orderservice.ErrPaymentAmountMismatch),
-			errors.Is(err, orderservice.ErrPaymentAlreadyExists):
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-		case repository.IsNotFoundError(err):
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "order not found"})
+		errorMap := createPaymentErrorMap()
+		if repository.IsNotFoundError(err) {
+			return helper.WriteAPIError(c, helper.NotFoundAPIError("ORDER_NOT_FOUND", "order not found"))
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create payment"})
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to create payment"), errorMap)
 	}
 	return c.Status(fiber.StatusCreated).JSON(item)
 }
@@ -318,24 +276,11 @@ func (h *OrderHandler) VerifyPayment(c *fiber.Ctx) error {
 	}
 	item, err := h.service.VerifyPayment(int64(orderID), userID, u.Role, txID)
 	if err != nil {
-		switch {
-		case errors.Is(err, orderservice.ErrDepositAlreadyPaid):
-			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
-				"error": fiber.Map{"code": "DEPOSIT_ALREADY_PAID", "message": "deposit already recorded"},
-			})
-		case errors.Is(err, orderservice.ErrDepositExpired):
-			return c.Status(fiber.StatusGone).JSON(fiber.Map{
-				"error": fiber.Map{"code": "DEPOSIT_EXPIRED", "message": "deposit payment window has expired"},
-			})
-		case errors.Is(err, orderservice.ErrPaymentTypeInvalid),
-			errors.Is(err, orderservice.ErrPaymentAmountMismatch),
-			errors.Is(err, orderservice.ErrPaymentStateInvalid),
-			errors.Is(err, orderservice.ErrInsufficientGoodFund):
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-		case repository.IsNotFoundError(err):
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "payment not found"})
+		errorMap := verifyPaymentErrorMap()
+		if repository.IsNotFoundError(err) {
+			return helper.WriteAPIError(c, helper.NotFoundAPIError("PAYMENT_NOT_FOUND", "payment not found"))
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to verify payment"})
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to verify payment"), errorMap)
 	}
 	return c.JSON(item)
 }
@@ -371,10 +316,7 @@ func (h *OrderHandler) ConfirmReceipt(c *fiber.Ctx) error {
 		ReceivedAt: receivedAt,
 	})
 	if err != nil {
-		return helper.WriteServiceErrorWithNotFound(c, err, "failed to confirm receipt", "order not found",
-			helper.ConflictCase(orderservice.ErrConfirmReceiptInvalidStatus),
-			helper.UnprocessableCase(orderservice.ErrConfirmReceiptNotAllowed),
-		)
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to confirm receipt"), confirmReceiptErrorMap())
 	}
 	return c.JSON(result)
 }

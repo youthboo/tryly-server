@@ -1,11 +1,10 @@
 package payment
 
 import (
-	"encoding/json"
 	"errors"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/yourusername/wemake/internal/domainutil"
+	"github.com/yourusername/wemake/internal/helper"
 )
 
 var (
@@ -15,19 +14,9 @@ var (
 )
 
 func normalizeOrderStatus(status string) string {
-	switch domainutil.NormalizeStatus(status) {
-	case "CC":
-		return "CN"
-	default:
-		return domainutil.NormalizeStatus(status)
-	}
+	return helper.NormalizeOrderStatus(status)
 }
 
 func insertDomainEventTx(tx *sqlx.Tx, eventType string, payload interface{}) error {
-	b, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-	_, err = tx.Exec(`INSERT INTO domain_events (event_type, payload) VALUES ($1, $2)`, eventType, b)
-	return err
+	return helper.InsertDomainEventTx(tx, eventType, payload)
 }

@@ -458,3 +458,70 @@ func WriteSuccess(c *fiber.Ctx, message string, data interface{}) error {
 		Data:    data,
 	})
 }
+
+// PaginationParams holds pagination metadata
+type PaginationParams struct {
+	Page  int
+	Limit int
+}
+
+// SortParams holds sorting metadata
+type SortParams struct {
+	SortBy    string
+	SortOrder string
+}
+
+// ParsePaginationQuery parses page and limit from query parameters
+// Default: page=1, limit=20; Max limit: 100
+func ParsePaginationQuery(c *fiber.Ctx) PaginationParams {
+	page := c.QueryInt("page", 1)
+	limit := c.QueryInt("limit", 20)
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	return PaginationParams{Page: page, Limit: limit}
+}
+
+// ParseSortQuery parses sort_by and sort_order from query parameters
+// Default sort_by: "id", sort_order: "asc"
+// Validates sort_order is either "asc" or "desc"
+func ParseSortQuery(c *fiber.Ctx) SortParams {
+	sortBy := strings.TrimSpace(c.Query("sort_by", "id"))
+	sortOrder := strings.TrimSpace(strings.ToLower(c.Query("sort_order", "asc")))
+
+	if sortBy == "" {
+		sortBy = "id"
+	}
+	if sortOrder != "asc" && sortOrder != "desc" {
+		sortOrder = "asc"
+	}
+
+	return SortParams{
+		SortBy:    sortBy,
+		SortOrder: sortOrder,
+	}
+}
+
+// CalculateOffset calculates SQL OFFSET from page and limit
+func CalculateOffset(page, limit int) int {
+	if page < 1 {
+		page = 1
+	}
+	return (page - 1) * limit
+}
+
+// CalculateTotalPages calculates total pages from total count and limit
+func CalculateTotalPages(total, limit int) int {
+	if limit <= 0 {
+		return 0
+	}
+	return (total + limit - 1) / limit
+}

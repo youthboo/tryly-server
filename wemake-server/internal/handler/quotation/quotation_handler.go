@@ -1,14 +1,12 @@
 package quotation
 
 import (
-	"errors"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
-	"github.com/yourusername/wemake/internal/repository"
 	"github.com/yourusername/wemake/internal/service"
 	quotationservice "github.com/yourusername/wemake/internal/service/quotation"
 )
@@ -71,16 +69,7 @@ func (h *QuotationHandler) CreateQuotation(c *fiber.Ctx) error {
 		FactoryHighlight: req.FactoryHighlight,
 	}
 	if err := h.service.Create(item); err != nil {
-		if errors.Is(err, quotationservice.ErrFactorySuspended) {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "factory account is suspended"})
-		}
-		if errors.Is(err, quotationservice.ErrFactoryHighlightInvalid) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "HIGHLIGHT_TOO_LONG"})
-		}
-		if errors.Is(err, quotationservice.ErrPaymentTermsInvalid) || errors.Is(err, quotationservice.ErrInvalidShippingMethod) || errors.Is(err, quotationservice.ErrInvalidLineItem) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create quotation"})
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to create quotation"), createQuotationErrorMap())
 	}
 	return c.Status(fiber.StatusCreated).JSON(item)
 }
@@ -169,10 +158,10 @@ func (h *QuotationHandler) GetQuotation(c *fiber.Ctx) error {
 	}
 	item, err := h.service.GetByID(int64(quotationID))
 	if err != nil {
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "quotation not found"})
+		if isNotFoundError(err) {
+			return helper.WriteAPIError(c, helper.NotFoundAPIError("QUOTATION_NOT_FOUND", "quotation not found"))
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch quotation"})
+		return helper.WriteAPIError(c, helper.InternalServerError("FETCH_FAILED", "failed to fetch quotation"))
 	}
 	return c.JSON(item)
 }
@@ -192,10 +181,10 @@ func (h *QuotationHandler) ListHistory(c *fiber.Ctx) error {
 	}
 	ok, err := h.service.CanView(int64(quotationID), userID, u.Role)
 	if err != nil {
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "quotation not found"})
+		if isNotFoundError(err) {
+			return helper.WriteAPIError(c, helper.NotFoundAPIError("QUOTATION_NOT_FOUND", "quotation not found"))
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to authorize"})
+		return helper.WriteAPIError(c, helper.InternalServerError("AUTH_FAILED", "failed to authorize"))
 	}
 	if !ok {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "not authorized"})
@@ -265,13 +254,7 @@ func (h *QuotationHandler) CreateDetailed(c *fiber.Ctx) error {
 		item.DeliveryDate = &d
 	}
 	if err := h.service.CreateDetailed(item); err != nil {
-		if errors.Is(err, quotationservice.ErrFactorySuspended) {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "factory account is suspended"})
-		}
-		if errors.Is(err, quotationservice.ErrFactoryHighlightInvalid) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "HIGHLIGHT_TOO_LONG"})
-		}
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusBadRequest, "failed to create detailed quotation"), createDetailedErrorMap())
 	}
 	return c.Status(fiber.StatusCreated).JSON(item)
 }
@@ -376,19 +359,7 @@ func (h *QuotationHandler) PatchQuotation(c *fiber.Ctx) error {
 		req.ValidityDays,
 	)
 	if err != nil {
-		if errors.Is(err, quotationservice.ErrQuotationLocked) {
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "LOCKED"})
-		}
-		if errors.Is(err, quotationservice.ErrNotQuotationParty) {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
-		}
-		if errors.Is(err, quotationservice.ErrFactoryHighlightInvalid) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "HIGHLIGHT_TOO_LONG"})
-		}
-		if errors.Is(err, quotationservice.ErrInvalidShippingMethod) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update quotation"})
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to update quotation"), patchQuotationErrorMap())
 	}
 	// Update image_urls if provided in request
 	if req.ImageURLs != nil {

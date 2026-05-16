@@ -1,8 +1,6 @@
 package boq
 
 import (
-	"errors"
-
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
@@ -176,20 +174,5 @@ func boqPayloadToInput(req dto.BOQPayloadRequest) boqservice.BOQInput {
 }
 
 func mapBOQError(c *fiber.Ctx, err error) error {
-	switch {
-	case errors.Is(err, boqservice.ErrBOQNotFound):
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "BOQ_NOT_FOUND"})
-	case errors.Is(err, boqservice.ErrBOQForbidden):
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "BOQ_FORBIDDEN"})
-	case errors.Is(err, boqservice.ErrBOQInvalidItems):
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "BOQ_INVALID_ITEMS"})
-	case errors.Is(err, boqservice.ErrBOQExpired):
-		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "BOQ_EXPIRED"})
-	case errors.Is(err, boqservice.ErrBOQAlreadyHandled):
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "BOQ_ALREADY_HANDLED"})
-	case errors.Is(err, boqservice.ErrBOQInvalidState):
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "BOQ_INVALID_STATE"})
-	default:
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to process boq"})
-	}
+	return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to process boq"), boqErrorMap())
 }

@@ -1,13 +1,12 @@
 package order
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/domainutil"
+	"github.com/yourusername/wemake/internal/helper"
 	orderrepo "github.com/yourusername/wemake/internal/repository/order"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 )
@@ -96,12 +95,7 @@ func buildPaymentSchedule(row *orderrepo.OrderDetailRow, status string, depositD
 }
 
 func normalizeOrderStatus(status string) string {
-	switch domainutil.NormalizeStatus(status) {
-	case "CC":
-		return "CN"
-	default:
-		return domainutil.NormalizeStatus(status)
-	}
+	return helper.NormalizeOrderStatus(status)
 }
 
 func orderStatusLabelTH(status string) string {
@@ -178,10 +172,5 @@ func deriveDefaultDepositDueTimestamp(createdAt time.Time) time.Time {
 }
 
 func insertDomainEventTx(tx *sqlx.Tx, eventType string, payload interface{}) error {
-	b, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-	_, err = tx.Exec(`INSERT INTO domain_events (event_type, payload) VALUES ($1, $2)`, eventType, b)
-	return err
+	return helper.InsertDomainEventTx(tx, eventType, payload)
 }

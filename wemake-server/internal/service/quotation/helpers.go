@@ -2,9 +2,9 @@ package quotation
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/helper"
 )
 
 type notificationCreator interface {
@@ -17,24 +17,17 @@ type systemMessageSender interface {
 }
 
 func notificationData(payload map[string]interface{}) *domain.JSONB {
-	if len(payload) == 0 {
-		return nil
-	}
-	data := domain.JSONB(payload)
-	return &data
+	return helper.NotificationData(payload)
 }
 
 func createNotificationSafe(s notificationCreator, noti *domain.Notification) {
-	if s == nil || noti == nil || noti.UserID <= 0 {
-		return
-	}
-	_ = s.Create(noti)
+	helper.CreateNotificationSafe(s, noti)
 }
 
 func orderLink(orderID int64) string {
-	return fmt.Sprintf("/orders/%d", orderID)
+	return helper.OrderLink(orderID)
 }
 
 func quoteLink(quoteID int64) string {
-	return fmt.Sprintf("/quotations/%d", quoteID)
+	return helper.QuoteLink(quoteID)
 }

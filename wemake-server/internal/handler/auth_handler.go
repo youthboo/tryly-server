@@ -41,19 +41,17 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	if err != nil {
 		switch err {
 		case service.ErrEmailAlreadyExists:
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error()})
+			return helper.WriteAPIError(c, helper.ConflictAPIError("EMAIL_EXISTS", "email already exists"))
 		case service.ErrInvalidRole, service.ErrMissingRoleData:
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+			return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_ROLE", err.Error()))
 		default:
 			logger.Error("user registration failed", "role", req.Role, "email", req.Email, "err", err)
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-				"error":   "failed to register",
-				"details": err.Error(),
-			})
+			return helper.WriteAPIError(c, helper.InternalServerError("REGISTER_FAILED", "failed to register"))
 		}
 	}
 
-	return c.Status(fiber.StatusCreated).JSON(result)
+	c.Status(fiber.StatusCreated)
+	return c.JSON(result)
 }
 
 func (h *AuthHandler) Login(c *fiber.Ctx) error {
@@ -69,11 +67,11 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	if err != nil {
 		switch err {
 		case service.ErrInvalidCredentials:
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": err.Error()})
+			return helper.WriteAPIError(c, helper.UnauthorizedAPIError("INVALID_CREDENTIALS", "invalid email or password"))
 		case service.ErrUserInactive:
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
+			return helper.WriteAPIError(c, helper.ForbiddenAPIError("USER_INACTIVE", "account is inactive"))
 		default:
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to login"})
+			return helper.WriteAPIError(c, helper.InternalServerError("LOGIN_FAILED", "failed to login"))
 		}
 	}
 
@@ -90,17 +88,15 @@ func (h *AuthHandler) ForgotPassword(c *fiber.Ctx) error {
 
 	token, err := h.service.ForgotPassword(req.Email)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to process forgot password"})
+		return helper.WriteAPIError(c, helper.InternalServerError("FORGOT_PASSWORD_FAILED", "failed to process forgot password"))
 	}
 
-	resp := fiber.Map{
-		"message": "if the account exists, reset instructions have been generated",
-	}
+	data := fiber.Map{}
 	if token != "" {
-		resp["reset_token"] = token
+		data["reset_token"] = token
 	}
 
-	return c.JSON(resp)
+	return helper.WriteSuccess(c, "if the account exists, reset instructions have been generated", data)
 }
 
 func (h *AuthHandler) ResetPassword(c *fiber.Ctx) error {
@@ -114,10 +110,10 @@ func (h *AuthHandler) ResetPassword(c *fiber.Ctx) error {
 
 	if err := h.service.ResetPassword(req.Token, req.NewPassword); err != nil {
 		if err == service.ErrInvalidResetToken {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+			return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_RESET_TOKEN", "invalid or expired reset token"))
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to reset password"})
+		return helper.WriteAPIError(c, helper.InternalServerError("RESET_PASSWORD_FAILED", "failed to reset password"))
 	}
 
-	return c.JSON(fiber.Map{"message": "password reset successful"})
+	return helper.WriteSuccess(c, "password reset successful", nil)
 }

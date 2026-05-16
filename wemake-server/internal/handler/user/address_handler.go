@@ -33,20 +33,20 @@ func normalizeAddressType(raw string) (string, bool) {
 func (h *AddressHandler) ListAddresses(c *fiber.Ctx) error {
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_USER_ID", "invalid X-User-ID header"))
 	}
 
 	addresses, err := h.service.ListByUserID(userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch addresses"})
+		return helper.WriteAPIError(c, helper.InternalServerError("FETCH_ADDRESSES_FAILED", "failed to fetch addresses"))
 	}
-	return c.JSON(addresses)
+	return helper.WriteListResponse(c, addresses, len(addresses))
 }
 
 func (h *AddressHandler) CreateAddress(c *fiber.Ctx) error {
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_USER_ID", "invalid X-User-ID header"))
 	}
 
 	var req dto.CreateAddressRequest
@@ -55,11 +55,11 @@ func (h *AddressHandler) CreateAddress(c *fiber.Ctx) error {
 	}
 
 	if strings.TrimSpace(req.AddressType) == "" || strings.TrimSpace(req.AddressDetail) == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "address_type and address_detail are required"})
+		return helper.WriteAPIError(c, helper.BadRequestAPIError("MISSING_FIELDS", "address_type and address_detail are required"))
 	}
 	addressType, ok := normalizeAddressType(req.AddressType)
 	if !ok {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "address_type must be one of B, S, C, M"})
+		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_ADDRESS_TYPE", "address_type must be one of B, S, C, M"))
 	}
 
 	address := &domain.Address{
@@ -74,20 +74,21 @@ func (h *AddressHandler) CreateAddress(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.Create(address); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create address"})
+		return helper.WriteAPIError(c, helper.InternalServerError("CREATE_ADDRESS_FAILED", "failed to create address"))
 	}
-	return c.Status(fiber.StatusCreated).JSON(address)
+	c.Status(fiber.StatusCreated)
+	return c.JSON(address)
 }
 
 func (h *AddressHandler) PatchAddress(c *fiber.Ctx) error {
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_USER_ID", "invalid X-User-ID header"))
 	}
 
 	addressID, err := c.ParamsInt("address_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid address_id"})
+		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_ADDRESS_ID", "invalid address_id"))
 	}
 
 	var req dto.PatchAddressRequest
@@ -99,7 +100,7 @@ func (h *AddressHandler) PatchAddress(c *fiber.Ctx) error {
 	if req.AddressType != nil {
 		addressType, ok := normalizeAddressType(*req.AddressType)
 		if !ok {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "address_type must be one of B, S, C, M"})
+			return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_ADDRESS_TYPE", "address_type must be one of B, S, C, M"))
 		}
 		fields["address_type"] = addressType
 	}
@@ -123,25 +124,25 @@ func (h *AddressHandler) PatchAddress(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.Patch(userID, int64(addressID), fields); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to patch address"})
+		return helper.WriteAPIError(c, helper.InternalServerError("PATCH_ADDRESS_FAILED", "failed to patch address"))
 	}
-	return c.JSON(fiber.Map{"message": "address updated"})
+	return helper.WriteSuccess(c, "address updated", nil)
 }
 
 func (h *AddressHandler) DeleteAddress(c *fiber.Ctx) error {
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_USER_ID", "invalid X-User-ID header"))
 	}
 	addressID, err := c.ParamsInt("address_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid address_id"})
+		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_ADDRESS_ID", "invalid address_id"))
 	}
 	if err := h.service.Delete(userID, int64(addressID)); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "address not found"})
+			return helper.WriteAPIError(c, helper.NotFoundAPIError("ADDRESS_NOT_FOUND", "address not found"))
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to delete address"})
+		return helper.WriteAPIError(c, helper.InternalServerError("DELETE_ADDRESS_FAILED", "failed to delete address"))
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }

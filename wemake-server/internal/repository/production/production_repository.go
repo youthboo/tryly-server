@@ -1,8 +1,6 @@
 package production
 
 import (
-	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -39,8 +37,8 @@ func NewProductionRepository(db *sqlx.DB) *ProductionRepository {
 	return &ProductionRepository{db: db}
 }
 
-func (r *ProductionRepository) BeginTx(ctx context.Context) (*sqlx.Tx, error) {
-	return r.db.BeginTxx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+func (r *ProductionRepository) DB() *sqlx.DB {
+	return r.db
 }
 
 func (r *ProductionRepository) GetUserRole(userID int64) (string, error) {

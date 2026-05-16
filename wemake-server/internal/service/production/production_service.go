@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	productionrepo "github.com/yourusername/wemake/internal/repository/production"
 )
@@ -130,204 +131,203 @@ func (s *ProductionService) Upsert(orderID, userID int64, input ProductionWriteI
 		return nil, err
 	}
 
-	tx, err := s.repo.BeginTx(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	role, err := s.repo.GetUserRole(userID)
-	if err != nil {
-		return nil, err
-	}
-	role = normalizeUserRole(role)
-	if !s.repo.IsFactoryRole(role) {
-		return nil, &ProductionRuleError{Err: ErrProductionNotOrderFactory}
-	}
-
-	order, err := s.repo.GetOrderForUpdateTx(tx, orderID)
-	if err != nil {
-		return nil, err
-	}
-	if order.FactoryID != userID {
-		return nil, &ProductionRuleError{Err: ErrProductionNotOrderFactory}
-	}
-	if isLockedOrderStatus(order.OrderStatus) {
-		return nil, &ProductionRuleError{Err: ErrProductionOrderLocked}
-	}
-
-	steps, err := s.repo.ListActiveStepsByFactoryTypeTx(tx, order.FactoryTypeID)
-	if err != nil {
-		return nil, err
-	}
-	step := s.repo.StepByID(steps, input.StepID)
-	if step == nil || !step.IsActive {
-		return nil, &ProductionRuleError{Err: ErrProductionInvalidStep}
-	}
-
-	persisted, err := s.repo.ListByOrderIDTx(tx, orderID)
-	if err != nil {
-		return nil, err
-	}
-	inflated := s.repo.InflateUpdates(orderID, steps, persisted)
-	current := s.repo.GetUpdateByOrderAndStep(orderID, input.StepID, inflated)
-	if current == nil {
-		current = &domain.ProductionUpdate{
-			OrderID:    orderID,
-			StepID:     input.StepID,
-			StepCode:   step.StepCode,
-			StepNameTH: step.StepNameTH,
-			StepNameEN: step.StepNameEN,
-			SortOrder:  step.SortOrder,
-			Status:     "PD",
-			ImageURLs:  domain.StringArray{},
+	var result *domain.ProductionUpdateResult
+	if err := helper.WithTxOptions(context.Background(), s.repo.DB(), &sql.TxOptions{Isolation: sql.LevelSerializable}, func(tx *sqlx.Tx) error {
+		role, err := s.repo.GetUserRole(userID)
+		if err != nil {
+			return err
 		}
-	}
-
-	if step.SortOrder > 1 {
-		prevStep := s.repo.StepBySortOrder(steps, step.SortOrder-1)
-		prev := s.repo.GetUpdateByOrderAndStep(orderID, prevStep.StepID, inflated)
-		if input.Status == "IP" && (prev == nil || prev.Status != "CD") {
-			return nil, &ProductionRuleError{
-				Err:     ErrProductionStepOrderViolation,
-				Details: map[string]interface{}{"required_previous_step": prevStep.StepCode},
-			}
+		role = normalizeUserRole(role)
+		if !s.repo.IsFactoryRole(role) {
+			return &ProductionRuleError{Err: ErrProductionNotOrderFactory}
 		}
-	}
 
-	// Cannot revert a completed step back to in-progress
-	if current.Status == "CD" && input.Status == "IP" {
-		return nil, &ProductionRuleError{Err: ErrProductionInvalidStateTransition}
-	}
-	// Cannot mark a rejected step as done without re-submitting as IP first
-	if current.Status == "RJ" && input.Status == "CD" {
-		return nil, &ProductionRuleError{Err: ErrProductionInvalidStateTransition}
-	}
-	// PD → CD is allowed: factory can complete a step in one click (with evidence)
-
-	if active := s.repo.GetActiveInProgressStep(inflated, input.StepID); input.Status == "IP" && active != nil && active.Status == "IP" && active.StepID != input.StepID {
-		return nil, &ProductionRuleError{
-			Err:     ErrProductionAnotherStepInProgress,
-			Details: map[string]interface{}{"in_progress_step_id": active.StepID},
+		order, err := s.repo.GetOrderForUpdateTx(tx, orderID)
+		if err != nil {
+			return err
 		}
-	}
-
-	if input.Status == "CD" {
-		requiredPhotos := 1
-		if len(input.ImageURLs) < requiredPhotos {
-			return nil, &ProductionRuleError{
-				Err:     ErrProductionInsufficientEvidence,
-				Details: map[string]interface{}{"required": requiredPhotos, "provided": len(input.ImageURLs)},
-			}
+		if order.FactoryID != userID {
+			return &ProductionRuleError{Err: ErrProductionNotOrderFactory}
 		}
-		if step.IsPaymentTrigger && (!input.ConfirmPaymentTrigger || !input.HeaderPaymentConfirmed) {
-			return nil, &ProductionRuleError{Err: ErrProductionPaymentConfirmRequired}
+		if isLockedOrderStatus(order.OrderStatus) {
+			return &ProductionRuleError{Err: ErrProductionOrderLocked}
 		}
-	}
 
-	updatedBy := userID
-	update := &domain.ProductionUpdate{
-		OrderID:         orderID,
-		StepID:          input.StepID,
-		StepCode:        step.StepCode,
-		StepNameTH:      step.StepNameTH,
-		StepNameEN:      step.StepNameEN,
-		SortOrder:       step.SortOrder,
-		Status:          input.Status,
-		Description:     input.Description,
-		ImageURLs:       domain.StringArray(input.ImageURLs),
-		UpdatedByUserID: &updatedBy,
-	}
-	if input.Status == "CD" {
-		now := time.Now().UTC()
-		update.CompletedAt = &now
-	}
-	if current.Status == input.Status && current.Description == input.Description && equalStringArrays(current.ImageURLs, update.ImageURLs) {
-		update.UpdateID = current.UpdateID
-		update.CreatedAt = current.CreatedAt
-		update.LastUpdatedAt = current.LastUpdatedAt
-		update.CompletedAt = current.CompletedAt
-		update.RejectedReason = current.RejectedReason
-		return &domain.ProductionUpdateResult{
-			Update:      *current,
-			OrderStatus: order.OrderStatus,
-		}, nil
-	}
+		steps, err := s.repo.ListActiveStepsByFactoryTypeTx(tx, order.FactoryTypeID)
+		if err != nil {
+			return err
+		}
+		step := s.repo.StepByID(steps, input.StepID)
+		if step == nil || !step.IsActive {
+			return &ProductionRuleError{Err: ErrProductionInvalidStep}
+		}
 
-	if err := s.repo.UpsertTx(tx, update); err != nil {
-		return nil, err
-	}
-
-	var autoProgressed *domain.ProductionUpdateAutoProgressed
-	if input.Status == "CD" {
-		if step.IsPaymentTrigger {
-			if err := s.repo.InsertDomainEventTx(tx, "production.payment_triggered", map[string]interface{}{
-				"order_id":     orderID,
-				"step_code":    step.StepCode,
-				"update_id":    update.UpdateID,
-				"triggered_at": time.Now().UTC(),
-			}); err != nil {
-				return nil, err
+		persisted, err := s.repo.ListByOrderIDTx(tx, orderID)
+		if err != nil {
+			return err
+		}
+		inflated := s.repo.InflateUpdates(orderID, steps, persisted)
+		current := s.repo.GetUpdateByOrderAndStep(orderID, input.StepID, inflated)
+		if current == nil {
+			current = &domain.ProductionUpdate{
+				OrderID:    orderID,
+				StepID:     input.StepID,
+				StepCode:   step.StepCode,
+				StepNameTH: step.StepNameTH,
+				StepNameEN: step.StepNameEN,
+				SortOrder:  step.SortOrder,
+				Status:     "PD",
+				ImageURLs:  domain.StringArray{},
 			}
 		}
 
-		if nextStep := s.repo.StepBySortOrder(steps, step.SortOrder+1); nextStep != nil && nextStep.IsActive {
-			nextUpdatedBy := userID
-			next := &domain.ProductionUpdate{
-				OrderID:         orderID,
-				StepID:          nextStep.StepID,
-				StepCode:        nextStep.StepCode,
-				StepNameTH:      nextStep.StepNameTH,
-				StepNameEN:      nextStep.StepNameEN,
-				SortOrder:       nextStep.SortOrder,
-				Status:          "IP",
-				Description:     "",
-				ImageURLs:       domain.StringArray{},
-				UpdatedByUserID: &nextUpdatedBy,
+		if step.SortOrder > 1 {
+			prevStep := s.repo.StepBySortOrder(steps, step.SortOrder-1)
+			prev := s.repo.GetUpdateByOrderAndStep(orderID, prevStep.StepID, inflated)
+			if input.Status == "IP" && (prev == nil || prev.Status != "CD") {
+				return &ProductionRuleError{
+					Err:     ErrProductionStepOrderViolation,
+					Details: map[string]interface{}{"required_previous_step": prevStep.StepCode},
+				}
 			}
-			if err := s.repo.UpsertTx(tx, next); err != nil {
-				return nil, err
-			}
-			autoProgressed = &domain.ProductionUpdateAutoProgressed{StepID: nextStep.StepID, Status: "IP"}
 		}
-	}
 
-	newOrderStatus := order.OrderStatus
-	switch step.StepCode {
-	case "QUALITY_CONTROL":
+		// Cannot revert a completed step back to in-progress
+		if current.Status == "CD" && input.Status == "IP" {
+			return &ProductionRuleError{Err: ErrProductionInvalidStateTransition}
+		}
+		// Cannot mark a rejected step as done without re-submitting as IP first
+		if current.Status == "RJ" && input.Status == "CD" {
+			return &ProductionRuleError{Err: ErrProductionInvalidStateTransition}
+		}
+		// PD → CD is allowed: factory can complete a step in one click (with evidence)
+
+		if active := s.repo.GetActiveInProgressStep(inflated, input.StepID); input.Status == "IP" && active != nil && active.Status == "IP" && active.StepID != input.StepID {
+			return &ProductionRuleError{
+				Err:     ErrProductionAnotherStepInProgress,
+				Details: map[string]interface{}{"in_progress_step_id": active.StepID},
+			}
+		}
+
 		if input.Status == "CD" {
-			newOrderStatus = "QC"
+			requiredPhotos := 1
+			if len(input.ImageURLs) < requiredPhotos {
+				return &ProductionRuleError{
+					Err:     ErrProductionInsufficientEvidence,
+					Details: map[string]interface{}{"required": requiredPhotos, "provided": len(input.ImageURLs)},
+				}
+			}
+			if step.IsPaymentTrigger && (!input.ConfirmPaymentTrigger || !input.HeaderPaymentConfirmed) {
+				return &ProductionRuleError{Err: ErrProductionPaymentConfirmRequired}
+			}
 		}
-	case "READY_TO_SHIP":
-		if input.Status == "CD" {
-			newOrderStatus = "SH"
+
+		updatedBy := userID
+		update := &domain.ProductionUpdate{
+			OrderID:         orderID,
+			StepID:          input.StepID,
+			StepCode:        step.StepCode,
+			StepNameTH:      step.StepNameTH,
+			StepNameEN:      step.StepNameEN,
+			SortOrder:       step.SortOrder,
+			Status:          input.Status,
+			Description:     input.Description,
+			ImageURLs:       domain.StringArray(input.ImageURLs),
+			UpdatedByUserID: &updatedBy,
 		}
-	case "SHIPPED":
 		if input.Status == "CD" {
+			now := time.Now().UTC()
+			update.CompletedAt = &now
+		}
+		if current.Status == input.Status && current.Description == input.Description && equalStringArrays(current.ImageURLs, update.ImageURLs) {
+			update.UpdateID = current.UpdateID
+			update.CreatedAt = current.CreatedAt
+			update.LastUpdatedAt = current.LastUpdatedAt
+			update.CompletedAt = current.CompletedAt
+			update.RejectedReason = current.RejectedReason
+			result = &domain.ProductionUpdateResult{
+				Update:      *current,
+				OrderStatus: order.OrderStatus,
+			}
+			return nil
+		}
+
+		if err := s.repo.UpsertTx(tx, update); err != nil {
+			return err
+		}
+
+		var autoProgressed *domain.ProductionUpdateAutoProgressed
+		if input.Status == "CD" {
+			if step.IsPaymentTrigger {
+				if err := s.repo.InsertDomainEventTx(tx, "production.payment_triggered", map[string]interface{}{
+					"order_id":     orderID,
+					"step_code":    step.StepCode,
+					"update_id":    update.UpdateID,
+					"triggered_at": time.Now().UTC(),
+				}); err != nil {
+					return err
+				}
+			}
+
+			if nextStep := s.repo.StepBySortOrder(steps, step.SortOrder+1); nextStep != nil && nextStep.IsActive {
+				nextUpdatedBy := userID
+				next := &domain.ProductionUpdate{
+					OrderID:         orderID,
+					StepID:          nextStep.StepID,
+					StepCode:        nextStep.StepCode,
+					StepNameTH:      nextStep.StepNameTH,
+					StepNameEN:      nextStep.StepNameEN,
+					SortOrder:       nextStep.SortOrder,
+					Status:          "IP",
+					Description:     "",
+					ImageURLs:       domain.StringArray{},
+					UpdatedByUserID: &nextUpdatedBy,
+				}
+				if err := s.repo.UpsertTx(tx, next); err != nil {
+					return err
+				}
+				autoProgressed = &domain.ProductionUpdateAutoProgressed{StepID: nextStep.StepID, Status: "IP"}
+			}
+		}
+
+		newOrderStatus := order.OrderStatus
+		switch step.StepCode {
+		case "QUALITY_CONTROL":
+			if input.Status == "CD" {
+				newOrderStatus = "QC"
+			}
+		case "READY_TO_SHIP":
+			if input.Status == "CD" {
+				newOrderStatus = "SH"
+			}
+		case "SHIPPED":
+			if input.Status == "CD" {
+				newOrderStatus = "CP"
+			}
+		default:
+			if input.Status == "IP" && isPreProductionOrderStatus(order.OrderStatus) {
+				newOrderStatus = "PR"
+			}
+		}
+		if input.Status == "CD" && step.StepCode == "SHIPPED" {
 			newOrderStatus = "CP"
 		}
-	default:
-		if input.Status == "IP" && isPreProductionOrderStatus(order.OrderStatus) {
-			newOrderStatus = "PR"
+		if newOrderStatus != order.OrderStatus {
+			if _, err := tx.Exec(`UPDATE orders SET status = $1, updated_at = NOW() WHERE order_id = $2`, newOrderStatus, orderID); err != nil {
+				return err
+			}
 		}
-	}
-	if input.Status == "CD" && step.StepCode == "SHIPPED" {
-		newOrderStatus = "CP"
-	}
-	if newOrderStatus != order.OrderStatus {
-		if _, err := tx.Exec(`UPDATE orders SET status = $1, updated_at = NOW() WHERE order_id = $2`, newOrderStatus, orderID); err != nil {
-			return nil, err
-		}
-	}
 
-	if err := tx.Commit(); err != nil {
+		result = &domain.ProductionUpdateResult{
+			Update:         *update,
+			OrderStatus:    newOrderStatus,
+			AutoProgressed: autoProgressed,
+		}
+		return nil
+	}); err != nil {
 		return nil, err
 	}
-	return &domain.ProductionUpdateResult{
-		Update:         *update,
-		OrderStatus:    newOrderStatus,
-		AutoProgressed: autoProgressed,
-	}, nil
+	return result, nil
 }
 
 func (s *ProductionService) Reject(updateID, userID int64, reason string) (*domain.ProductionUpdate, error) {
@@ -336,57 +336,54 @@ func (s *ProductionService) Reject(updateID, userID int64, reason string) (*doma
 		return nil, &ProductionRuleError{Err: ErrProductionReasonRequired}
 	}
 
-	tx, err := s.repo.BeginTx(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	role, err := s.repo.GetUserRole(userID)
-	if err != nil {
-		return nil, err
-	}
-	role = normalizeUserRole(role)
-
-	updateCtx, err := s.repo.GetUpdateByIDForUpdateTx(tx, updateID)
-	if err != nil {
-		return nil, err
-	}
-	order, err := s.repo.GetOrderForUpdateTx(tx, updateCtx.OrderID)
-	if err != nil {
-		return nil, err
-	}
-	if isLockedOrderStatus(order.OrderStatus) {
-		return nil, &ProductionRuleError{Err: ErrProductionOrderLocked}
-	}
-
-	if s.repo.IsCustomerRole(role) {
-		if order.UserID != userID {
-			return nil, &ProductionRuleError{Err: ErrProductionNotOrderCustomer}
+	var item *domain.ProductionUpdate
+	if err := helper.WithTxOptions(context.Background(), s.repo.DB(), &sql.TxOptions{Isolation: sql.LevelSerializable}, func(tx *sqlx.Tx) error {
+		role, err := s.repo.GetUserRole(userID)
+		if err != nil {
+			return err
 		}
-	} else if !s.repo.IsAdminRole(role) {
-		return nil, &ProductionRuleError{Err: ErrProductionNotOrderCustomer}
-	}
+		role = normalizeUserRole(role)
 
-	if updateCtx.Status != "CD" {
-		return nil, &ProductionRuleError{Err: ErrProductionInvalidStateTransition}
-	}
-	persisted, err := s.repo.ListByOrderIDTx(tx, updateCtx.OrderID)
-	if err != nil {
-		return nil, err
-	}
-	if s.repo.HasDownstreamInFlight(persisted, updateCtx.SortOrder) {
-		return nil, &ProductionRuleError{Err: ErrProductionDownstreamInFlight}
-	}
-	item, err := s.repo.RejectTx(tx, updateID, reason, userID)
-	if err != nil {
-		return nil, err
-	}
-	item.StepCode = updateCtx.StepCode
-	item.StepNameTH = updateCtx.StepNameTH
-	item.StepNameEN = updateCtx.StepNameEN
-	item.SortOrder = updateCtx.SortOrder
-	if err := tx.Commit(); err != nil {
+		updateCtx, err := s.repo.GetUpdateByIDForUpdateTx(tx, updateID)
+		if err != nil {
+			return err
+		}
+		order, err := s.repo.GetOrderForUpdateTx(tx, updateCtx.OrderID)
+		if err != nil {
+			return err
+		}
+		if isLockedOrderStatus(order.OrderStatus) {
+			return &ProductionRuleError{Err: ErrProductionOrderLocked}
+		}
+
+		if s.repo.IsCustomerRole(role) {
+			if order.UserID != userID {
+				return &ProductionRuleError{Err: ErrProductionNotOrderCustomer}
+			}
+		} else if !s.repo.IsAdminRole(role) {
+			return &ProductionRuleError{Err: ErrProductionNotOrderCustomer}
+		}
+
+		if updateCtx.Status != "CD" {
+			return &ProductionRuleError{Err: ErrProductionInvalidStateTransition}
+		}
+		persisted, err := s.repo.ListByOrderIDTx(tx, updateCtx.OrderID)
+		if err != nil {
+			return err
+		}
+		if s.repo.HasDownstreamInFlight(persisted, updateCtx.SortOrder) {
+			return &ProductionRuleError{Err: ErrProductionDownstreamInFlight}
+		}
+		item, err = s.repo.RejectTx(tx, updateID, reason, userID)
+		if err != nil {
+			return err
+		}
+		item.StepCode = updateCtx.StepCode
+		item.StepNameTH = updateCtx.StepNameTH
+		item.StepNameEN = updateCtx.StepNameEN
+		item.SortOrder = updateCtx.SortOrder
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 	return item, nil

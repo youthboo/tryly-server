@@ -67,3 +67,27 @@ func FormatThaiShortDate(t time.Time) string {
 	months := []string{"ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."}
 	return fmt.Sprintf("%d %s %02d", t.Day(), months[int(t.Month())-1], (t.Year()+543)%100)
 }
+
+func NormalizeString(s string) string {
+	return strings.TrimSpace(s)
+}
+
+func NormalizeEmail(s string) string {
+	return strings.TrimSpace(strings.ToLower(s))
+}
+
+func NormalizeRole(s string) string {
+	return strings.TrimSpace(strings.ToUpper(s))
+}
+
+func NormalizePhone(s string) string {
+	return strings.TrimSpace(s)
+}
+
+func NormalizeName(s string) string {
+	return strings.TrimSpace(s)
+}
+
+func IsEmptyString(s string) bool {
+	return strings.TrimSpace(s) == ""
+}
