@@ -2,9 +2,9 @@ package payment
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/yourusername/wemake/internal/domain"
+	domainstatus "github.com/yourusername/wemake/internal/domain/status"
 	paymentrepo "github.com/yourusername/wemake/internal/repository/payment"
 )
 
@@ -27,8 +27,8 @@ func (s *PaymentScheduleService) CreateSchedule(sc *domain.PaymentSchedule) erro
 }
 
 func (s *PaymentScheduleService) PatchStatus(scheduleID int64, status string) error {
-	status = strings.ToUpper(strings.TrimSpace(status))
-	if status != "PD" && status != "OD" {
+	status = domainstatus.NormalizeCode(status)
+	if !domainstatus.IsValidPaymentSchedulePatchStatus(status) {
 		return ErrInvalidScheduleStatus
 	}
 	return s.repo.PatchStatus(scheduleID, status)

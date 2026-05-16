@@ -872,7 +872,7 @@ func (s *FrontendService) buildMockRFQ(row frontendrepo.FrontendRFQRow, category
 		Budget:       row.Budget,
 		Quantity:     row.Quantity,
 		Material:     "รายละเอียดวัสดุเพิ่มเติม",
-		Deadline:     helper.DateDaysFromNow(14),
+		Deadline:     helper.DateDaysFromNow(domain.DefaultQuotationValidityDays),
 		CreatedAt:    row.CreatedAt,
 		Description:  row.Description,
 		Offers:       offers,

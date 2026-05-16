@@ -9,6 +9,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	domainstatus "github.com/yourusername/wemake/internal/domain/status"
 	"github.com/yourusername/wemake/internal/dto"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
@@ -88,9 +89,8 @@ func (h *AdminOrderHandler) PatchStatus(c *fiber.Ctx) error {
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
-	status := strings.ToUpper(strings.TrimSpace(req.Status))
-	valid := map[string]struct{}{"PP": {}, "PR": {}, "WF": {}, "QC": {}, "SH": {}, "DL": {}, "AC": {}, "CP": {}, "CC": {}}
-	if _, ok := valid[status]; !ok {
+	status := domainstatus.NormalizeOrder(req.Status)
+	if !domainstatus.IsValidOrder(status) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid status"})
 	}
 	if err := h.service.UpdateStatus(orderID, status, nil); err != nil {
@@ -129,7 +129,9 @@ func (h *AdminOrderHandler) PatchWithdrawal(c *fiber.Ctx) error {
 		return err
 	}
 	status := strings.ToUpper(strings.TrimSpace(req.Status))
-	if status != "AP" && status != "RJ" && status != "CP" {
+	if status != domain.WithdrawalStatusApproved &&
+		status != domain.WithdrawalStatusRejected &&
+		status != domain.WithdrawalStatusComplete {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "status must be AP, RJ, or CP"})
 	}
 	if err := h.withdrawal.UpdateStatus(requestID, status, req.Comments); err != nil {

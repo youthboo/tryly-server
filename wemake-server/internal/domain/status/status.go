@@ -1,6 +1,10 @@
 package status
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/yourusername/wemake/internal/domain"
+)
 
 func NormalizeCode(value string) string {
 	return strings.ToUpper(strings.TrimSpace(value))
@@ -17,7 +21,17 @@ func NormalizeOrder(value string) string {
 
 func IsValidOrder(value string) bool {
 	switch NormalizeOrder(value) {
-	case "PP", "PE", "PD", "PR", "WF", "QC", "SH", "DL", "AC", "CP", "CN":
+	case domain.OrderStatusPaymentPending,
+		domain.OrderStatusPaymentExpired,
+		domain.OrderStatusPaymentDone,
+		domain.OrderStatusProduction,
+		domain.OrderStatusWaitingFinalPayment,
+		domain.OrderStatusQualityCheck,
+		domain.OrderStatusShipping,
+		domain.OrderStatusDelivered,
+		domain.OrderStatusAccepted,
+		domain.OrderStatusComplete,
+		domain.OrderStatusCancelled:
 		return true
 	default:
 		return false
@@ -26,21 +40,21 @@ func IsValidOrder(value string) bool {
 
 func OrderLabelTH(value string) string {
 	switch NormalizeOrder(value) {
-	case "PP":
+	case domain.OrderStatusPaymentPending:
 		return "รอชำระเงิน"
-	case "PE":
+	case domain.OrderStatusPaymentExpired:
 		return "หมดกำหนดชำระ"
-	case "PD":
+	case domain.OrderStatusPaymentDone:
 		return "ชำระเงินแล้ว รอเริ่มผลิต"
-	case "PR":
+	case domain.OrderStatusProduction:
 		return "กำลังผลิต"
-	case "QC":
+	case domain.OrderStatusQualityCheck:
 		return "ตรวจสอบคุณภาพ"
-	case "SH":
+	case domain.OrderStatusShipping:
 		return "จัดส่งแล้ว"
-	case "CP":
+	case domain.OrderStatusComplete:
 		return "เสร็จสิ้น"
-	case "CN":
+	case domain.OrderStatusCancelled:
 		return "ยกเลิก"
 	default:
 		return NormalizeOrder(value)
@@ -49,7 +63,11 @@ func OrderLabelTH(value string) string {
 
 func IsDepositPaidOrBeyondOrder(value string) bool {
 	switch NormalizeOrder(value) {
-	case "PD", "PR", "QC", "SH", "CP":
+	case domain.OrderStatusPaymentDone,
+		domain.OrderStatusProduction,
+		domain.OrderStatusQualityCheck,
+		domain.OrderStatusShipping,
+		domain.OrderStatusComplete:
 		return true
 	default:
 		return false
@@ -57,12 +75,33 @@ func IsDepositPaidOrBeyondOrder(value string) bool {
 }
 
 func IsDepositExpiredOrder(value string) bool {
-	return NormalizeOrder(value) == "PE"
+	return NormalizeOrder(value) == domain.OrderStatusPaymentExpired
+}
+
+func IsCancellableOrder(value string) bool {
+	switch NormalizeOrder(value) {
+	case domain.OrderStatusPaymentExpired,
+		domain.OrderStatusPaymentPending,
+		domain.OrderStatusProduction,
+		domain.OrderStatusWaitingFinalPayment:
+		return true
+	default:
+		return false
+	}
+}
+
+func IsValidPaymentSchedulePatchStatus(value string) bool {
+	switch NormalizeCode(value) {
+	case domain.PaymentScheduleStatusPaid, domain.PaymentScheduleStatusOverdue:
+		return true
+	default:
+		return false
+	}
 }
 
 func IsPreProductionOrder(value string) bool {
 	switch NormalizeOrder(value) {
-	case "CF", "PE", "PP":
+	case "CF", domain.OrderStatusPaymentExpired, domain.OrderStatusPaymentPending:
 		return true
 	default:
 		return false
@@ -71,7 +110,10 @@ func IsPreProductionOrder(value string) bool {
 
 func IsProductionLockedOrder(value string) bool {
 	switch NormalizeOrder(value) {
-	case "PP", "PE", "CN", "CP":
+	case domain.OrderStatusPaymentPending,
+		domain.OrderStatusPaymentExpired,
+		domain.OrderStatusCancelled,
+		domain.OrderStatusComplete:
 		return true
 	default:
 		return false
@@ -80,7 +122,9 @@ func IsProductionLockedOrder(value string) bool {
 
 func IsProductionReadLockedOrder(value string) bool {
 	switch NormalizeOrder(value) {
-	case "PP", "PE", "CN":
+	case domain.OrderStatusPaymentPending,
+		domain.OrderStatusPaymentExpired,
+		domain.OrderStatusCancelled:
 		return true
 	default:
 		return false
@@ -89,11 +133,11 @@ func IsProductionReadLockedOrder(value string) bool {
 
 func ProductionLockReason(value string) string {
 	switch NormalizeOrder(value) {
-	case "PP":
+	case domain.OrderStatusPaymentPending:
 		return "PENDING_DEPOSIT"
-	case "PE":
+	case domain.OrderStatusPaymentExpired:
 		return "DEPOSIT_EXPIRED"
-	case "CN":
+	case domain.OrderStatusCancelled:
 		return "ORDER_CANCELLED"
 	default:
 		return "UNKNOWN"
@@ -118,11 +162,11 @@ func FrontendRFQ(value string, offerCount int64) string {
 
 func FrontendOrder(value string) string {
 	switch NormalizeOrder(value) {
-	case "PR", "QC":
+	case domain.OrderStatusProduction, domain.OrderStatusQualityCheck:
 		return "in_production"
-	case "SH":
+	case domain.OrderStatusShipping:
 		return "shipped"
-	case "CP":
+	case domain.OrderStatusComplete:
 		return "completed"
 	default:
 		return strings.ToLower(strings.TrimSpace(value))
@@ -131,11 +175,11 @@ func FrontendOrder(value string) string {
 
 func FrontendQuotation(value string) string {
 	switch NormalizeCode(value) {
-	case "PD":
+	case domain.QuotationStatusPrepared:
 		return "pending"
-	case "AC":
+	case domain.QuotationStatusAccepted:
 		return "accepted"
-	case "RJ":
+	case domain.QuotationStatusRejected:
 		return "rejected"
 	default:
 		return strings.ToLower(strings.TrimSpace(value))

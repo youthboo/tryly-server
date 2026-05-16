@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
+	"github.com/yourusername/wemake/internal/domain"
 	domainstatus "github.com/yourusername/wemake/internal/domain/status"
 	"github.com/yourusername/wemake/internal/helper"
 )
@@ -101,7 +102,7 @@ func (s *OrderPaymentService) PayDeposit(input OrderPaymentInput) (*OrderPayment
 	input.PaymentMethod = strings.ToUpper(strings.TrimSpace(input.PaymentMethod))
 	input.IdempotencyKey = strings.TrimSpace(input.IdempotencyKey)
 
-	if input.Type != "DP" && input.Type != "FP" {
+	if input.Type != domain.PaymentTypeDeposit && input.Type != domain.PaymentTypeFull {
 		return nil, &PaymentRuleError{Err: ErrPaymentTypeNotSupported}
 	}
 	if input.PaymentMethod != "WALLET" {
@@ -133,11 +134,15 @@ func (s *OrderPaymentService) PayDeposit(input OrderPaymentInput) (*OrderPayment
 			return errPaymentReplayReady
 		}
 		switch domainstatus.NormalizeOrder(order.Status) {
-		case "PR", "QC", "SH", "CP", "PD":
+		case domain.OrderStatusProduction,
+			domain.OrderStatusQualityCheck,
+			domain.OrderStatusShipping,
+			domain.OrderStatusComplete,
+			domain.OrderStatusPaymentDone:
 			return &PaymentRuleError{Err: ErrDepositAlreadyPaid}
-		case "PE":
+		case domain.OrderStatusPaymentExpired:
 			return &PaymentRuleError{Err: ErrDepositExpired}
-		case "PP":
+		case domain.OrderStatusPaymentPending:
 		default:
 			return &PaymentRuleError{Err: ErrDepositAlreadyPaid}
 		}
@@ -275,14 +280,14 @@ func (s *OrderPaymentService) PayDeposit(input OrderPaymentInput) (*OrderPayment
 				Amount:    -input.Amount,
 				Type:      "BU",
 				Direction: "D",
-				Status:    "ST",
+				Status:    domain.TransactionStatusSubmitted,
 			},
 			FactoryTransaction: WalletPaymentTransaction{
 				TxID:              factoryTxID,
 				Amount:            input.Amount,
 				Type:              "SC",
 				Direction:         "C",
-				Status:            "PT",
+				Status:            domain.TransactionStatusProcessed,
 				HeldInPendingFund: true,
 			},
 			OrderStatusAfter: "PR",

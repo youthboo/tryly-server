@@ -18,13 +18,14 @@ func NewCatalogRepository(db *sqlx.DB) *CatalogRepository {
 func (r *CatalogRepository) GetCategories(scope string) ([]domain.Category, error) {
 	var categories []domain.Category
 	scope = strings.TrimSpace(strings.ToUpper(scope))
-	query := "SELECT category_id, name, COALESCE(scope, 'PD') AS scope FROM lbi_categories"
+	query := "SELECT category_id, name, COALESCE(scope, $1) AS scope FROM lbi_categories"
 	args := []interface{}{}
 	if scope == "" {
-		scope = "PD"
+		scope = domain.CatalogScopeProduct
 	}
-	if scope != "ALL" {
-		query += " WHERE COALESCE(scope, 'PD') = $1"
+	args = append(args, domain.CatalogScopeProduct)
+	if scope != domain.CatalogScopeAll {
+		query += " WHERE COALESCE(scope, $1) = $2"
 		args = append(args, scope)
 	}
 	query += " ORDER BY category_id ASC"

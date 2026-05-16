@@ -94,7 +94,7 @@ func normalizeBOQInput(in BOQInput) BOQInput {
 		in.Currency = "THB"
 	}
 	if in.ValidityDays == nil || *in.ValidityDays <= 0 {
-		v := 14
+		v := domain.DefaultBOQValidityDays
 		in.ValidityDays = &v
 	}
 	if in.VatPercent < 0 {
@@ -164,7 +164,7 @@ func boqExpiresAt(rfq *domain.RFQ) *time.Time {
 	if rfq == nil || rfq.BOQSentAt == nil {
 		return nil
 	}
-	days := 14
+	days := domain.DefaultBOQValidityDays
 	if rfq.BOQValidityDays != nil && *rfq.BOQValidityDays > 0 {
 		days = *rfq.BOQValidityDays
 	}
@@ -454,7 +454,7 @@ func (s *BOQService) Accept(rfqID, buyerUserID int64) (*domain.Order, int64, err
 	if err != nil {
 		return nil, 0, err
 	}
-	validityDays := 14
+	validityDays := domain.DefaultBOQValidityDays
 	if rfq.BOQValidityDays != nil && *rfq.BOQValidityDays > 0 {
 		validityDays = *rfq.BOQValidityDays
 	}
@@ -467,7 +467,7 @@ func (s *BOQService) Accept(rfqID, buyerUserID int64) (*domain.Order, int64, err
 		MoldCost:                 helper.ZeroMoney(),
 		LeadTimeDays:             int64(helper.DerefInt(rfq.BOQLeadTimeDays)),
 		ShippingMethodID:         shippingMethodID,
-		Status:                   "PD",
+		Status:                   domain.QuotationStatusPrepared,
 		CreateTime:               now,
 		LogTimestamp:             now,
 		Subtotal:                 helper.MoneyDecimal(helper.DerefDecimalToFloat(rfq.BOQSubtotal)),
@@ -672,7 +672,7 @@ func (s *BOQService) ListMine(factoryUserID int64, status string) ([]domain.BOQS
 	if err := s.db.Select(&rows, `
 		SELECT r.rfq_id, r.status, NULL::text AS boq_response, NULL::text AS boq_decline_reason,
 		       NULL::timestamp AS boq_sent_at, NULL::timestamp AS boq_responded_at,
-		       14 AS boq_validity_days,
+		       $1::int AS boq_validity_days,
 		       0::float8 AS boq_grand_total,
 		       'THB'::text AS boq_currency,
 		       NULL::bigint AS source_conv_id, NULL::bigint AS source_showcase_id,
@@ -682,7 +682,7 @@ func (s *BOQService) ListMine(factoryUserID int64, status string) ([]domain.BOQS
 		LEFT JOIN customers c ON c.user_id = r.user_id
 		WHERE FALSE
 		ORDER BY r.created_at DESC
-	`, factoryUserID); err != nil {
+	`, domain.DefaultBOQValidityDays); err != nil {
 		return nil, err
 	}
 	out := make([]domain.BOQSummary, 0, len(rows))
@@ -755,7 +755,7 @@ func (s *BOQService) buildBOQDetail(rfq *domain.RFQ, items []domain.RFQItem) (*d
 		BOQDeclineReason:  rfq.BOQDeclineReason,
 		BOQSentAt:         rfq.BOQSentAt,
 		BOQRespondedAt:    rfq.BOQRespondedAt,
-		BOQValidityDays:   helper.MaxInt(helper.DerefInt(rfq.BOQValidityDays), 14),
+		BOQValidityDays:   helper.MaxInt(helper.DerefInt(rfq.BOQValidityDays), domain.DefaultBOQValidityDays),
 		BOQExpiresAt:      expiresAt,
 		IsExpired:         boqIsExpired(rfq),
 		BOQGrandTotal:     helper.DerefDecimalToFloat(rfq.BOQGrandTotal),
@@ -803,7 +803,7 @@ func (s *BOQService) buildBOQQuoteDataString(rfq *domain.RFQ, items []domain.RFQ
 		MOQ:            rfq.BOQMOQ,
 		LeadTimeDays:   rfq.BOQLeadTimeDays,
 		PaymentTerms:   rfq.BOQPaymentTerms,
-		ValidityDays:   helper.MaxInt(helper.DerefInt(rfq.BOQValidityDays), 14),
+		ValidityDays:   helper.MaxInt(helper.DerefInt(rfq.BOQValidityDays), domain.DefaultBOQValidityDays),
 		ExpiresAt:      expiresAt,
 		Note:           rfq.BOQNote,
 		Status:         boqCardStatus(rfq),

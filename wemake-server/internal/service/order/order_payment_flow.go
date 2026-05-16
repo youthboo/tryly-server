@@ -52,7 +52,7 @@ func (s *OrderService) CreatePayment(orderID, userID int64, role, paymentType st
 	}
 
 	paymentType = strings.TrimSpace(strings.ToUpper(paymentType))
-	if paymentType == "DP" {
+	if paymentType == domain.PaymentTypeDeposit {
 		if err := s.ensureDepositPayable(order); err != nil {
 			return nil, err
 		}
@@ -73,10 +73,10 @@ func (s *OrderService) CreatePayment(orderID, userID int64, role, paymentType st
 		return nil, err
 	}
 	for _, row := range existing {
-		if paymentType == "DP" && row.Status == "PT" {
+		if paymentType == domain.PaymentTypeDeposit && row.Status == domain.TransactionStatusProcessed {
 			return nil, ErrDepositAlreadyPaid
 		}
-		if row.Status != "RJ" {
+		if row.Status != domain.TransactionStatusRejected {
 			return nil, ErrPaymentAlreadyExists
 		}
 	}
@@ -96,7 +96,7 @@ func (s *OrderService) CreatePayment(orderID, userID int64, role, paymentType st
 			OrderID:    &orderIDPtr,
 			Type:       paymentType,
 			Amount:     amount,
-			Status:     "ST",
+			Status:     domain.TransactionStatusSubmitted,
 			CreatedAt:  now,
 			UpdatedAt:  now,
 			UploadedAt: now,
@@ -130,16 +130,16 @@ func (s *OrderService) VerifyPayment(orderID, userID int64, role, txID string) (
 		if paymentTx.OrderID == nil || *paymentTx.OrderID != orderID {
 			return sql.ErrNoRows
 		}
-		if paymentTx.Type != "DP" && paymentTx.Type != "FP" {
+		if paymentTx.Type != domain.PaymentTypeDeposit && paymentTx.Type != domain.PaymentTypeFull {
 			return ErrPaymentTypeInvalid
 		}
-		if paymentTx.Type == "DP" {
+		if paymentTx.Type == domain.PaymentTypeDeposit {
 			if err := s.ensureDepositPayable(order); err != nil {
 				return err
 			}
 		}
-		if paymentTx.Status != "ST" {
-			if paymentTx.Type == "DP" && paymentTx.Status == "PT" {
+		if paymentTx.Status != domain.TransactionStatusSubmitted {
+			if paymentTx.Type == domain.PaymentTypeDeposit && paymentTx.Status == domain.TransactionStatusProcessed {
 				return ErrDepositAlreadyPaid
 			}
 			return ErrPaymentStateInvalid
@@ -180,7 +180,7 @@ func (s *OrderService) VerifyPayment(orderID, userID int64, role, txID string) (
 			return err
 		}
 
-		if err := s.txLedger.PatchStatusTx(tx, paymentTx.TxID, "PT"); err != nil {
+		if err := s.txLedger.PatchStatusTx(tx, paymentTx.TxID, domain.TransactionStatusProcessed); err != nil {
 			return err
 		}
 
@@ -192,7 +192,7 @@ func (s *OrderService) VerifyPayment(orderID, userID int64, role, txID string) (
 			OrderID:    &orderIDPtr,
 			Type:       "SC",
 			Amount:     paymentTx.Amount,
-			Status:     "PT",
+			Status:     domain.TransactionStatusProcessed,
 			CreatedAt:  now,
 			UpdatedAt:  now,
 			UploadedAt: now,
@@ -201,11 +201,11 @@ func (s *OrderService) VerifyPayment(orderID, userID int64, role, txID string) (
 			return err
 		}
 
-		if paymentTx.Type == "DP" && (domainstatus.NormalizeOrder(order.Status) == "PP" || domainstatus.NormalizeOrder(order.Status) == "PE") {
-			if err := s.repo.UpdateStatusTx(tx, orderID, "PD"); err != nil {
+		if paymentTx.Type == domain.PaymentTypeDeposit && (domainstatus.NormalizeOrder(order.Status) == domain.OrderStatusPaymentPending || domainstatus.NormalizeOrder(order.Status) == domain.OrderStatusPaymentExpired) {
+			if err := s.repo.UpdateStatusTx(tx, orderID, domain.OrderStatusPaymentDone); err != nil {
 				return err
 			}
-			order.Status = "PD"
+			order.Status = domain.OrderStatusPaymentDone
 
 			// Recalculate estimated_delivery starting from payment date (now), not order creation date.
 			// "นับจากหลังจากที่ลูกค้าจ่ายเงิน" — lead_time + shipping days counted from payment confirmation.
@@ -223,7 +223,7 @@ func (s *OrderService) VerifyPayment(orderID, userID int64, role, txID string) (
 			}
 
 			if s.schedules != nil {
-				if err := s.schedules.PatchStatusByOrderAndInstallmentTx(tx, orderID, 1, "PD"); err != nil && !errors.Is(err, sql.ErrNoRows) {
+				if err := s.schedules.PatchStatusByOrderAndInstallmentTx(tx, orderID, 1, domain.PaymentScheduleStatusPaid); err != nil && !errors.Is(err, sql.ErrNoRows) {
 					return err
 				}
 			}
@@ -245,12 +245,12 @@ func (s *OrderService) VerifyPayment(orderID, userID int64, role, txID string) (
 		}
 
 		return s.repo.InsertActivityTx(tx, orderID, &userID, "PAYMENT_VERIFIED", map[string]interface{}{
-			"tx_id": paymentTx.TxID, "type": paymentTx.Type, "amount": paymentTx.Amount, "status": "PT", "order_status": order.Status,
+			"tx_id": paymentTx.TxID, "type": paymentTx.Type, "amount": paymentTx.Amount, "status": domain.TransactionStatusProcessed, "order_status": order.Status,
 		})
 	}); err != nil {
 		return nil, err
 	}
-	paymentTx.Status = "PT"
+	paymentTx.Status = domain.TransactionStatusProcessed
 	helper.CreateNotificationSafe(s.notifications, &domain.Notification{
 		UserID:  order.FactoryID,
 		Type:    "PAYMENT_RECEIVED",
@@ -291,7 +291,7 @@ func (s *OrderService) confirmReceiptTx(orderID int64, actorUserID *int64, note 
 		}
 
 		statusBefore = domainstatus.NormalizeOrder(order.Status)
-		if statusBefore == "CP" {
+		if statusBefore == domain.OrderStatusComplete {
 			if !idempotent {
 				return ErrConfirmReceiptNotAllowed
 			}
@@ -302,10 +302,10 @@ func (s *OrderService) confirmReceiptTx(orderID int64, actorUserID *int64, note 
 			completedAt = now
 			return nil
 		}
-		if statusBefore == "CN" || statusBefore == "CC" {
+		if statusBefore == domain.OrderStatusCancelled || statusBefore == domain.OrderStatusCancelledByCustomer {
 			return ErrConfirmReceiptNotAllowed
 		}
-		if statusBefore != "SH" {
+		if statusBefore != domain.OrderStatusShipping {
 			return ErrConfirmReceiptInvalidStatus
 		}
 
@@ -351,7 +351,7 @@ func (s *OrderService) confirmReceiptTx(orderID int64, actorUserID *int64, note 
 		}
 		return s.repo.InsertActivityTx(tx, orderID, actorUserID, activityCode, map[string]interface{}{
 			"status_before": statusBefore,
-			"status_after":  "CP",
+			"status_after":  domain.OrderStatusComplete,
 			"completed_at":  completedAt,
 			"settlement":    settlement,
 			"note":          note,
@@ -359,12 +359,12 @@ func (s *OrderService) confirmReceiptTx(orderID int64, actorUserID *int64, note 
 	}); err != nil {
 		return nil, err
 	}
-	if statusBefore == "CP" {
+	if statusBefore == domain.OrderStatusComplete {
 		return &ConfirmReceiptResult{
 			Success:         true,
 			OrderID:         order.OrderID,
-			StatusBefore:    "CP",
-			StatusAfter:     "CP",
+			StatusBefore:    domain.OrderStatusComplete,
+			StatusAfter:     domain.OrderStatusComplete,
 			CompletedStepID: 6,
 			CompletedAt:     completedAt,
 			AlreadyComplete: true,
@@ -389,7 +389,7 @@ func (s *OrderService) confirmReceiptTx(orderID int64, actorUserID *int64, note 
 		Success:         true,
 		OrderID:         orderID,
 		StatusBefore:    statusBefore,
-		StatusAfter:     "CP",
+		StatusAfter:     domain.OrderStatusComplete,
 		CompletedStepID: 6,
 		Settlement:      settlement,
 		CompletedAt:     completedAt,

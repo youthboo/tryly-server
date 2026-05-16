@@ -1,11 +1,22 @@
 package helper
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/shopspring/decimal"
 )
 
+var ErrNilDecimal = errors.New("decimal value is nil")
+var ErrNegativeMoney = errors.New("money amount must be non-negative")
+
 func MoneyDecimal(v float64) decimal.Decimal {
-	return decimal.NewFromFloat(v)
+	d, _ := decimal.NewFromString(fmt.Sprintf("%.2f", v))
+	return d
+}
+
+func MoneyDecimalFromFloat64(v float64) decimal.Decimal {
+	return MoneyDecimal(v)
 }
 
 func DecimalToFloat(d decimal.Decimal) float64 {
@@ -80,8 +91,11 @@ func IsMoneyGreaterOrEqual(a decimal.Decimal, b decimal.Decimal) bool {
 	return a.GreaterThanOrEqual(b)
 }
 
-func PercentageOf(amount decimal.Decimal, percent decimal.Decimal) decimal.Decimal {
-	return RoundDecimal(amount.Mul(percent).Div(decimal.NewFromInt(100)))
+func PercentageOf(amount decimal.Decimal, percent decimal.Decimal) (decimal.Decimal, error) {
+	if amount.IsNegative() || percent.IsNegative() {
+		return decimal.Zero, ErrNegativeMoney
+	}
+	return DivideMoney(amount.Mul(percent), decimal.NewFromInt(100))
 }
 
 func AbsMoney(d decimal.Decimal) decimal.Decimal {
@@ -103,6 +117,10 @@ func MinMoney(a decimal.Decimal, b decimal.Decimal) decimal.Decimal {
 }
 
 func MoneyDecimalPtr(v *float64) *decimal.Decimal {
+	return MoneyDecimalPtrFromFloat64(v)
+}
+
+func MoneyDecimalPtrFromFloat64(v *float64) *decimal.Decimal {
 	if v == nil {
 		return nil
 	}
@@ -118,11 +136,11 @@ func DecimalPtrToFloatPtr(d *decimal.Decimal) *float64 {
 	return &f
 }
 
-func DerefDecimal(d *decimal.Decimal) decimal.Decimal {
+func DerefDecimal(d *decimal.Decimal) (decimal.Decimal, error) {
 	if d == nil {
-		return decimal.Zero
+		return decimal.Zero, ErrNilDecimal
 	}
-	return *d
+	return d.Round(2), nil
 }
 
 func DerefDecimalToFloat(d *decimal.Decimal) float64 {
@@ -130,4 +148,18 @@ func DerefDecimalToFloat(d *decimal.Decimal) float64 {
 		return 0
 	}
 	return DecimalToFloat(*d)
+}
+
+func MaxDecimal(a, b decimal.Decimal) decimal.Decimal {
+	if a.GreaterThan(b) {
+		return a
+	}
+	return b
+}
+
+func MinDecimal(a, b decimal.Decimal) decimal.Decimal {
+	if a.LessThan(b) {
+		return a
+	}
+	return b
 }

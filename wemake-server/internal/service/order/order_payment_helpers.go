@@ -13,9 +13,9 @@ import (
 
 func expectedPaymentAmount(order *domain.Order, paymentType string) (float64, error) {
 	switch paymentType {
-	case "DP":
+	case domain.PaymentTypeDeposit:
 		return helper.DecimalToFloat(order.DepositAmount), nil
-	case "FP":
+	case domain.PaymentTypeFull:
 		return helper.DecimalToFloat(helper.SubtractMoney(order.TotalAmount, order.DepositAmount)), nil
 	default:
 		return 0, ErrPaymentTypeInvalid
@@ -23,8 +23,8 @@ func expectedPaymentAmount(order *domain.Order, paymentType string) (float64, er
 }
 
 func (s *OrderService) depositPaidAt(orderID int64) *time.Time {
-	txType := "DP"
-	status := "PT"
+	txType := domain.PaymentTypeDeposit
+	status := domain.TransactionStatusProcessed
 	items, err := s.txLedger.List(walletrepo.TransactionFilters{OrderID: &orderID, Type: &txType, Status: &status})
 	if err != nil || len(items) == 0 {
 		return nil
@@ -34,8 +34,8 @@ func (s *OrderService) depositPaidAt(orderID int64) *time.Time {
 }
 
 func (s *OrderService) finalPaymentPaidAt(orderID int64) *time.Time {
-	txType := "FP"
-	status := "PT"
+	txType := domain.PaymentTypeFull
+	status := domain.TransactionStatusProcessed
 	items, err := s.txLedger.List(walletrepo.TransactionFilters{OrderID: &orderID, Type: &txType, Status: &status})
 	if err != nil || len(items) == 0 {
 		return nil
@@ -56,7 +56,7 @@ func deriveDepositDueDate(row *orderrepo.OrderDetailRow) *time.Time {
 
 func buildNextAction(row *orderrepo.OrderDetailRow, status string, depositDueDate, depositPaidAt, finalPaidAt *time.Time, nowTH time.Time) *domain.OrderNextAction {
 	switch status {
-	case "PP":
+	case domain.OrderStatusPaymentPending:
 		return &domain.OrderNextAction{
 			Actor:      "CUSTOMER",
 			Type:       "PAY_FULL_AMOUNT",
@@ -66,7 +66,13 @@ func buildNextAction(row *orderrepo.OrderDetailRow, status string, depositDueDat
 			CTAURL:     fmt.Sprintf("/orders/%d/payment?stage=full", row.OrderID),
 			CTALabelTH: "ชำระเงินเต็มจำนวน",
 		}
-	case "PE", "PR", "QC", "SH", "CP", "CN", "CC":
+	case domain.OrderStatusPaymentExpired,
+		domain.OrderStatusProduction,
+		domain.OrderStatusQualityCheck,
+		domain.OrderStatusShipping,
+		domain.OrderStatusComplete,
+		domain.OrderStatusCancelled,
+		domain.OrderStatusCancelledByCustomer:
 		return nil
 	}
 	return nil
@@ -76,9 +82,13 @@ func buildPaymentSchedule(row *orderrepo.OrderDetailRow, status string, depositD
 	total := row.TotalAmount
 	paidStatus := "PENDING"
 	if depositPaidAt != nil || finalPaidAt != nil ||
-		status == "PD" || status == "PR" || status == "QC" || status == "SH" || status == "CP" {
+		status == domain.OrderStatusPaymentDone ||
+		status == domain.OrderStatusProduction ||
+		status == domain.OrderStatusQualityCheck ||
+		status == domain.OrderStatusShipping ||
+		status == domain.OrderStatusComplete {
 		paidStatus = "PAID"
-	} else if status == "PE" {
+	} else if status == domain.OrderStatusPaymentExpired {
 		paidStatus = "OVERDUE"
 	}
 

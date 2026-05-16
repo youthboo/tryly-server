@@ -58,7 +58,7 @@ func (s *OrderService) GetReviewState(orderID, userID int64, role string) (*doma
 		return nil, err
 	}
 
-	if domainstatus.NormalizeOrder(order.Status) != "CP" {
+	if domainstatus.NormalizeOrder(order.Status) != domain.OrderStatusComplete {
 		reason := "order_not_completed"
 		state.Reason = &reason
 		return state, nil
@@ -88,7 +88,7 @@ func (s *OrderService) CreateReview(orderID, userID int64, role string, input Cr
 	if err != nil {
 		return nil, err
 	}
-	if domainstatus.NormalizeOrder(order.Status) != "CP" {
+	if domainstatus.NormalizeOrder(order.Status) != domain.OrderStatusComplete {
 		return nil, ErrReviewOrderNotCompleted
 	}
 	if _, err := s.reviews.GetByOrderAndUser(orderID, userID); err == nil {

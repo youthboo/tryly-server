@@ -69,13 +69,13 @@ func (s *QuotationService) Create(item *domain.Quotation) error {
 		return err
 	}
 	now := time.Now()
-	item.Status = "PD"
+	item.Status = domain.QuotationStatusPrepared
 	item.CreateTime = now
 	item.LogTimestamp = now
 	item.Version = 1
 	item.IsLocked = false
 	if item.ValidityDays <= 0 {
-		item.ValidityDays = 14
+		item.ValidityDays = domain.DefaultQuotationValidityDays
 	}
 	validUntil := now.AddDate(0, 0, item.ValidityDays)
 	item.ValidUntil = &validUntil
@@ -232,7 +232,7 @@ func (s *QuotationService) PatchBody(
 		reason = "อัปเดตใบเสนอราคา"
 	}
 	if paymentTerms != nil {
-		if err := validateQuotationTerms(nil, paymentTerms, 30); err != nil {
+		if err := validateQuotationTerms(nil, paymentTerms, domain.DefaultQuotationTermsDays); err != nil {
 			return nil, err
 		}
 	}
@@ -264,7 +264,7 @@ func (s *QuotationService) PatchBody(
 	if q.FactoryID != factoryUserID {
 		return nil, ErrNotQuotationParty
 	}
-	if q.IsLocked || q.Status != "PD" {
+	if q.IsLocked || q.Status != domain.QuotationStatusPrepared {
 		return nil, ErrQuotationLocked
 	}
 	newVersion := q.Version + 1
@@ -423,13 +423,13 @@ func (s *QuotationService) CreateDetailed(item *domain.Quotation) error {
 		return err
 	}
 	now := time.Now().UTC()
-	item.Status = "PD"
+	item.Status = domain.QuotationStatusPrepared
 	item.CreateTime = now
 	item.LogTimestamp = now
 	item.Version = 1
 	item.IsLocked = false
 	if item.ValidityDays == 0 {
-		item.ValidityDays = 30
+		item.ValidityDays = domain.DefaultQuotationValidityDays
 	}
 	validUntil := now.AddDate(0, 0, item.ValidityDays)
 	item.ValidUntil = &validUntil

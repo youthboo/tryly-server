@@ -7,15 +7,17 @@ import (
 	"time"
 
 	"github.com/yourusername/wemake/internal/domain"
+	domainstatus "github.com/yourusername/wemake/internal/domain/status"
 	"github.com/yourusername/wemake/internal/helper"
 )
 
 func (s *OrderService) UpdateStatus(orderID int64, status string, actorUserID *int64) error {
-	if err := s.repo.UpdateStatus(orderID, strings.TrimSpace(strings.ToUpper(status))); err != nil {
+	status = domainstatus.NormalizeOrder(status)
+	if err := s.repo.UpdateStatus(orderID, status); err != nil {
 		return err
 	}
 	return s.repo.InsertActivity(orderID, actorUserID, "ORDER_STATUS", map[string]interface{}{
-		"status": strings.TrimSpace(strings.ToUpper(status)),
+		"status": status,
 	})
 }
 
@@ -24,15 +26,14 @@ func (s *OrderService) Cancel(orderID, userID int64, role string) error {
 	if err != nil {
 		return err
 	}
-	cancellableStatuses := map[string]struct{}{"PE": {}, "PP": {}, "PR": {}, "WF": {}}
-	if _, ok := cancellableStatuses[order.Status]; !ok {
+	if !domainstatus.IsCancellableOrder(order.Status) {
 		return ErrOrderCannotBeCancelled
 	}
-	if err := s.repo.UpdateStatus(orderID, "CC"); err != nil {
+	if err := s.repo.UpdateStatus(orderID, domain.OrderStatusCancelledByCustomer); err != nil {
 		return err
 	}
 	if err := s.repo.InsertActivity(orderID, &userID, "ORDER_CANCELLED", map[string]interface{}{
-		"status":          "CC",
+		"status":          domain.OrderStatusCancelledByCustomer,
 		"previous_status": order.Status,
 	}); err != nil {
 		return err
@@ -66,7 +67,9 @@ func (s *OrderService) MarkShipped(orderID, factoryID int64, trackingNo, courier
 	if err != nil {
 		return err
 	}
-	if order.Status != "PR" && order.Status != "QC" && order.Status != "SH" {
+	if order.Status != domain.OrderStatusProduction &&
+		order.Status != domain.OrderStatusQualityCheck &&
+		order.Status != domain.OrderStatusShipping {
 		return sql.ErrNoRows
 	}
 	if err := s.repo.MarkShipped(orderID, factoryID, trackingNo, courier); err != nil {

@@ -2,8 +2,6 @@ package order
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"github.com/shopspring/decimal"
 	"github.com/yourusername/wemake/internal/helper"
@@ -47,29 +45,23 @@ type BulkCheckoutResult struct {
 func (s *OrderService) CreateFromQuotation(quotationID, userID int64) (*domain.Order, error) {
 	var src *orderrepo.QuotationOrderSource
 	var order *domain.Order
-	var total float64
-	var deposit float64
+	var total decimal.Decimal
+	var deposit decimal.Decimal
 	var now time.Time
 	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		var err error
 		src, err = s.repo.GetOrderSourceByQuotationIDTx(tx, quotationID, userID)
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				tx.Rollback()
-			}
 			return err
 		}
 		switch src.Status {
-		case "RJ":
+		case domain.QuotationStatusDeclined:
 			return ErrQuotationRejected
-		case "PD":
-			// Multi-factory: ยอมรับเฉพาะ quote นี้ ไม่ reject quotations อื่น
-			// ไม่ปิด RFQ อัตโนมัติ — ลูกค้าสามารถยอมรับโรงงานอื่นได้ต่อ
-			if err := s.quotations.UpdateStatusTx(tx, quotationID, "AC"); err != nil {
+		case domain.QuotationStatusPrepared:
+			if err := s.quotations.UpdateStatusTx(tx, quotationID, domain.QuotationStatusAccepted); err != nil {
 				return err
 			}
-		case "AC":
-			// AC แล้ว — ไม่ทำอะไรกับ quotation อื่น แค่ตรวจสอบว่า order ยังไม่มี
+		case domain.QuotationStatusAccepted:
 		default:
 			return ErrQuotationInvalidState
 		}
@@ -82,21 +74,22 @@ func (s *OrderService) CreateFromQuotation(quotationID, userID int64) (*domain.O
 			return ErrOrderAlreadyExistsForQuote
 		}
 
-		// Use grand_total (VAT + commission inclusive) from the quotation.
-		// Fall back to legacy formula only when grand_total was not yet calculated (old quotations).
-		total = src.GrandTotal
-		if total <= 0 {
-			total = helper.RoundCurrency((src.PricePerPiece * float64(src.Quantity)) + src.MoldCost)
+		total = helper.MoneyDecimal(src.GrandTotal)
+		if helper.IsMoneyLess(total, helper.ZeroMoney()) || helper.IsMoneyZero(total) {
+			pricePerPiece := helper.MoneyDecimal(src.PricePerPiece)
+			qty := helper.MoneyFromInt(src.Quantity)
+			moldCost := helper.MoneyDecimal(src.MoldCost)
+			lineTotal := helper.MultiplyMoney(pricePerPiece, qty)
+			total = helper.AddMoney(lineTotal, moldCost)
 		}
-		if total < 0 {
-			return errors.New("invalid order total")
+		if helper.IsMoneyLess(total, helper.ZeroMoney()) {
+			return ErrInvalidOrderTotal
 		}
-		// Platform policy: 100% upfront payment — deposit equals full amount.
 		deposit = total
-		status := "PP"
-		if total == 0 {
-			deposit = 0
-			status = "PE"
+		status := domain.OrderStatusPaymentPending
+		if helper.IsMoneyZero(total) {
+			deposit = helper.ZeroMoney()
+			status = domain.OrderStatusPaymentExpired
 		}
 
 		shippingDays := getShippingDays(s.db)
@@ -106,8 +99,8 @@ func (s *OrderService) CreateFromQuotation(quotationID, userID int64) (*domain.O
 			QuotationID:       src.QuotationID,
 			UserID:            src.UserID,
 			FactoryID:         src.FactoryID,
-			TotalAmount:       helper.MoneyDecimal(total),
-			DepositAmount:     helper.MoneyDecimal(deposit),
+			TotalAmount:       total,
+			DepositAmount:     deposit,
 			Status:            status,
 			EstimatedDelivery: &deliveryDate,
 			CreatedAt:         now,
@@ -123,7 +116,7 @@ func (s *OrderService) CreateFromQuotation(quotationID, userID int64) (*domain.O
 				OrderID:       order.OrderID,
 				InstallmentNo: 1,
 				DueDate:       depositDueDate,
-				Amount:        helper.MoneyDecimal(deposit),
+				Amount:        deposit,
 			}); err != nil {
 				return err
 			}
@@ -180,10 +173,10 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 		seen[item.QuotationID] = struct{}{}
 		pt := strings.TrimSpace(strings.ToUpper(item.PaymentType))
 		switch pt {
-		case "", "FULL", "FP":
-			pt = "FP"
-		case "DEPOSIT", "DP":
-			pt = "DP"
+		case "", "FULL", domain.PaymentTypeFull:
+			pt = domain.PaymentTypeFull
+		case "DEPOSIT", domain.PaymentTypeDeposit:
+			pt = domain.PaymentTypeDeposit
 		default:
 			return nil, ErrPaymentTypeInvalid
 		}
@@ -212,7 +205,7 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 		if rfq.UserID != input.UserID {
 			return ErrNotQuotationParty
 		}
-		if rfq.Status != "OP" && rfq.Status != "IR" {
+		if rfq.Status != domain.RFQStatusOpen && rfq.Status != domain.RFQStatusInReview {
 			return ErrRFQLocked
 		}
 		if len(addressIDs) > 0 {
@@ -269,7 +262,7 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 			if q.FactoryID == input.UserID {
 				return ErrSelfTransaction
 			}
-			if q.Status != "PD" {
+			if q.Status != domain.QuotationStatusPrepared {
 				return ErrQuotationInvalidState
 			}
 			if q.ValidUntil != nil && q.ValidUntil.Before(now.UTC()) {
@@ -282,26 +275,30 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 			if exists {
 				return ErrOrderAlreadyExistsForQuote
 			}
-			total := q.GrandTotal
-			if total <= 0 {
-				total = helper.RoundCurrency((q.PricePerPiece * float64(q.Quantity)) + q.MoldCost)
+			total := helper.MoneyDecimal(q.GrandTotal)
+			if helper.IsMoneyLess(total, helper.ZeroMoney()) || helper.IsMoneyZero(total) {
+				pricePerPieceDecimal := helper.MoneyDecimal(q.PricePerPiece)
+				qtyDecimal := helper.MoneyFromInt(q.Quantity)
+				moldCostDecimal := helper.MoneyDecimal(q.MoldCost)
+				lineTotal := helper.MultiplyMoney(pricePerPieceDecimal, qtyDecimal)
+				total = helper.AddMoney(lineTotal, moldCostDecimal)
 			}
-			if total < 0 {
-				return errors.New("invalid order total")
+			if helper.IsMoneyLess(total, helper.ZeroMoney()) {
+				return ErrInvalidOrderTotal
 			}
 			deposit := total
-			status := "PP"
-			if total == 0 {
-				status = "PE"
-				deposit = 0
+			status := domain.OrderStatusPaymentPending
+			if helper.IsMoneyZero(total) {
+				status = domain.OrderStatusPaymentExpired
+				deposit = helper.ZeroMoney()
 			}
 			deliveryDate := calculateEstimatedDelivery(now, q.LeadTimeDays, shippingDays, q.DeliveryDate)
 			order := &domain.Order{
 				QuotationID:       q.QuoteID,
 				UserID:            input.UserID,
 				FactoryID:         q.FactoryID,
-				TotalAmount:       helper.MoneyDecimal(total),
-				DepositAmount:     helper.MoneyDecimal(deposit),
+				TotalAmount:       total,
+				DepositAmount:     deposit,
 				Status:            status,
 				EstimatedDelivery: &deliveryDate,
 				CreatedAt:         now,
@@ -313,12 +310,12 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 			if _, err := tx.Exec(`UPDATE orders SET payment_type = $1 WHERE order_id = $2`, paymentTypes[q.QuoteID], order.OrderID); err != nil {
 				return err
 			}
-			if s.schedules != nil && deposit > 0 {
+			if s.schedules != nil && helper.IsMoneyGreater(deposit, helper.ZeroMoney()) {
 				if err := s.schedules.CreateTx(tx, &domain.PaymentSchedule{
 					OrderID:       order.OrderID,
 					InstallmentNo: 1,
 					DueDate:       deriveDefaultDepositScheduleDate(order.CreatedAt),
-					Amount:        helper.MoneyDecimal(deposit),
+					Amount:        deposit,
 				}); err != nil {
 					return err
 				}
@@ -338,9 +335,13 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 		return nil, err
 	}
 
+	if len(orders) == 0 {
+		return nil, ErrNoOrdersCreated
+	}
+
 	result := &BulkCheckoutResult{
 		RFQID:     input.RFQID,
-		RFQStatus: "IR",
+		RFQStatus: domain.RFQStatusInReview,
 		Orders:    orders,
 		Summary: BulkCheckoutSummary{
 			OrderCount: len(orders),

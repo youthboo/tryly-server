@@ -12,6 +12,7 @@ func createOrderErrorMap() map[error]helper.ErrorResponse {
 		orderservice.ErrQuotationInvalidState:      helper.ErrorMessage(fiber.StatusBadRequest, "quotation has invalid state"),
 		orderservice.ErrInsufficientGoodFund:       helper.ErrorMessage(fiber.StatusBadRequest, "insufficient good fund balance"),
 		orderservice.ErrOrderAlreadyExistsForQuote: helper.ErrorMessage(fiber.StatusConflict, "order already exists for this quotation"),
+		orderservice.ErrInvalidOrderTotal:          helper.ErrorMessage(fiber.StatusBadRequest, "order total must be non-negative"),
 	}
 }
 
@@ -24,6 +25,8 @@ func bulkCheckoutErrorMap() map[error]helper.ErrorResponse {
 		orderservice.ErrPaymentTypeInvalid:         helper.ErrorMessage(fiber.StatusBadRequest, "invalid payment type"),
 		orderservice.ErrNotQuotationParty:          helper.ErrorMessage(fiber.StatusForbidden, "not authorized for this quotation"),
 		orderservice.ErrOrderAlreadyExistsForQuote: helper.ErrorMessage(fiber.StatusConflict, "order already exists for this quotation"),
+		orderservice.ErrInvalidOrderTotal:          helper.ErrorMessage(fiber.StatusBadRequest, "order total must be non-negative"),
+		orderservice.ErrNoOrdersCreated:            helper.ErrorMessage(fiber.StatusBadRequest, "no valid orders created from quotations"),
 	}
 }
 
@@ -39,12 +42,12 @@ func createPaymentErrorMap() map[error]helper.ErrorResponse {
 
 func verifyPaymentErrorMap() map[error]helper.ErrorResponse {
 	return map[error]helper.ErrorResponse{
-		orderservice.ErrDepositAlreadyPaid:     helper.ErrorBody(fiber.StatusUnprocessableEntity, fiber.Map{"error": fiber.Map{"code": "DEPOSIT_ALREADY_PAID", "message": "deposit already recorded"}}),
-		orderservice.ErrDepositExpired:         helper.ErrorBody(fiber.StatusGone, fiber.Map{"error": fiber.Map{"code": "DEPOSIT_EXPIRED", "message": "deposit payment window has expired"}}),
-		orderservice.ErrPaymentTypeInvalid:     helper.ErrorMessage(fiber.StatusBadRequest, "invalid payment type"),
-		orderservice.ErrPaymentAmountMismatch:  helper.ErrorMessage(fiber.StatusBadRequest, "payment amount does not match"),
-		orderservice.ErrPaymentStateInvalid:    helper.ErrorMessage(fiber.StatusBadRequest, "invalid payment state"),
-		orderservice.ErrInsufficientGoodFund:   helper.ErrorMessage(fiber.StatusBadRequest, "insufficient good fund balance"),
+		orderservice.ErrDepositAlreadyPaid:    helper.ErrorBody(fiber.StatusUnprocessableEntity, fiber.Map{"error": fiber.Map{"code": "DEPOSIT_ALREADY_PAID", "message": "deposit already recorded"}}),
+		orderservice.ErrDepositExpired:        helper.ErrorBody(fiber.StatusGone, fiber.Map{"error": fiber.Map{"code": "DEPOSIT_EXPIRED", "message": "deposit payment window has expired"}}),
+		orderservice.ErrPaymentTypeInvalid:    helper.ErrorMessage(fiber.StatusBadRequest, "invalid payment type"),
+		orderservice.ErrPaymentAmountMismatch: helper.ErrorMessage(fiber.StatusBadRequest, "payment amount does not match"),
+		orderservice.ErrPaymentStateInvalid:   helper.ErrorMessage(fiber.StatusBadRequest, "invalid payment state"),
+		orderservice.ErrInsufficientGoodFund:  helper.ErrorMessage(fiber.StatusBadRequest, "insufficient good fund balance"),
 	}
 }
 

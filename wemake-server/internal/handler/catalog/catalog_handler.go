@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/helper"
 	catalogservice "github.com/yourusername/wemake/internal/service/catalog"
 )
@@ -27,9 +28,11 @@ func (h *CatalogHandler) GetCategories(c *fiber.Ctx) error {
 func (h *CatalogHandler) GetLBICategories(c *fiber.Ctx) error {
 	scope := strings.TrimSpace(strings.ToUpper(c.Query("scope")))
 	if scope == "" {
-		scope = "PD"
+		scope = domain.CatalogScopeProduct
 	}
-	if scope != "PD" && scope != "MT" && scope != "ALL" {
+	if scope != domain.CatalogScopeProduct &&
+		scope != domain.CatalogScopeMaterial &&
+		scope != domain.CatalogScopeAll {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "INVALID_SCOPE"})
 	}
 	items, err := h.service.GetCategories(scope)

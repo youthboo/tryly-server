@@ -50,7 +50,7 @@ func (h *QuotationHandler) CreateQuotation(c *fiber.Ctx) error {
 	}
 	validityDays := req.ValidityDays
 	if validityDays <= 0 {
-		validityDays = 14
+		validityDays = domain.DefaultQuotationValidityDays
 	}
 
 	item := &domain.Quotation{
@@ -390,7 +390,10 @@ func (h *QuotationHandler) PatchQuotationStatus(c *fiber.Ctx) error {
 		return err
 	}
 	status := strings.TrimSpace(strings.ToUpper(req.Status))
-	if status != "AC" && status != "RJ" && status != "PD" && status != "EX" {
+	if status != domain.QuotationStatusAccepted &&
+		status != domain.QuotationStatusRejected &&
+		status != domain.QuotationStatusPrepared &&
+		status != domain.QuotationStatusExpired {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "status must be PD, AC, RJ or EX"})
 	}
 	if err := h.service.UpdateStatus(int64(quotationID), status, editor); err != nil {
