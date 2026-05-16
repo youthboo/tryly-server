@@ -1,4 +1,4 @@
-package service
+package quotation
 
 import (
 	"context"
@@ -11,12 +11,16 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/repository"
+	quotationrepo "github.com/yourusername/wemake/internal/repository/quotation"
+	coreservice "github.com/yourusername/wemake/internal/service"
+	orderservice "github.com/yourusername/wemake/internal/service/order"
 )
 
 var (
 	ErrQuotationLocked         = errors.New("quotation is locked or not in pending status")
 	ErrNotQuotationParty       = errors.New("not authorized for this quotation")
 	ErrInvalidLineItem         = errors.New("INVALID_LINE_ITEM")
+	ErrInvalidShippingMethod   = errors.New("shipping_method_id is invalid")
 	ErrIncotermsInvalid        = errors.New("INCOTERMS_INVALID")
 	ErrPaymentTermsInvalid     = errors.New("PAYMENT_TERMS_INVALID")
 	ErrQuotationExpired        = errors.New("QUOTATION_EXPIRED")
@@ -26,17 +30,17 @@ var (
 
 type QuotationService struct {
 	db            *sqlx.DB
-	repo          *repository.QuotationRepository
+	repo          *quotationrepo.QuotationRepository
 	rfqRepo       *repository.RFQRepository
-	items         *repository.QuotationItemRepository
-	commission    *CommissionService
-	orders        *OrderService
+	items         *quotationrepo.QuotationItemRepository
+	commission    *coreservice.CommissionService
+	orders        *orderservice.OrderService
 	factories     *repository.FactoryRepository
-	notifications *NotificationService
-	messages      *MessageService
+	notifications notificationCreator
+	messages      systemMessageSender
 }
 
-func NewQuotationService(db *sqlx.DB, repo *repository.QuotationRepository, rfqRepo *repository.RFQRepository, items *repository.QuotationItemRepository, commission *CommissionService, orders *OrderService, factories *repository.FactoryRepository, notifications *NotificationService, messages *MessageService) *QuotationService {
+func NewQuotationService(db *sqlx.DB, repo *quotationrepo.QuotationRepository, rfqRepo *repository.RFQRepository, items *quotationrepo.QuotationItemRepository, commission *coreservice.CommissionService, orders *orderservice.OrderService, factories *repository.FactoryRepository, notifications notificationCreator, messages systemMessageSender) *QuotationService {
 	return &QuotationService{db: db, repo: repo, rfqRepo: rfqRepo, items: items, commission: commission, orders: orders, factories: factories, notifications: notifications, messages: messages}
 }
 
@@ -87,7 +91,7 @@ func (s *QuotationService) Create(item *domain.Quotation) error {
 		}
 	}
 	if s.commission != nil {
-		breakdown, err := s.commission.Calculate(CommissionInput{
+		breakdown, err := s.commission.Calculate(coreservice.CommissionInput{
 			Items: []domain.QuotationItem{{
 				Description: "สินค้า",
 				Qty:         rfqQty,
@@ -115,7 +119,7 @@ func (s *QuotationService) Create(item *domain.Quotation) error {
 		return err
 	}
 	eb := item.FactoryID
-	h := repository.SnapshotFromQuotation(item, "CR", nil, &eb)
+	h := quotationrepo.SnapshotFromQuotation(item, "CR", nil, &eb)
 	if err := s.repo.InsertHistory(h); err != nil {
 		return err
 	}
@@ -278,7 +282,7 @@ func (s *QuotationService) PatchBody(
 		}
 	}
 	if s.commission != nil {
-		breakdown, calcErr := s.commission.Calculate(CommissionInput{
+		breakdown, calcErr := s.commission.Calculate(coreservice.CommissionInput{
 			Items: []domain.QuotationItem{{
 				Description: "สินค้า",
 				Qty:         rfqQty,
@@ -339,11 +343,11 @@ func (s *QuotationService) UpdateImageURLs(quoteID int64, imageURLs domain.Strin
 	return s.repo.UpdateImageURLs(quoteID, imageURLs)
 }
 
-func (s *QuotationService) Preview(items []domain.QuotationItem, discountAmount, shippingCost, packagingCost, toolingCost float64, factoryID *int64) (*Breakdown, error) {
+func (s *QuotationService) Preview(items []domain.QuotationItem, discountAmount, shippingCost, packagingCost, toolingCost float64, factoryID *int64) (*coreservice.Breakdown, error) {
 	if err := validateQuotationItems(items); err != nil {
 		return nil, err
 	}
-	return s.commission.Calculate(CommissionInput{
+	return s.commission.Calculate(coreservice.CommissionInput{
 		Items:          items,
 		DiscountAmount: discountAmount,
 		ShippingCost:   shippingCost,
@@ -396,7 +400,7 @@ func (s *QuotationService) CreateDetailed(item *domain.Quotation) error {
 	if err := validateQuotationTerms(item.Incoterms, item.PaymentTerms, item.ValidityDays); err != nil {
 		return err
 	}
-	breakdown, err := s.commission.Calculate(CommissionInput{
+	breakdown, err := s.commission.Calculate(coreservice.CommissionInput{
 		Items:          item.Items,
 		DiscountAmount: item.DiscountAmount,
 		ShippingCost:   item.ShippingCost,

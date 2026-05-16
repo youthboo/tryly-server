@@ -1,4 +1,4 @@
-package repository
+package quotation
 
 import (
 	"github.com/jmoiron/sqlx"

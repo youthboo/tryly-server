@@ -1,20 +1,20 @@
-package service
+package payment
 
 import (
 	"errors"
 	"strings"
 
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
+	paymentrepo "github.com/yourusername/wemake/internal/repository/payment"
 )
 
 var ErrInvalidScheduleStatus = errors.New("status must be PD or OD")
 
 type PaymentScheduleService struct {
-	repo *repository.PaymentScheduleRepository
+	repo *paymentrepo.PaymentScheduleRepository
 }
 
-func NewPaymentScheduleService(repo *repository.PaymentScheduleRepository) *PaymentScheduleService {
+func NewPaymentScheduleService(repo *paymentrepo.PaymentScheduleRepository) *PaymentScheduleService {
 	return &PaymentScheduleService{repo: repo}
 }
 

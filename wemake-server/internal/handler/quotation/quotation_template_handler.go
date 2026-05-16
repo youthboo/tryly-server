@@ -1,4 +1,4 @@
-package handler
+package quotation
 
 import (
 	"database/sql"
@@ -6,14 +6,14 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/service"
+	quotationservice "github.com/yourusername/wemake/internal/service/quotation"
 )
 
 type QuotationTemplateHandler struct {
-	service *service.QuotationTemplateService
+	service *quotationservice.QuotationTemplateService
 }
 
-func NewQuotationTemplateHandler(svc *service.QuotationTemplateService) *QuotationTemplateHandler {
+func NewQuotationTemplateHandler(svc *quotationservice.QuotationTemplateService) *QuotationTemplateHandler {
 	return &QuotationTemplateHandler{service: svc}
 }
 

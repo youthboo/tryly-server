@@ -1,4 +1,4 @@
-package service
+package order
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
+	orderrepo "github.com/yourusername/wemake/internal/repository/order"
 )
 
 type BulkCheckoutItemInput struct {
@@ -43,7 +43,7 @@ type BulkCheckoutResult struct {
 // CreateFromQuotation accepts a pending (PD) quotation or continues from an already-accepted (AC) quote.
 // For PD: rejects sibling PD quotations, sets this quote to AC, closes the RFQ (OP→CL), then creates an order in payment-pending state.
 func (s *OrderService) CreateFromQuotation(quotationID, userID int64) (*domain.Order, error) {
-	var src *repository.QuotationOrderSource
+	var src *orderrepo.QuotationOrderSource
 	var order *domain.Order
 	var total float64
 	var deposit float64

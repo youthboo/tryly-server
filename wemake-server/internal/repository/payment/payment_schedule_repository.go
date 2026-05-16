@@ -1,4 +1,4 @@
-package repository
+package payment
 
 import (
 	"database/sql"

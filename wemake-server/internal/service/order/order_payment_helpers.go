@@ -1,4 +1,4 @@
-package service
+package order
 
 import (
 	"encoding/json"
@@ -9,6 +9,7 @@ import (
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/repository"
+	orderrepo "github.com/yourusername/wemake/internal/repository/order"
 )
 
 func expectedPaymentAmount(order *domain.Order, paymentType string) (float64, error) {
@@ -44,7 +45,7 @@ func (s *OrderService) finalPaymentPaidAt(orderID int64) *time.Time {
 	return &paidAt
 }
 
-func deriveDepositDueDate(row *repository.OrderDetailRow) *time.Time {
+func deriveDepositDueDate(row *orderrepo.OrderDetailRow) *time.Time {
 	if row.DepositScheduleDue != nil && !row.DepositScheduleDue.IsZero() {
 		due := row.DepositScheduleDue.In(thailandLocation)
 		due = time.Date(due.Year(), due.Month(), due.Day(), 23, 59, 59, 0, thailandLocation)
@@ -54,7 +55,7 @@ func deriveDepositDueDate(row *repository.OrderDetailRow) *time.Time {
 	return &due
 }
 
-func buildNextAction(row *repository.OrderDetailRow, status string, depositDueDate, depositPaidAt, finalPaidAt *time.Time, nowTH time.Time) *domain.OrderNextAction {
+func buildNextAction(row *orderrepo.OrderDetailRow, status string, depositDueDate, depositPaidAt, finalPaidAt *time.Time, nowTH time.Time) *domain.OrderNextAction {
 	switch status {
 	case "PP":
 		return &domain.OrderNextAction{
@@ -72,7 +73,7 @@ func buildNextAction(row *repository.OrderDetailRow, status string, depositDueDa
 	return nil
 }
 
-func buildPaymentSchedule(row *repository.OrderDetailRow, status string, depositDueDate, depositPaidAt, finalPaidAt *time.Time) []domain.OrderPaymentScheduleItem {
+func buildPaymentSchedule(row *orderrepo.OrderDetailRow, status string, depositDueDate, depositPaidAt, finalPaidAt *time.Time) []domain.OrderPaymentScheduleItem {
 	total := row.TotalAmount
 	paidStatus := "PENDING"
 	if depositPaidAt != nil || finalPaidAt != nil ||
@@ -173,7 +174,7 @@ func (s *OrderService) lookupDepositDueDate(order *domain.Order) *time.Time {
 			}
 		}
 	}
-	detailRow := &repository.OrderDetailRow{Order: *order}
+	detailRow := &orderrepo.OrderDetailRow{Order: *order}
 	return deriveDepositDueDate(detailRow)
 }
 

@@ -1,4 +1,4 @@
-package handler
+package payment
 
 import (
 	"database/sql"
@@ -7,14 +7,14 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/service"
+	paymentservice "github.com/yourusername/wemake/internal/service/payment"
 )
 
 type PaymentScheduleHandler struct {
-	service *service.PaymentScheduleService
+	service *paymentservice.PaymentScheduleService
 }
 
-func NewPaymentScheduleHandler(svc *service.PaymentScheduleService) *PaymentScheduleHandler {
+func NewPaymentScheduleHandler(svc *paymentservice.PaymentScheduleService) *PaymentScheduleHandler {
 	return &PaymentScheduleHandler{service: svc}
 }
 
@@ -79,7 +79,7 @@ func (h *PaymentScheduleHandler) PatchStatus(c *fiber.Ctx) error {
 		return err
 	}
 	if err := h.service.PatchStatus(scheduleID, req.Status); err != nil {
-		if errors.Is(err, service.ErrInvalidScheduleStatus) {
+		if errors.Is(err, paymentservice.ErrInvalidScheduleStatus) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
 		return writeServiceError(c, err, "failed to update payment schedule", notFoundCase(sql.ErrNoRows, "payment schedule not found"))

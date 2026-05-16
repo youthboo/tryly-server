@@ -1,11 +1,11 @@
-package service
+package order
 
 import (
 	"strings"
 	"time"
 
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
+	orderrepo "github.com/yourusername/wemake/internal/repository/order"
 )
 
 func (s *OrderService) List(userID int64, role string, status string, rfqID *int64, requestKind string) ([]domain.OrderListItem, error) {
@@ -82,7 +82,7 @@ func (s *OrderService) ListActivity(orderID int64) ([]domain.OrderActivityEntry,
 	return s.repo.ListActivity(orderID)
 }
 
-func (s *OrderService) buildOrderDetailResponse(row *repository.OrderDetailRow) (*domain.OrderDetailResponse, error) {
+func (s *OrderService) buildOrderDetailResponse(row *orderrepo.OrderDetailRow) (*domain.OrderDetailResponse, error) {
 	images, err := s.repo.GetRfqImages(row.RFQID)
 	if err != nil {
 		return nil, err

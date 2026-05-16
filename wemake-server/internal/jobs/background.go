@@ -9,15 +9,16 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/repository"
-	"github.com/yourusername/wemake/internal/service"
+	orderrepo "github.com/yourusername/wemake/internal/repository/order"
+	orderservice "github.com/yourusername/wemake/internal/service/order"
 )
 
 // Start launches all background jobs. Call once from main.go after DB is ready.
 // Each job runs in its own goroutine and loops forever until the process exits.
 func Start(db *sqlx.DB) {
-	orderService := service.NewOrderService(
+	orderService := orderservice.NewOrderService(
 		db,
-		repository.NewOrderRepository(db),
+		orderrepo.NewOrderRepository(db),
 		nil,
 		repository.NewWalletRepository(db),
 		repository.NewTransactionRepository(db),
@@ -53,7 +54,7 @@ func runExpiration(db *sqlx.DB) {
 	}
 }
 
-func runOrderAutoClose(orderService *service.OrderService) {
+func runOrderAutoClose(orderService *orderservice.OrderService) {
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 

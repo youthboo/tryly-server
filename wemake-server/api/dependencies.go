@@ -5,12 +5,21 @@ import (
 	"github.com/yourusername/wemake/internal/config"
 	"github.com/yourusername/wemake/internal/handler"
 	adminhandler "github.com/yourusername/wemake/internal/handler/admin"
+	orderhandler "github.com/yourusername/wemake/internal/handler/order"
+	paymenthandler "github.com/yourusername/wemake/internal/handler/payment"
+	quotationhandler "github.com/yourusername/wemake/internal/handler/quotation"
 	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/media"
 	"github.com/yourusername/wemake/internal/repository"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
+	orderrepo "github.com/yourusername/wemake/internal/repository/order"
+	paymentrepo "github.com/yourusername/wemake/internal/repository/payment"
+	quotationrepo "github.com/yourusername/wemake/internal/repository/quotation"
 	"github.com/yourusername/wemake/internal/service"
 	adminservice "github.com/yourusername/wemake/internal/service/admin"
+	orderservice "github.com/yourusername/wemake/internal/service/order"
+	paymentservice "github.com/yourusername/wemake/internal/service/payment"
+	quotationservice "github.com/yourusername/wemake/internal/service/quotation"
 )
 
 type routeHandlers struct {
@@ -21,9 +30,9 @@ type routeHandlers struct {
 	address           *handler.AddressHandler
 	wallet            *handler.WalletHandler
 	rfq               *handler.RFQHandler
-	quotation         *handler.QuotationHandler
-	order             *handler.OrderHandler
-	orderPayment      *handler.OrderPaymentHandler
+	quotation         *quotationhandler.QuotationHandler
+	order             *orderhandler.OrderHandler
+	orderPayment      *paymenthandler.OrderPaymentHandler
 	production        *handler.ProductionHandler
 	message           *handler.MessageHandler
 	master            *handler.MasterHandler
@@ -43,8 +52,8 @@ type routeHandlers struct {
 	topup             *handler.TopupHandler
 	withdrawal        *handler.WithdrawalHandler
 	dispute           *handler.DisputeHandler
-	quotationTemplate *handler.QuotationTemplateHandler
-	paymentSchedule   *handler.PaymentScheduleHandler
+	quotationTemplate *quotationhandler.QuotationTemplateHandler
+	paymentSchedule   *paymenthandler.PaymentScheduleHandler
 	platformConfig    *handler.PlatformConfigHandler
 	adminFactory      *adminhandler.AdminFactoryHandler
 	adminDashboard    *adminhandler.AdminDashboardHandler
@@ -61,8 +70,8 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 	addressRepo := repository.NewAddressRepository(db)
 	walletRepo := repository.NewWalletRepository(db)
 	rfqRepo := repository.NewRFQRepository(db)
-	quotationRepo := repository.NewQuotationRepository(db)
-	orderRepo := repository.NewOrderRepository(db)
+	quotationRepo := quotationrepo.NewQuotationRepository(db)
+	orderRepo := orderrepo.NewOrderRepository(db)
 	productionRepo := repository.NewProductionRepository(db)
 	messageRepo := repository.NewMessageRepository(db)
 	masterRepo := repository.NewMasterRepository(db)
@@ -81,10 +90,10 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 	topupRepo := repository.NewTopupRepository(db)
 	withdrawalRepo := repository.NewWithdrawalRepository(db)
 	disputeRepo := repository.NewDisputeRepository(db)
-	quotationTemplateRepo := repository.NewQuotationTemplateRepository(db)
-	paymentScheduleRepo := repository.NewPaymentScheduleRepository(db)
+	quotationTemplateRepo := quotationrepo.NewQuotationTemplateRepository(db)
+	paymentScheduleRepo := paymentrepo.NewPaymentScheduleRepository(db)
 	platformConfigRepo := repository.NewPlatformConfigRepository(db)
-	quotationItemRepo := repository.NewQuotationItemRepository(db)
+	quotationItemRepo := quotationrepo.NewQuotationItemRepository(db)
 	commissionRepo := repository.NewCommissionRepository(db)
 	adminAuditRepo := adminrepo.NewAdminAuditRepository(db)
 	adminDashboardRepo := adminrepo.NewAdminDashboardRepository(db)
@@ -103,11 +112,11 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 	notificationService := service.NewNotificationService(notificationRepo)
 	rfqService := service.NewRFQService(rfqRepo, factoryRepo, notificationService)
 	messageService := service.NewMessageService(messageRepo, conversationRepo, notificationService)
-	orderService := service.NewOrderService(db, orderRepo, paymentScheduleRepo, walletRepo, transactionRepo, quotationRepo, rfqRepo, reviewRepo, notificationService, messageService)
+	orderService := orderservice.NewOrderService(db, orderRepo, paymentScheduleRepo, walletRepo, transactionRepo, quotationRepo, rfqRepo, reviewRepo, notificationService, messageService)
 	commissionService := service.NewCommissionService(platformConfigRepo, commissionRepo)
 	platformConfigService := service.NewPlatformConfigService(db, platformConfigRepo, adminAuditRepo)
-	quotationService := service.NewQuotationService(db, quotationRepo, rfqRepo, quotationItemRepo, commissionService, orderService, factoryRepo, notificationService, messageService)
-	orderPaymentService := service.NewOrderPaymentService(db)
+	quotationService := quotationservice.NewQuotationService(db, quotationRepo, rfqRepo, quotationItemRepo, commissionService, orderService, factoryRepo, notificationService, messageService)
+	orderPaymentService := paymentservice.NewOrderPaymentService(db)
 	productionService := service.NewProductionService(productionRepo)
 	masterService := service.NewMasterService(masterRepo)
 	transactionService := service.NewTransactionService(transactionRepo)
@@ -124,8 +133,8 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 	topupService := service.NewTopupService(topupRepo, walletRepo)
 	withdrawalService := service.NewWithdrawalService(withdrawalRepo, walletRepo)
 	disputeService := service.NewDisputeService(disputeRepo)
-	quotationTemplateService := service.NewQuotationTemplateService(quotationTemplateRepo)
-	paymentScheduleService := service.NewPaymentScheduleService(paymentScheduleRepo)
+	quotationTemplateService := quotationservice.NewQuotationTemplateService(quotationTemplateRepo)
+	paymentScheduleService := paymentservice.NewPaymentScheduleService(paymentScheduleRepo)
 	adminFactoryService := adminservice.NewAdminFactoryService(adminFactoryRepo, adminAuditRepo, commissionRepo, platformConfigRepo)
 	adminDashboardService := adminservice.NewAdminDashboardService(adminDashboardRepo)
 
@@ -142,9 +151,9 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 		address:           handler.NewAddressHandler(addressService),
 		wallet:            handler.NewWalletHandler(walletService),
 		rfq:               handler.NewRFQHandler(rfqService, authService),
-		quotation:         handler.NewQuotationHandler(quotationService, authService),
-		order:             handler.NewOrderHandler(orderService, authService),
-		orderPayment:      handler.NewOrderPaymentHandler(orderPaymentService),
+		quotation:         quotationhandler.NewQuotationHandler(quotationService, authService),
+		order:             orderhandler.NewOrderHandler(orderService, authService),
+		orderPayment:      paymenthandler.NewOrderPaymentHandler(orderPaymentService),
 		production:        handler.NewProductionHandler(productionService),
 		message:           handler.NewMessageHandler(messageService),
 		master:            handler.NewMasterHandler(masterService),
@@ -164,8 +173,8 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 		topup:             handler.NewTopupHandler(topupService),
 		withdrawal:        handler.NewWithdrawalHandler(withdrawalService),
 		dispute:           handler.NewDisputeHandler(disputeService),
-		quotationTemplate: handler.NewQuotationTemplateHandler(quotationTemplateService),
-		paymentSchedule:   handler.NewPaymentScheduleHandler(paymentScheduleService),
+		quotationTemplate: quotationhandler.NewQuotationTemplateHandler(quotationTemplateService),
+		paymentSchedule:   paymenthandler.NewPaymentScheduleHandler(paymentScheduleService),
 		platformConfig:    handler.NewPlatformConfigHandler(platformConfigService, authService),
 		adminFactory:      adminhandler.NewAdminFactoryHandler(adminFactoryRepo, adminFactoryService),
 		adminDashboard:    adminhandler.NewAdminDashboardHandler(adminDashboardService),

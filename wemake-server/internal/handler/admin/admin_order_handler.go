@@ -10,12 +10,12 @@ import (
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/repository"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
-	"github.com/yourusername/wemake/internal/service"
+	orderservice "github.com/yourusername/wemake/internal/service/order"
 )
 
 type AdminOrderHandler struct {
 	repo            *adminrepo.AdminOrderRepository
-	service         *service.OrderService
+	service         *orderservice.OrderService
 	withdrawal      *repository.WithdrawalRepository
 	adminWithdrawal *adminrepo.AdminWithdrawalRepository
 	dispute         *repository.DisputeRepository
@@ -23,7 +23,7 @@ type AdminOrderHandler struct {
 	audit           *adminrepo.AdminAuditRepository
 }
 
-func NewAdminOrderHandler(repo *adminrepo.AdminOrderRepository, service *service.OrderService, withdrawal *repository.WithdrawalRepository, adminWithdrawal *adminrepo.AdminWithdrawalRepository, dispute *repository.DisputeRepository, adminDispute *adminrepo.AdminDisputeRepository, audit *adminrepo.AdminAuditRepository) *AdminOrderHandler {
+func NewAdminOrderHandler(repo *adminrepo.AdminOrderRepository, service *orderservice.OrderService, withdrawal *repository.WithdrawalRepository, adminWithdrawal *adminrepo.AdminWithdrawalRepository, dispute *repository.DisputeRepository, adminDispute *adminrepo.AdminDisputeRepository, audit *adminrepo.AdminAuditRepository) *AdminOrderHandler {
 	return &AdminOrderHandler{repo: repo, service: service, withdrawal: withdrawal, adminWithdrawal: adminWithdrawal, dispute: dispute, adminDispute: adminDispute, audit: audit}
 }
 

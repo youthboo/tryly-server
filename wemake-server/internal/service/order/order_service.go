@@ -1,4 +1,4 @@
-package service
+package order
 
 import (
 	"errors"
@@ -8,11 +8,16 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/repository"
+	orderrepo "github.com/yourusername/wemake/internal/repository/order"
+	paymentrepo "github.com/yourusername/wemake/internal/repository/payment"
+	quotationrepo "github.com/yourusername/wemake/internal/repository/quotation"
 )
 
 var (
 	ErrQuotationRejected     = errors.New("quotation was rejected")
 	ErrQuotationInvalidState = errors.New("quotation must be pending or already accepted")
+	ErrNotQuotationParty     = errors.New("not authorized for this quotation")
+	ErrQuotationExpired      = errors.New("QUOTATION_EXPIRED")
 )
 
 var ErrShipOrderInvalid = errors.New("tracking_no and courier are required")
@@ -38,18 +43,18 @@ var ErrReviewAlreadyExists = errors.New("review already exists for this order")
 
 type OrderService struct {
 	db            *sqlx.DB
-	repo          *repository.OrderRepository
-	schedules     *repository.PaymentScheduleRepository
+	repo          *orderrepo.OrderRepository
+	schedules     *paymentrepo.PaymentScheduleRepository
 	wallets       *repository.WalletRepository
 	txLedger      *repository.TransactionRepository
-	quotations    *repository.QuotationRepository
+	quotations    *quotationrepo.QuotationRepository
 	rfqs          *repository.RFQRepository
 	reviews       *repository.ReviewRepository
-	notifications *NotificationService
-	messages      *MessageService
+	notifications notificationCreator
+	messages      systemMessageSender
 }
 
-func NewOrderService(db *sqlx.DB, repo *repository.OrderRepository, schedules *repository.PaymentScheduleRepository, wallets *repository.WalletRepository, txLedger *repository.TransactionRepository, quotations *repository.QuotationRepository, rfqs *repository.RFQRepository, reviews *repository.ReviewRepository, notifications *NotificationService, messages *MessageService) *OrderService {
+func NewOrderService(db *sqlx.DB, repo *orderrepo.OrderRepository, schedules *paymentrepo.PaymentScheduleRepository, wallets *repository.WalletRepository, txLedger *repository.TransactionRepository, quotations *quotationrepo.QuotationRepository, rfqs *repository.RFQRepository, reviews *repository.ReviewRepository, notifications notificationCreator, messages systemMessageSender) *OrderService {
 	return &OrderService{db: db, repo: repo, schedules: schedules, wallets: wallets, txLedger: txLedger, quotations: quotations, rfqs: rfqs, reviews: reviews, notifications: notifications, messages: messages}
 }
 

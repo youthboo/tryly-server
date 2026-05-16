@@ -1,4 +1,4 @@
-package handler
+package quotation
 
 import (
 	"errors"
@@ -10,14 +10,15 @@ import (
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/repository"
 	"github.com/yourusername/wemake/internal/service"
+	quotationservice "github.com/yourusername/wemake/internal/service/quotation"
 )
 
 type QuotationHandler struct {
-	service *service.QuotationService
+	service *quotationservice.QuotationService
 	auth    *service.AuthService
 }
 
-func NewQuotationHandler(quotationService *service.QuotationService, authService *service.AuthService) *QuotationHandler {
+func NewQuotationHandler(quotationService *quotationservice.QuotationService, authService *service.AuthService) *QuotationHandler {
 	return &QuotationHandler{service: quotationService, auth: authService}
 }
 
@@ -85,13 +86,13 @@ func (h *QuotationHandler) CreateQuotation(c *fiber.Ctx) error {
 		FactoryHighlight: req.FactoryHighlight,
 	}
 	if err := h.service.Create(item); err != nil {
-		if errors.Is(err, service.ErrFactorySuspended) {
+		if errors.Is(err, quotationservice.ErrFactorySuspended) {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "factory account is suspended"})
 		}
-		if errors.Is(err, service.ErrFactoryHighlightInvalid) {
+		if errors.Is(err, quotationservice.ErrFactoryHighlightInvalid) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "HIGHLIGHT_TOO_LONG"})
 		}
-		if errors.Is(err, service.ErrPaymentTermsInvalid) || errors.Is(err, service.ErrInvalidShippingMethod) || errors.Is(err, service.ErrInvalidLineItem) {
+		if errors.Is(err, quotationservice.ErrPaymentTermsInvalid) || errors.Is(err, quotationservice.ErrInvalidShippingMethod) || errors.Is(err, quotationservice.ErrInvalidLineItem) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create quotation"})
@@ -303,10 +304,10 @@ func (h *QuotationHandler) CreateDetailed(c *fiber.Ctx) error {
 		item.DeliveryDate = &d
 	}
 	if err := h.service.CreateDetailed(item); err != nil {
-		if errors.Is(err, service.ErrFactorySuspended) {
+		if errors.Is(err, quotationservice.ErrFactorySuspended) {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "factory account is suspended"})
 		}
-		if errors.Is(err, service.ErrFactoryHighlightInvalid) {
+		if errors.Is(err, quotationservice.ErrFactoryHighlightInvalid) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "HIGHLIGHT_TOO_LONG"})
 		}
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
@@ -443,16 +444,16 @@ func (h *QuotationHandler) PatchQuotation(c *fiber.Ctx) error {
 		req.ValidityDays,
 	)
 	if err != nil {
-		if errors.Is(err, service.ErrQuotationLocked) {
+		if errors.Is(err, quotationservice.ErrQuotationLocked) {
 			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "LOCKED"})
 		}
-		if errors.Is(err, service.ErrNotQuotationParty) {
+		if errors.Is(err, quotationservice.ErrNotQuotationParty) {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": err.Error()})
 		}
-		if errors.Is(err, service.ErrFactoryHighlightInvalid) {
+		if errors.Is(err, quotationservice.ErrFactoryHighlightInvalid) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "HIGHLIGHT_TOO_LONG"})
 		}
-		if errors.Is(err, service.ErrInvalidShippingMethod) {
+		if errors.Is(err, quotationservice.ErrInvalidShippingMethod) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update quotation"})

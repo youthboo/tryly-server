@@ -14,6 +14,8 @@ import (
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/repository"
+	quotationrepo "github.com/yourusername/wemake/internal/repository/quotation"
+	orderservice "github.com/yourusername/wemake/internal/service/order"
 )
 
 var (
@@ -42,9 +44,9 @@ type BOQService struct {
 	conversations  *repository.ConversationRepository
 	rfqs           *repository.RFQRepository
 	rfqItems       *repository.RFQItemRepository
-	quotations     *repository.QuotationRepository
-	quotationItems *repository.QuotationItemRepository
-	orders         *OrderService
+	quotations     *quotationrepo.QuotationRepository
+	quotationItems *quotationrepo.QuotationItemRepository
+	orders         *orderservice.OrderService
 	messages       *MessageService
 	notifications  *NotificationService
 	commissions    *CommissionService
@@ -55,9 +57,9 @@ func NewBOQService(
 	conversations *repository.ConversationRepository,
 	rfqs *repository.RFQRepository,
 	rfqItems *repository.RFQItemRepository,
-	quotations *repository.QuotationRepository,
-	quotationItems *repository.QuotationItemRepository,
-	orders *OrderService,
+	quotations *quotationrepo.QuotationRepository,
+	quotationItems *quotationrepo.QuotationItemRepository,
+	orders *orderservice.OrderService,
 	messages *MessageService,
 	notifications *NotificationService,
 	commissions *CommissionService,

@@ -1,15 +1,15 @@
-package service
+package quotation
 
 import (
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
+	quotationrepo "github.com/yourusername/wemake/internal/repository/quotation"
 )
 
 type QuotationTemplateService struct {
-	repo *repository.QuotationTemplateRepository
+	repo *quotationrepo.QuotationTemplateRepository
 }
 
-func NewQuotationTemplateService(repo *repository.QuotationTemplateRepository) *QuotationTemplateService {
+func NewQuotationTemplateService(repo *quotationrepo.QuotationTemplateRepository) *QuotationTemplateService {
 	return &QuotationTemplateService{repo: repo}
 }
 
