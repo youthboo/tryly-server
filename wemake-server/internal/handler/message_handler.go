@@ -3,7 +3,6 @@ package handler
 import (
 	"encoding/json"
 	"errors"
-	"strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -41,7 +40,7 @@ func parseCreateMessageRequest(body []byte) (*createMessageRequest, error) {
 func (h *MessageHandler) CreateMessage(c *fiber.Ctx) error {
 	senderID, err := getUserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return badRequest(c, "invalid X-User-ID header")
 	}
 	req, err := parseCreateMessageRequest(c.Body())
 	if err != nil {
@@ -105,7 +104,7 @@ func (h *MessageHandler) CreateMessage(c *fiber.Ctx) error {
 func (h *MessageHandler) ListMessages(c *fiber.Ctx) error {
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return badRequest(c, "invalid X-User-ID header")
 	}
 
 	convID := c.QueryInt("conv_id", 0)
@@ -122,9 +121,9 @@ func (h *MessageHandler) ListMessages(c *fiber.Ctx) error {
 	if strings.TrimSpace(referenceType) == "" || strings.TrimSpace(referenceIDRaw) == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "reference_type and reference_id (or conv_id) are required"})
 	}
-	referenceID, err := strconv.ParseInt(strings.TrimSpace(referenceIDRaw), 10, 64)
-	if err != nil || referenceID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "reference_id must be a positive integer"})
+	referenceID, err := parseRequiredPositiveInt64Query(c, "reference_id")
+	if err != nil {
+		return badRequest(c, "reference_id must be a positive integer")
 	}
 	items, err := h.service.ListByReference(referenceType, referenceID, userID)
 	if err != nil {
@@ -139,7 +138,7 @@ func (h *MessageHandler) ListMessages(c *fiber.Ctx) error {
 func (h *MessageHandler) ListThreads(c *fiber.Ctx) error {
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return badRequest(c, "invalid X-User-ID header")
 	}
 	items, err := h.service.ListThreads(userID)
 	if err != nil {

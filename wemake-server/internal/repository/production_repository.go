@@ -9,6 +9,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type ProductionRepository struct {
@@ -298,7 +299,7 @@ func (r *ProductionRepository) UpsertTx(tx *sqlx.Tx, item *domain.ProductionUpda
 		item.Status,
 		item.Description,
 		item.ImageURLs,
-		nullableTimeValue(item.CompletedAt),
+		domainutil.NullableTime(item.CompletedAt),
 		item.RejectedReason,
 		item.UpdatedByUserID,
 	).Scan(&item.UpdateID, &item.CreatedAt, &item.LastUpdatedAt)

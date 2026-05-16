@@ -6,6 +6,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type CommissionRepository struct {
@@ -40,30 +41,26 @@ func (r *CommissionRepository) ListRules(factoryID *int64, activeOnly bool) ([]d
 }
 
 func (r *CommissionRepository) CreateRule(rule *domain.CommissionRule) error {
-	tx, err := r.db.Beginx()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
+	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+		if rule.FactoryID != nil {
+			if _, err := tx.Exec(`
+				UPDATE commission_rules
+				SET effective_to = NOW()
+				WHERE factory_id = $1 AND effective_to IS NULL
+			`, *rule.FactoryID); err != nil {
+				return err
+			}
+		}
 
-	if rule.FactoryID != nil {
-		if _, err := tx.Exec(`
-			UPDATE commission_rules
-			SET effective_to = NOW()
-			WHERE factory_id = $1 AND effective_to IS NULL
-		`, *rule.FactoryID); err != nil {
+		if err := tx.QueryRow(`
+			INSERT INTO commission_rules (factory_id, rate_percent, effective_from, effective_to, note, created_by)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			RETURNING rule_id, created_at
+		`, domainutil.NullableInt64(rule.FactoryID), rule.RatePercent, rule.EffectiveFrom, domainutil.NullableTime(rule.EffectiveTo), domainutil.NullableString(rule.Note), rule.CreatedBy).Scan(&rule.RuleID, &rule.CreatedAt); err != nil {
 			return err
 		}
-	}
-
-	if err := tx.QueryRow(`
-		INSERT INTO commission_rules (factory_id, rate_percent, effective_from, effective_to, note, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING rule_id, created_at
-	`, nullableInt64Value(rule.FactoryID), rule.RatePercent, rule.EffectiveFrom, nullableTimeValue(rule.EffectiveTo), nullableStringPtr(rule.Note), rule.CreatedBy).Scan(&rule.RuleID, &rule.CreatedAt); err != nil {
-		return err
-	}
-	return tx.Commit()
+		return nil
+	})
 }
 
 func (r *CommissionRepository) DeactivateRule(ruleID int64) (*domain.CommissionRule, error) {
@@ -111,7 +108,7 @@ func (r *CommissionRepository) CreateExemption(item *domain.CommissionExemption)
 		INSERT INTO factory_commission_exemptions (factory_id, reason, expires_at, created_by)
 		VALUES ($1, $2, $3, $4)
 		RETURNING exemption_id, created_at
-	`, item.FactoryID, item.Reason, nullableTimeValue(item.ExpiresAt), item.CreatedBy).Scan(&item.ExemptionID, &item.CreatedAt); err != nil {
+	`, item.FactoryID, item.Reason, domainutil.NullableTime(item.ExpiresAt), item.CreatedBy).Scan(&item.ExemptionID, &item.CreatedAt); err != nil {
 		return err
 	}
 	return nil

@@ -4,6 +4,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type QuotationItemRepository struct {
@@ -37,7 +38,7 @@ func (r *QuotationItemRepository) BulkInsert(tx *sqlx.Tx, qid int64, items []dom
 		return err
 	}
 	for _, item := range items {
-		if _, err := stmt.Exec(qid, item.ItemNo, item.Description, item.Qty, nullableStringPtr(item.Unit), item.UnitPrice, item.DiscountPct, item.LineTotal, nullableStringPtr(item.Note)); err != nil {
+		if _, err := stmt.Exec(qid, item.ItemNo, item.Description, item.Qty, domainutil.NullableString(item.Unit), item.UnitPrice, item.DiscountPct, item.LineTotal, domainutil.NullableString(item.Note)); err != nil {
 			stmt.Close()
 			return err
 		}

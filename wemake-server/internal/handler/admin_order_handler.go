@@ -41,20 +41,16 @@ func (h *AdminOrderHandler) List(c *fiber.Ctx) error {
 		return jsonError(c, fiber.StatusBadRequest, "invalid user_id")
 	}
 	filter.UserID = userID
-	if v := strings.TrimSpace(c.Query("date_from")); v != "" {
-		t, err := time.Parse("2006-01-02", v)
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "date_from must be YYYY-MM-DD"})
-		}
-		filter.DateFrom = &t
+	dateFrom, err := parseOptionalDateQuery(c, "date_from")
+	if err != nil {
+		return badRequest(c, "date_from must be YYYY-MM-DD")
 	}
-	if v := strings.TrimSpace(c.Query("date_to")); v != "" {
-		t, err := time.Parse("2006-01-02", v)
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "date_to must be YYYY-MM-DD"})
-		}
-		filter.DateTo = &t
+	filter.DateFrom = dateFrom
+	dateTo, err := parseOptionalDateQuery(c, "date_to")
+	if err != nil {
+		return badRequest(c, "date_to must be YYYY-MM-DD")
 	}
+	filter.DateTo = dateTo
 	items, total, err := h.repo.ListAdmin(filter)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch orders"})
@@ -69,10 +65,7 @@ func (h *AdminOrderHandler) GetByID(c *fiber.Ctx) error {
 	}
 	detail, err := h.service.GetAdminDetailByID(orderID)
 	if err != nil {
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "order not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch order"})
+		return writeServiceError(c, err, "failed to fetch order", notFoundCase(errNotFound, "order not found"))
 	}
 	finance, err := h.repo.GetAdminFinance(orderID)
 	if err != nil {
@@ -90,8 +83,8 @@ func (h *AdminOrderHandler) PatchStatus(c *fiber.Ctx) error {
 		Status string `json:"status"`
 		Reason string `json:"reason"`
 	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	status := strings.ToUpper(strings.TrimSpace(req.Status))
 	valid := map[string]struct{}{"PP": {}, "PR": {}, "WF": {}, "QC": {}, "SH": {}, "DL": {}, "AC": {}, "CP": {}, "CC": {}}
@@ -129,8 +122,8 @@ func (h *AdminOrderHandler) PatchWithdrawal(c *fiber.Ctx) error {
 		Status string  `json:"status"`
 		Note   *string `json:"note"`
 	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	status := strings.ToUpper(strings.TrimSpace(req.Status))
 	if status != "AP" && status != "RJ" && status != "CP" {
@@ -167,8 +160,8 @@ func (h *AdminOrderHandler) PatchDispute(c *fiber.Ctx) error {
 		Status     string  `json:"status"`
 		Resolution *string `json:"resolution"`
 	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	status := strings.ToUpper(strings.TrimSpace(req.Status))
 	if status != "RS" && status != "CL" {

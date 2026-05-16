@@ -3,7 +3,6 @@ package handler
 import (
 	"database/sql"
 	"errors"
-	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
@@ -21,7 +20,7 @@ func NewCertificateHandler(service *service.CertificateService) *CertificateHand
 func (h *CertificateHandler) ListByFactory(c *fiber.Ctx) error {
 	factoryID, err := c.ParamsInt("factory_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_id"})
+		return badRequest(c, "invalid factory_id")
 	}
 	items, err := h.service.ListByFactoryID(int64(factoryID))
 	if err != nil {
@@ -46,8 +45,8 @@ func (h *CertificateHandler) Create(c *fiber.Ctx) error {
 	}
 
 	var req domain.FactoryCertificate
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	req.FactoryID = int64(factoryID)
 
@@ -60,24 +59,24 @@ func (h *CertificateHandler) Create(c *fiber.Ctx) error {
 func (h *CertificateHandler) Delete(c *fiber.Ctx) error {
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return unauthorized(c)
 	}
 	factoryID, err := c.ParamsInt("factory_id")
 	if err != nil || int64(factoryID) != userID {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
+		return jsonError(c, fiber.StatusForbidden, "forbidden")
 	}
-	mapID, err := strconv.ParseInt(c.Params("map_id"), 10, 64)
-	if err != nil || mapID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid map_id"})
+	mapID, err := parsePositiveInt64Param(c, "map_id")
+	if err != nil {
+		return badRequest(c, "invalid map_id")
 	}
 	if err := h.service.DeleteByMapID(int64(factoryID), mapID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			if fallbackErr := h.service.DeleteByCertID(int64(factoryID), mapID); fallbackErr == nil {
 				return c.SendStatus(fiber.StatusNoContent)
 			}
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "certificate mapping not found"})
+			return jsonError(c, fiber.StatusNotFound, "certificate mapping not found")
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to delete certificate"})
+		return writeServiceError(c, err, "failed to delete certificate", notFoundCase(sql.ErrNoRows, "certificate mapping not found"))
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -85,21 +84,18 @@ func (h *CertificateHandler) Delete(c *fiber.Ctx) error {
 func (h *CertificateHandler) DeleteByCertID(c *fiber.Ctx) error {
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return unauthorized(c)
 	}
 	factoryID, err := c.ParamsInt("factory_id")
 	if err != nil || int64(factoryID) != userID {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
+		return jsonError(c, fiber.StatusForbidden, "forbidden")
 	}
-	certID, err := strconv.ParseInt(c.Params("cert_id"), 10, 64)
-	if err != nil || certID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid cert_id"})
+	certID, err := parsePositiveInt64Param(c, "cert_id")
+	if err != nil {
+		return badRequest(c, "invalid cert_id")
 	}
 	if err := h.service.DeleteByCertID(int64(factoryID), certID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "certificate mapping not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to delete certificate"})
+		return writeServiceError(c, err, "failed to delete certificate", notFoundCase(sql.ErrNoRows, "certificate mapping not found"))
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -112,28 +108,25 @@ func (h *CertificateHandler) PatchByCertID(c *fiber.Ctx) error {
 	}
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return unauthorized(c)
 	}
 	factoryID, err := c.ParamsInt("factory_id")
 	if err != nil || int64(factoryID) != userID {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
+		return jsonError(c, fiber.StatusForbidden, "forbidden")
 	}
-	certID, err := strconv.ParseInt(c.Params("cert_id"), 10, 64)
-	if err != nil || certID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid cert_id"})
+	certID, err := parsePositiveInt64Param(c, "cert_id")
+	if err != nil {
+		return badRequest(c, "invalid cert_id")
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	if req.DocumentURL == nil && req.ExpireDate == nil && req.CertNumber == nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "at least one field is required"})
 	}
 	if err := h.service.PatchByCertID(int64(factoryID), certID, req.DocumentURL, req.ExpireDate, req.CertNumber); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "certificate mapping not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update certificate"})
+		return writeServiceError(c, err, "failed to update certificate", notFoundCase(sql.ErrNoRows, "certificate mapping not found"))
 	}
 	items, err := h.service.ListByFactoryID(int64(factoryID))
 	if err != nil {

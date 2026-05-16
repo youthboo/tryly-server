@@ -9,6 +9,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type OrderRepository struct {
@@ -80,7 +81,7 @@ func (r *OrderRepository) Create(order *domain.Order) error {
 		order.TotalAmount,
 		order.DepositAmount,
 		order.Status,
-		nullableTimeValue(order.EstimatedDelivery),
+		domainutil.NullableTime(order.EstimatedDelivery),
 		order.CreatedAt,
 		order.UpdatedAt,
 	).Scan(&order.OrderID)
@@ -101,7 +102,7 @@ func (r *OrderRepository) CreateTx(tx *sqlx.Tx, order *domain.Order) error {
 		order.TotalAmount,
 		order.DepositAmount,
 		order.Status,
-		nullableTimeValue(order.EstimatedDelivery),
+		domainutil.NullableTime(order.EstimatedDelivery),
 		order.CreatedAt,
 		order.UpdatedAt,
 	).Scan(&order.OrderID)

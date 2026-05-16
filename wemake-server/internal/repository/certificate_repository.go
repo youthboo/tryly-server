@@ -5,6 +5,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type CertificateRepository struct {
@@ -84,7 +85,7 @@ func (r *CertificateRepository) PatchByCertID(factoryID, certID int64, documentU
 		        ELSE verify_status
 		    END
 		WHERE factory_id = $4 AND cert_id = $5
-	`, nullableString(documentURL), nullableString(expireDate), nullableString(certNumber), factoryID, certID)
+	`, domainutil.NullableString(documentURL), domainutil.NullableString(expireDate), domainutil.NullableString(certNumber), factoryID, certID)
 	if err != nil {
 		return err
 	}
@@ -96,11 +97,4 @@ func (r *CertificateRepository) PatchByCertID(factoryID, certID int64, documentU
 		return sql.ErrNoRows
 	}
 	return nil
-}
-
-func nullableString(v *string) interface{} {
-	if v == nil {
-		return nil
-	}
-	return *v
 }

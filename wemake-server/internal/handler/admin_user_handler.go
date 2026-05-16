@@ -33,8 +33,8 @@ func (h *AdminUserHandler) Create(c *fiber.Ctx) error {
 		DisplayName string  `json:"display_name"`
 		Department  *string `json:"department"`
 	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	item, err := h.authService.RegisterAdmin(service.RegisterAdminInput{
 		Role:        strings.TrimSpace(req.Role),

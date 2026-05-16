@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"database/sql"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/repository"
 )
@@ -51,10 +49,7 @@ func (h *AdminCustomerHandler) GetCustomerDetail(c *fiber.Ctx) error {
 
 	detail, err := h.customers.GetCustomerDetail(userID)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "customer not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch customer"})
+		return writeServiceError(c, err, "failed to fetch customer", notFoundCase(errNotFound, "customer not found"))
 	}
 	return c.JSON(detail)
 }

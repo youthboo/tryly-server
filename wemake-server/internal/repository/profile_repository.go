@@ -8,6 +8,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type ProfileRepository struct {
@@ -81,47 +82,41 @@ func (r *ProfileRepository) GetProfile(userID int64) (*domain.ProfileResponse, e
 }
 
 func (r *ProfileRepository) UpdateCustomerProfile(userID int64, user *domain.User, customer *domain.CustomerProfile) error {
-	tx, err := r.db.Beginx()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if _, err := tx.Exec(`
-		UPDATE users SET phone = $1, updated_at = NOW()
-		WHERE user_id = $2
-	`, user.Phone, userID); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(`
-		UPDATE customers
-		SET first_name = $1, last_name = $2, address_line1 = $3, sub_district = $4, district = $5, province = $6, postal_code = $7
-		WHERE user_id = $8
-	`, customer.FirstName, customer.LastName, nullableStringPtr(customer.AddressLine1), nullableStringPtr(customer.SubDistrict), nullableStringPtr(customer.District), nullableStringPtr(customer.Province), nullableStringPtr(customer.PostalCode), userID); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+		if _, err := tx.Exec(`
+			UPDATE users SET phone = $1, updated_at = NOW()
+			WHERE user_id = $2
+		`, user.Phone, userID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`
+			UPDATE customers
+			SET first_name = $1, last_name = $2, address_line1 = $3, sub_district = $4, district = $5, province = $6, postal_code = $7
+			WHERE user_id = $8
+		`, customer.FirstName, customer.LastName, domainutil.NullableString(customer.AddressLine1), domainutil.NullableString(customer.SubDistrict), domainutil.NullableString(customer.District), domainutil.NullableString(customer.Province), domainutil.NullableString(customer.PostalCode), userID); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (r *ProfileRepository) UpdateFactoryProfile(userID int64, user *domain.User, factory *domain.FactoryProfile) error {
-	tx, err := r.db.Beginx()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if _, err := tx.Exec(`
-		UPDATE users SET phone = $1, updated_at = NOW()
-		WHERE user_id = $2
-	`, user.Phone, userID); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(`
-		UPDATE factory_profiles
-		SET description = $1, min_order = $2, lead_time_desc = $3
-		WHERE user_id = $4
-	`, nullableStringPtr(factory.Description), nullableInt64Value(factory.MinOrder), nullableStringPtr(factory.LeadTimeDesc), userID); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+		if _, err := tx.Exec(`
+			UPDATE users SET phone = $1, updated_at = NOW()
+			WHERE user_id = $2
+		`, user.Phone, userID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`
+			UPDATE factory_profiles
+			SET description = $1, min_order = $2, lead_time_desc = $3
+			WHERE user_id = $4
+		`, domainutil.NullableString(factory.Description), domainutil.NullableInt64(factory.MinOrder), domainutil.NullableString(factory.LeadTimeDesc), userID); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (r *ProfileRepository) UpdateAvatar(userID int64, avatarURL string) error {

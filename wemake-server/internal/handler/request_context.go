@@ -3,6 +3,7 @@ package handler
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -44,6 +45,14 @@ func jsonError(c *fiber.Ctx, status int, message string) error {
 	return c.Status(status).JSON(fiber.Map{"error": message})
 }
 
+func unauthorized(c *fiber.Ctx) error {
+	return jsonError(c, fiber.StatusUnauthorized, "unauthorized")
+}
+
+func badRequest(c *fiber.Ctx, message string) error {
+	return jsonError(c, fiber.StatusBadRequest, message)
+}
+
 func parsePositiveInt64Param(c *fiber.Ctx, name string) (int64, error) {
 	value, err := strconv.ParseInt(c.Params(name), 10, 64)
 	if err != nil || value <= 0 {
@@ -60,6 +69,57 @@ func parseOptionalPositiveInt64Query(c *fiber.Ctx, name string) (*int64, error) 
 	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil || value <= 0 {
 		return nil, fiber.NewError(fiber.StatusBadRequest, "invalid "+name)
+	}
+	return &value, nil
+}
+
+func parseRequiredPositiveInt64Query(c *fiber.Ctx, name string) (int64, error) {
+	raw := strings.TrimSpace(c.Query(name))
+	if raw == "" {
+		return 0, fiber.NewError(fiber.StatusBadRequest, name+" is required")
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value <= 0 {
+		return 0, fiber.NewError(fiber.StatusBadRequest, name+" must be a positive integer")
+	}
+	return value, nil
+}
+
+func parseOptionalDateQuery(c *fiber.Ctx, name string) (*time.Time, error) {
+	raw := strings.TrimSpace(c.Query(name))
+	if raw == "" {
+		return nil, nil
+	}
+	value, err := parseDate(raw, name)
+	if err != nil {
+		return nil, err
+	}
+	return &value, nil
+}
+
+func parseRequiredDateValue(raw string, name string) (time.Time, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return time.Time{}, fiber.NewError(fiber.StatusBadRequest, name+" is required")
+	}
+	return parseDate(raw, name)
+}
+
+func parseDate(raw string, name string) (time.Time, error) {
+	value, err := time.Parse("2006-01-02", strings.TrimSpace(raw))
+	if err != nil {
+		return time.Time{}, fiber.NewError(fiber.StatusBadRequest, name+" must be YYYY-MM-DD")
+	}
+	return value, nil
+}
+
+func parseOptionalRFC3339Value(raw *string, name string) (*time.Time, error) {
+	if raw == nil || strings.TrimSpace(*raw) == "" {
+		return nil, nil
+	}
+	value, err := time.Parse(time.RFC3339, strings.TrimSpace(*raw))
+	if err != nil {
+		return nil, fiber.NewError(fiber.StatusBadRequest, name+" must be RFC3339")
 	}
 	return &value, nil
 }

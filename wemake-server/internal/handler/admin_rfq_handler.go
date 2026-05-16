@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
@@ -27,34 +26,26 @@ func (h *AdminRFQHandler) List(c *fiber.Ctx) error {
 		Page:     c.QueryInt("page", 1),
 		PageSize: c.QueryInt("page_size", 20),
 	}
-	if v := strings.TrimSpace(c.Query("user_id")); v != "" {
-		id, err := strconv.ParseInt(v, 10, 64)
-		if err != nil || id <= 0 {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user_id"})
-		}
-		filter.UserID = &id
+	userID, err := parseOptionalPositiveInt64Query(c, "user_id")
+	if err != nil {
+		return badRequest(c, "invalid user_id")
 	}
-	if v := strings.TrimSpace(c.Query("category_id")); v != "" {
-		id, err := strconv.ParseInt(v, 10, 64)
-		if err != nil || id <= 0 {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid category_id"})
-		}
-		filter.CategoryID = &id
+	filter.UserID = userID
+	categoryID, err := parseOptionalPositiveInt64Query(c, "category_id")
+	if err != nil {
+		return badRequest(c, "invalid category_id")
 	}
-	if v := strings.TrimSpace(c.Query("date_from")); v != "" {
-		t, err := time.Parse("2006-01-02", v)
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "date_from must be YYYY-MM-DD"})
-		}
-		filter.DateFrom = &t
+	filter.CategoryID = categoryID
+	dateFrom, err := parseOptionalDateQuery(c, "date_from")
+	if err != nil {
+		return badRequest(c, "date_from must be YYYY-MM-DD")
 	}
-	if v := strings.TrimSpace(c.Query("date_to")); v != "" {
-		t, err := time.Parse("2006-01-02", v)
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "date_to must be YYYY-MM-DD"})
-		}
-		filter.DateTo = &t
+	filter.DateFrom = dateFrom
+	dateTo, err := parseOptionalDateQuery(c, "date_to")
+	if err != nil {
+		return badRequest(c, "date_to must be YYYY-MM-DD")
 	}
+	filter.DateTo = dateTo
 	items, total, err := h.repo.ListAdmin(filter)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch rfqs"})
@@ -63,31 +54,28 @@ func (h *AdminRFQHandler) List(c *fiber.Ctx) error {
 }
 
 func (h *AdminRFQHandler) GetByID(c *fiber.Ctx) error {
-	rfqID, err := strconv.ParseInt(c.Params("rfq_id"), 10, 64)
-	if err != nil || rfqID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
+	rfqID, err := parsePositiveInt64Param(c, "rfq_id")
+	if err != nil {
+		return badRequest(c, "invalid rfq_id")
 	}
 	item, err := h.repo.GetAdminDetail(rfqID)
 	if err != nil {
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "rfq not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch rfq"})
+		return writeServiceError(c, err, "failed to fetch rfq", notFoundCase(errNotFound, "rfq not found"))
 	}
 	return c.JSON(item)
 }
 
 func (h *AdminRFQHandler) PatchStatus(c *fiber.Ctx) error {
-	rfqID, err := strconv.ParseInt(c.Params("rfq_id"), 10, 64)
-	if err != nil || rfqID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
+	rfqID, err := parsePositiveInt64Param(c, "rfq_id")
+	if err != nil {
+		return badRequest(c, "invalid rfq_id")
 	}
 	var req struct {
 		Status string `json:"status"`
 		Reason string `json:"reason"`
 	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	status := strings.ToUpper(strings.TrimSpace(req.Status))
 	if status != "CL" && status != "CC" {

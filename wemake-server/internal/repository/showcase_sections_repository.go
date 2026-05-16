@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 )
 
@@ -45,37 +46,32 @@ func (r *ShowcaseRepository) BulkReplaceSections(showcaseID, factoryID int64, in
 		return domain.ErrForbidden
 	}
 
-	tx, err := r.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	if _, err := tx.Exec(`DELETE FROM showcase_sections WHERE showcase_id = $1`, showcaseID); err != nil {
-		return err
-	}
-
-	for _, sec := range inputs {
-		var sectionID int64
-		if err := tx.QueryRow(
-			`INSERT INTO showcase_sections (showcase_id, section_type, section_title, sort_order)
-			 VALUES ($1, $2, $3, $4) RETURNING section_id`,
-			showcaseID, sec.SectionType, sec.SectionTitle, sec.SortOrder,
-		).Scan(&sectionID); err != nil {
+	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+		if _, err := tx.Exec(`DELETE FROM showcase_sections WHERE showcase_id = $1`, showcaseID); err != nil {
 			return err
 		}
-		for _, item := range sec.Items {
-			if _, err := tx.Exec(
-				`INSERT INTO showcase_section_items (section_id, title, description, icon_name, sort_order)
-				 VALUES ($1, $2, $3, $4, $5)`,
-				sectionID, item.Title, item.Description, item.IconName, item.SortOrder,
-			); err != nil {
+
+		for _, sec := range inputs {
+			var sectionID int64
+			if err := tx.QueryRow(
+				`INSERT INTO showcase_sections (showcase_id, section_type, section_title, sort_order)
+				 VALUES ($1, $2, $3, $4) RETURNING section_id`,
+				showcaseID, sec.SectionType, sec.SectionTitle, sec.SortOrder,
+			).Scan(&sectionID); err != nil {
 				return err
 			}
+			for _, item := range sec.Items {
+				if _, err := tx.Exec(
+					`INSERT INTO showcase_section_items (section_id, title, description, icon_name, sort_order)
+					 VALUES ($1, $2, $3, $4, $5)`,
+					sectionID, item.Title, item.Description, item.IconName, item.SortOrder,
+				); err != nil {
+					return err
+				}
+			}
 		}
-	}
-
-	return tx.Commit()
+		return nil
+	})
 }
 
 func (r *ShowcaseRepository) GetSpecs(showcaseID, factoryID int64) ([]domain.ShowcaseSpec, error) {
@@ -110,25 +106,21 @@ func (r *ShowcaseRepository) BulkReplaceSpecs(showcaseID, factoryID int64, input
 		return domain.ErrForbidden
 	}
 
-	tx, err := r.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	if _, err := tx.Exec(`DELETE FROM showcase_specs WHERE showcase_id = $1`, showcaseID); err != nil {
-		return err
-	}
-	for _, spec := range inputs {
-		if _, err := tx.Exec(
-			`INSERT INTO showcase_specs (showcase_id, spec_key, spec_value, sort_order)
-			 VALUES ($1, $2, $3, $4)`,
-			showcaseID, spec.SpecKey, spec.SpecValue, spec.SortOrder,
-		); err != nil {
+	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+		if _, err := tx.Exec(`DELETE FROM showcase_specs WHERE showcase_id = $1`, showcaseID); err != nil {
 			return err
 		}
-	}
-	return tx.Commit()
+		for _, spec := range inputs {
+			if _, err := tx.Exec(
+				`INSERT INTO showcase_specs (showcase_id, spec_key, spec_value, sort_order)
+				 VALUES ($1, $2, $3, $4)`,
+				showcaseID, spec.SpecKey, spec.SpecValue, spec.SortOrder,
+			); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (r *ShowcaseRepository) DeleteSection(showcaseID, sectionID, factoryID int64) error {

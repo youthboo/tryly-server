@@ -2,7 +2,6 @@ package handler
 
 import (
 	"errors"
-	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
@@ -20,7 +19,7 @@ func NewConversationHandler(service *service.ConversationService) *ConversationH
 func (h *ConversationHandler) List(c *fiber.Ctx) error {
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return unauthorized(c)
 	}
 	items, err := h.service.ListByUserID(userID)
 	if err != nil {
@@ -32,11 +31,11 @@ func (h *ConversationHandler) List(c *fiber.Ctx) error {
 func (h *ConversationHandler) Get(c *fiber.Ctx) error {
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return unauthorized(c)
 	}
 	convID, err := c.ParamsInt("conv_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid conv_id"})
+		return badRequest(c, "invalid conv_id")
 	}
 	item, err := h.service.GetByID(int64(convID), userID)
 	if err != nil {
@@ -51,11 +50,11 @@ func (h *ConversationHandler) Get(c *fiber.Ctx) error {
 func (h *ConversationHandler) Create(c *fiber.Ctx) error {
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return unauthorized(c)
 	}
 	var req domain.Conversation
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	if req.CustomerID <= 0 || req.FactoryID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "customer_id and factory_id are required"})
@@ -78,11 +77,11 @@ func (h *ConversationHandler) Create(c *fiber.Ctx) error {
 func (h *ConversationHandler) InquireShowcase(c *fiber.Ctx) error {
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return unauthorized(c)
 	}
-	showcaseID, err := strconv.ParseInt(c.Params("showcase_id"), 10, 64)
-	if err != nil || showcaseID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid showcase_id"})
+	showcaseID, err := parsePositiveInt64Param(c, "showcase_id")
+	if err != nil {
+		return badRequest(c, "invalid showcase_id")
 	}
 	if role := getOptionalRoleFromContext(c); role != "" && role != domain.RoleCustomer {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "buyer role required"})
@@ -97,11 +96,11 @@ func (h *ConversationHandler) InquireShowcase(c *fiber.Ctx) error {
 func (h *ConversationHandler) MarkAsRead(c *fiber.Ctx) error {
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return unauthorized(c)
 	}
 	convID, err := c.ParamsInt("conv_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid conv_id"})
+		return badRequest(c, "invalid conv_id")
 	}
 	if err := h.service.MarkAsRead(int64(convID), userID); err != nil {
 		if errors.Is(err, service.ErrConversationForbidden) {
@@ -118,20 +117,20 @@ func (h *ConversationHandler) MarkAsRead(c *fiber.Ctx) error {
 func (h *ConversationHandler) ShareRFQ(c *fiber.Ctx) error {
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return unauthorized(c)
 	}
 	if role := getOptionalRoleFromContext(c); role != "" && role != domain.RoleCustomer {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "buyer role required"})
 	}
 	convID, err := c.ParamsInt("conv_id")
 	if err != nil || convID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid conv_id"})
+		return badRequest(c, "invalid conv_id")
 	}
 	var req struct {
 		RFQID int64 `json:"rfq_id"`
 	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	if req.RFQID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "rfq_id is required"})

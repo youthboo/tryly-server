@@ -76,11 +76,11 @@ func parseAdminPeriod(period, rawFrom, rawTo string) (time.Time, time.Time, erro
 		if rawFrom == "" || rawTo == "" {
 			return time.Time{}, time.Time{}, fiber.NewError(fiber.StatusBadRequest, "date_from and date_to are required")
 		}
-		from, err := time.Parse("2006-01-02", rawFrom)
+		from, err := parseDate(rawFrom, "date_from")
 		if err != nil {
 			return time.Time{}, time.Time{}, fiber.NewError(fiber.StatusBadRequest, "date_from must be YYYY-MM-DD")
 		}
-		to, err := time.Parse("2006-01-02", rawTo)
+		to, err := parseDate(rawTo, "date_to")
 		if err != nil {
 			return time.Time{}, time.Time{}, fiber.NewError(fiber.StatusBadRequest, "date_to must be YYYY-MM-DD")
 		}

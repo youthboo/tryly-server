@@ -63,6 +63,13 @@ func NullableInt64(v *int64) interface{} {
 	return *v
 }
 
+func NullablePositiveInt64(v int64) interface{} {
+	if v <= 0 {
+		return nil
+	}
+	return v
+}
+
 func NullableFloat64(v *float64) interface{} {
 	if v == nil {
 		return nil
@@ -79,4 +86,12 @@ func NullableTime(v *time.Time) interface{} {
 
 func NormalizeStatus(v string) string {
 	return strings.ToUpper(strings.TrimSpace(v))
+}
+
+func NormalizeUpperOrDefault(v string, fallback string) string {
+	normalized := strings.ToUpper(strings.TrimSpace(v))
+	if normalized == "" {
+		return fallback
+	}
+	return normalized
 }

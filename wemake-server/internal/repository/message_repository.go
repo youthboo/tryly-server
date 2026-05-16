@@ -6,6 +6,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type MessageRepository struct {
@@ -37,7 +38,7 @@ func (r *MessageRepository) CreateTx(exec interface {
 	_, err := exec.Exec(
 		query,
 		item.MessageID,
-		nullableMessageReferenceID(item.ReferenceID),
+		domainutil.NullablePositiveInt64(item.ReferenceID),
 		item.SenderID,
 		item.ReceiverID,
 		item.Content,
@@ -132,11 +133,4 @@ func (r *MessageRepository) ListThreads(userID int64) ([]domain.MessageThread, e
 	`
 	err := r.db.Select(&items, query, userID)
 	return items, err
-}
-
-func nullableMessageReferenceID(referenceID int64) interface{} {
-	if referenceID <= 0 {
-		return nil
-	}
-	return referenceID
 }

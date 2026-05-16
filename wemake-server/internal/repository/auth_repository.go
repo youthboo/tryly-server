@@ -6,6 +6,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type AuthRepository struct {
@@ -43,108 +44,93 @@ func (r *AuthRepository) GetUserByEmail(email string) (*domain.User, error) {
 }
 
 func (r *AuthRepository) CreateCustomerUser(user *domain.User, customer *domain.CustomerProfile) error {
-	tx, err := r.db.Beginx()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
+	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+		const userInsert = `
+			INSERT INTO users (role, email, phone, password_hash, is_active, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			RETURNING user_id
+		`
+		if err := tx.QueryRow(
+			userInsert,
+			user.Role,
+			user.Email,
+			user.Phone,
+			user.PasswordHash,
+			user.IsActive,
+			user.CreatedAt,
+			user.UpdatedAt,
+		).Scan(&user.UserID); err != nil {
+			return err
+		}
 
-	const userInsert = `
-		INSERT INTO users (role, email, phone, password_hash, is_active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING user_id
-	`
-	if err := tx.QueryRow(
-		userInsert,
-		user.Role,
-		user.Email,
-		user.Phone,
-		user.PasswordHash,
-		user.IsActive,
-		user.CreatedAt,
-		user.UpdatedAt,
-	).Scan(&user.UserID); err != nil {
-		return err
-	}
-
-	const customerInsert = `
-		INSERT INTO customers (user_id, first_name, last_name)
-		VALUES ($1, $2, $3)
-	`
-	if _, err := tx.Exec(customerInsert, user.UserID, customer.FirstName, customer.LastName); err != nil {
-		return err
-	}
-
-	return tx.Commit()
+		const customerInsert = `
+			INSERT INTO customers (user_id, first_name, last_name)
+			VALUES ($1, $2, $3)
+		`
+		if _, err := tx.Exec(customerInsert, user.UserID, customer.FirstName, customer.LastName); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (r *AuthRepository) CreateFactoryUser(user *domain.User, factory *domain.FactoryProfile) error {
-	tx, err := r.db.Beginx()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
+	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+		const userInsert = `
+			INSERT INTO users (role, email, phone, password_hash, is_active, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			RETURNING user_id
+		`
+		if err := tx.QueryRow(
+			userInsert,
+			user.Role,
+			user.Email,
+			user.Phone,
+			user.PasswordHash,
+			user.IsActive,
+			user.CreatedAt,
+			user.UpdatedAt,
+		).Scan(&user.UserID); err != nil {
+			return err
+		}
 
-	const userInsert = `
-		INSERT INTO users (role, email, phone, password_hash, is_active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING user_id
-	`
-	if err := tx.QueryRow(
-		userInsert,
-		user.Role,
-		user.Email,
-		user.Phone,
-		user.PasswordHash,
-		user.IsActive,
-		user.CreatedAt,
-		user.UpdatedAt,
-	).Scan(&user.UserID); err != nil {
-		return err
-	}
-
-	const factoryInsert = `
-		INSERT INTO factory_profiles (user_id, factory_name, factory_type_id, tax_id, province_id, approval_status, submitted_at)
-		VALUES ($1, $2, $3, $4, $5, 'PE', NOW())
-	`
-	var provinceID sql.NullInt64
-	if factory.ProvinceID != nil && *factory.ProvinceID > 0 {
-		provinceID = sql.NullInt64{Int64: *factory.ProvinceID, Valid: true}
-	}
-	if _, err := tx.Exec(factoryInsert, user.UserID, factory.FactoryName, factory.FactoryTypeID, factory.TaxID, provinceID); err != nil {
-		return err
-	}
-
-	return tx.Commit()
+		const factoryInsert = `
+			INSERT INTO factory_profiles (user_id, factory_name, factory_type_id, tax_id, province_id, approval_status, submitted_at)
+			VALUES ($1, $2, $3, $4, $5, 'PE', NOW())
+		`
+		var provinceID sql.NullInt64
+		if factory.ProvinceID != nil && *factory.ProvinceID > 0 {
+			provinceID = sql.NullInt64{Int64: *factory.ProvinceID, Valid: true}
+		}
+		if _, err := tx.Exec(factoryInsert, user.UserID, factory.FactoryName, factory.FactoryTypeID, factory.TaxID, provinceID); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (r *AuthRepository) CreateAdminUser(user *domain.User, profile *domain.AdminProfile) error {
-	tx, err := r.db.Beginx()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	if err := tx.QueryRow(`
-		INSERT INTO users (role, email, phone, password_hash, is_active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING user_id
-	`, user.Role, user.Email, user.Phone, user.PasswordHash, user.IsActive, user.CreatedAt, user.UpdatedAt).Scan(&user.UserID); err != nil {
-		return err
-	}
-
-	if profile != nil {
-		profile.UserID = user.UserID
+	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
 		if err := tx.QueryRow(`
-			INSERT INTO admin_profiles (user_id, display_name, department, created_by)
-			VALUES ($1, $2, $3, $4)
-			RETURNING created_at
-		`, profile.UserID, profile.DisplayName, nullableStringPtr(profile.Department), nullableInt64Value(profile.CreatedBy)).Scan(&profile.CreatedAt); err != nil {
+			INSERT INTO users (role, email, phone, password_hash, is_active, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			RETURNING user_id
+		`, user.Role, user.Email, user.Phone, user.PasswordHash, user.IsActive, user.CreatedAt, user.UpdatedAt).Scan(&user.UserID); err != nil {
 			return err
 		}
-	}
 
-	return tx.Commit()
+		if profile != nil {
+			profile.UserID = user.UserID
+			if err := tx.QueryRow(`
+				INSERT INTO admin_profiles (user_id, display_name, department, created_by)
+				VALUES ($1, $2, $3, $4)
+				RETURNING created_at
+			`, profile.UserID, profile.DisplayName, domainutil.NullableString(profile.Department), domainutil.NullableInt64(profile.CreatedBy)).Scan(&profile.CreatedAt); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (r *AuthRepository) ListAdminUsers() ([]domain.AdminUserListItem, error) {
@@ -195,23 +181,18 @@ func (r *AuthRepository) GetValidPasswordResetToken(token string) (*domain.Passw
 }
 
 func (r *AuthRepository) ResetPassword(userID int64, tokenID int64, passwordHash string, now time.Time) error {
-	tx, err := r.db.Beginx()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
+	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+		const updateUser = "UPDATE users SET password_hash = $1, updated_at = $2 WHERE user_id = $3"
+		if _, err := tx.Exec(updateUser, passwordHash, now, userID); err != nil {
+			return err
+		}
 
-	const updateUser = "UPDATE users SET password_hash = $1, updated_at = $2 WHERE user_id = $3"
-	if _, err := tx.Exec(updateUser, passwordHash, now, userID); err != nil {
-		return err
-	}
-
-	const markToken = "UPDATE password_reset_tokens SET used_at = $1 WHERE id = $2"
-	if _, err := tx.Exec(markToken, now, tokenID); err != nil {
-		return err
-	}
-
-	return tx.Commit()
+		const markToken = "UPDATE password_reset_tokens SET used_at = $1 WHERE id = $2"
+		if _, err := tx.Exec(markToken, now, tokenID); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (r *AuthRepository) UpdatePassword(userID int64, passwordHash string, now time.Time) error {

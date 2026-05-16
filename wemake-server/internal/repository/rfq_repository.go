@@ -8,6 +8,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type RFQRepository struct {
@@ -83,20 +84,20 @@ func (r *RFQRepository) createWithExecutor(exec rfqQueryRowExecutor, rfq *domain
 	return exec.QueryRow(
 		query,
 		rfq.UserID,
-		nullableZeroInt64(rfq.CategoryID),
-		nullableInt64Value(rfq.SubCategoryID),
+		domainutil.NullablePositiveInt64(rfq.CategoryID),
+		domainutil.NullableInt64(rfq.SubCategoryID),
 		rfq.Title,
 		rfq.Quantity,
 		rfq.Details,
-		nullableInt64Value(rfq.ShippingMethodID),
+		domainutil.NullableInt64(rfq.ShippingMethodID),
 		rfq.Status,
-		nullableRequestKind(rfq.RequestKind),
+		domainutil.NormalizeUpperOrDefault(rfq.RequestKind, domain.RequestKindProduction),
 		rfq.CreatedAt,
 		rfq.UpdatedAt,
-		nullableStringPtr(rfq.MaterialGrade),
-		nullableFloat64(rfq.TargetPrice),
-		nullableIntValue(rfq.TargetLeadTimeDays),
-		nullableInt64Value(rfq.DeliveryAddressID),
+		domainutil.NullableString(rfq.MaterialGrade),
+		domainutil.NullableFloat64(rfq.TargetPrice),
+		domainutil.NullableInt(rfq.TargetLeadTimeDays),
+		domainutil.NullableInt64(rfq.DeliveryAddressID),
 		rfq.CertificationsRequired,
 		rfq.ReferenceImages,
 	).Scan(&rfq.RFQID)
@@ -155,18 +156,15 @@ func (r *RFQRepository) GetByID(userID, rfqID int64) (*domain.RFQ, error) {
 }
 
 func (r *RFQRepository) Cancel(userID, rfqID int64) error {
-	tx, err := r.db.Beginx()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if _, err := tx.Exec("UPDATE rfqs SET status = 'CC', updated_at = NOW() WHERE user_id = $1 AND rfq_id = $2", userID, rfqID); err != nil {
-		return err
-	}
-	if _, err := tx.Exec("UPDATE quotations SET status = 'EX', log_timestamp = NOW() WHERE rfq_id = $1 AND status = 'PD'", rfqID); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+		if _, err := tx.Exec("UPDATE rfqs SET status = 'CC', updated_at = NOW() WHERE user_id = $1 AND rfq_id = $2", userID, rfqID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec("UPDATE quotations SET status = 'EX', log_timestamp = NOW() WHERE rfq_id = $1 AND status = 'PD'", rfqID); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 // CloseOpenRFQForUserTx sets RFQ status from OP to CL when the customer awards an order (same transaction as order create).
@@ -416,7 +414,7 @@ func (r *RFQRepository) ListMatchingFactoryIDsForKind(kind string, categoryID in
 			  AND COALESCE(fp.approval_status, 'AP') <> 'SU'
 			  AND fs.category_id = $1
 		`
-		if err := r.db.Select(&ids, query, nullableZeroInt64(categoryID)); err != nil {
+		if err := r.db.Select(&ids, query, domainutil.NullablePositiveInt64(categoryID)); err != nil {
 			return nil, err
 		}
 		return ids, nil
@@ -439,7 +437,7 @@ func (r *RFQRepository) ListMatchingFactoryIDsForKind(kind string, categoryID in
 			)
 		  )
 	`
-	if err := r.db.Select(&ids, query, nullableZeroInt64(categoryID), nullableInt64Value(subCategoryID)); err != nil {
+	if err := r.db.Select(&ids, query, domainutil.NullablePositiveInt64(categoryID), domainutil.NullableInt64(subCategoryID)); err != nil {
 		return nil, err
 	}
 	return ids, nil
@@ -509,27 +507,6 @@ func (r *RFQRepository) enrichRFQLookups(rfq *domain.RFQ) error {
 	return nil
 }
 
-func nullableZeroInt64(v int64) interface{} {
-	if v <= 0 {
-		return nil
-	}
-	return v
-}
-
-func nullableRFQType(v string) interface{} {
-	if v == "" {
-		return "RFQ"
-	}
-	return v
-}
-
-func nullableInitiatedBy(v string) interface{} {
-	if v == "" {
-		return "buyer"
-	}
-	return v
-}
-
 // FactoryHasMatchingCategory returns true if factory accepts RFQ's category and sub-category rules.
 func (r *RFQRepository) FactoryHasMatchingCategory(factoryID int64, rfq *domain.RFQ) (bool, error) {
 	var ok bool
@@ -552,7 +529,7 @@ func (r *RFQRepository) FactoryHasMatchingCategory(factoryID int64, rfq *domain.
 			)
 		)
 	`
-	err := r.db.Get(&ok, query, factoryID, rfq.CategoryID, nullableInt64Value(rfq.SubCategoryID))
+	err := r.db.Get(&ok, query, factoryID, rfq.CategoryID, domainutil.NullableInt64(rfq.SubCategoryID))
 	return ok, err
 }
 
@@ -562,27 +539,6 @@ func (r *RFQRepository) FactoryHasQuotationOnRFQ(factoryID, rfqID int64) (bool, 
 		SELECT EXISTS (SELECT 1 FROM quotations WHERE factory_id = $1 AND rfq_id = $2)
 	`, factoryID, rfqID)
 	return ok, err
-}
-
-func nullableInt64Value(value *int64) interface{} {
-	if value == nil {
-		return nil
-	}
-	return *value
-}
-
-func nullableTimeValue(value *time.Time) interface{} {
-	if value == nil {
-		return nil
-	}
-	return *value
-}
-
-func nullableIntValue(value *int) interface{} {
-	if value == nil {
-		return nil
-	}
-	return *value
 }
 
 func (r *RFQRepository) Patch(userID, rfqID int64, rfq *domain.RFQ) error {
@@ -614,13 +570,6 @@ func (r *RFQRepository) MarkInReviewTx(tx *sqlx.Tx, rfqID, userID int64) error {
 		WHERE rfq_id = $1 AND user_id = $2 AND status IN ('OP', 'IR')
 	`, rfqID, userID)
 	return err
-}
-
-func nullableRequestKind(v string) interface{} {
-	if strings.TrimSpace(v) == "" {
-		return domain.RequestKindProduction
-	}
-	return strings.TrimSpace(strings.ToUpper(v))
 }
 
 func splitRFQKinds(raw string) []string {

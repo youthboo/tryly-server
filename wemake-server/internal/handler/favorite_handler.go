@@ -17,7 +17,7 @@ func NewFavoriteHandler(service *service.FavoriteService) *FavoriteHandler {
 func (h *FavoriteHandler) List(c *fiber.Ctx) error {
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return unauthorized(c)
 	}
 	items, err := h.service.ListByUserID(userID)
 	if err != nil {
@@ -29,12 +29,12 @@ func (h *FavoriteHandler) List(c *fiber.Ctx) error {
 func (h *FavoriteHandler) Add(c *fiber.Ctx) error {
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return unauthorized(c)
 	}
 
 	var req domain.Favorite
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	req.UserID = userID
 
@@ -47,11 +47,11 @@ func (h *FavoriteHandler) Add(c *fiber.Ctx) error {
 func (h *FavoriteHandler) Remove(c *fiber.Ctx) error {
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return unauthorized(c)
 	}
 	showcaseID, err := c.ParamsInt("showcase_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid showcase_id"})
+		return badRequest(c, "invalid showcase_id")
 	}
 	if err := h.service.Remove(userID, int64(showcaseID)); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to remove favorite"})

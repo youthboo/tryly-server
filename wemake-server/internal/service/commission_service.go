@@ -2,9 +2,9 @@ package service
 
 import (
 	"errors"
-	"math"
 
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/repository"
 )
 
@@ -44,10 +44,6 @@ func NewCommissionService(configs *repository.PlatformConfigRepository, override
 	return &CommissionService{configs: configs, overrides: overrides}
 }
 
-func round2(v float64) float64 {
-	return math.Round(v*100) / 100
-}
-
 func (s *CommissionService) Calculate(in CommissionInput) (*Breakdown, error) {
 	var cfg *domain.PlatformConfig
 	var err error
@@ -61,24 +57,24 @@ func (s *CommissionService) Calculate(in CommissionInput) (*Breakdown, error) {
 	}
 	var lineSum float64
 	for i := range in.Items {
-		lineTotal := round2(in.Items[i].Qty * in.Items[i].UnitPrice * (1 - in.Items[i].DiscountPct/100))
+		lineTotal := domainutil.RoundMoney(in.Items[i].Qty * in.Items[i].UnitPrice * (1 - in.Items[i].DiscountPct/100))
 		in.Items[i].LineTotal = lineTotal
 		lineSum += lineTotal
 	}
-	subtotal := round2(lineSum - in.DiscountAmount)
-	preVatBase := round2(subtotal + in.ShippingCost + in.PackagingCost + in.ToolingCost)
-	vatAmount := round2(preVatBase * cfg.VatRate / 100)
-	grandTotal := round2(preVatBase + vatAmount)
+	subtotal := domainutil.RoundMoney(lineSum - in.DiscountAmount)
+	preVatBase := domainutil.RoundMoney(subtotal + in.ShippingCost + in.PackagingCost + in.ToolingCost)
+	vatAmount := domainutil.RoundMoney(preVatBase * cfg.VatRate / 100)
+	grandTotal := domainutil.RoundMoney(preVatBase + vatAmount)
 	commissionRate := cfg.DefaultCommissionRate
-	commissionAmount := round2(grandTotal * commissionRate / 100)
-	factoryNet := round2(grandTotal - commissionAmount)
+	commissionAmount := domainutil.RoundMoney(grandTotal * commissionRate / 100)
+	factoryNet := domainutil.RoundMoney(grandTotal - commissionAmount)
 
 	return &Breakdown{
 		Subtotal:                 subtotal,
-		DiscountAmount:           round2(in.DiscountAmount),
-		ShippingCost:             round2(in.ShippingCost),
-		PackagingCost:            round2(in.PackagingCost),
-		ToolingMoldCost:          round2(in.ToolingCost),
+		DiscountAmount:           domainutil.RoundMoney(in.DiscountAmount),
+		ShippingCost:             domainutil.RoundMoney(in.ShippingCost),
+		PackagingCost:            domainutil.RoundMoney(in.PackagingCost),
+		ToolingMoldCost:          domainutil.RoundMoney(in.ToolingCost),
 		PreVatBase:               preVatBase,
 		VatRate:                  cfg.VatRate,
 		VatAmount:                vatAmount,

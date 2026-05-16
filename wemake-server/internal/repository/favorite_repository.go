@@ -23,66 +23,56 @@ func (r *FavoriteRepository) ListByUserID(userID int64) ([]domain.Favorite, erro
 }
 
 func (r *FavoriteRepository) Add(fav *domain.Favorite) error {
-	tx, err := r.db.Beginx()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	query := `
-		INSERT INTO favorites (user_id, showcase_id)
-		VALUES (:user_id, :showcase_id)
-		RETURNING fav_id, created_at
-	`
-	rows, err := tx.NamedQuery(query, fav)
-	if err != nil {
-		return err
-	}
-	if !rows.Next() {
+	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+		query := `
+			INSERT INTO favorites (user_id, showcase_id)
+			VALUES (:user_id, :showcase_id)
+			RETURNING fav_id, created_at
+		`
+		rows, err := tx.NamedQuery(query, fav)
+		if err != nil {
+			return err
+		}
+		if !rows.Next() {
+			rows.Close()
+			return errors.New("favorite insert: no row returned")
+		}
+		if err = rows.Scan(&fav.FavID, &fav.CreatedAt); err != nil {
+			rows.Close()
+			return err
+		}
 		rows.Close()
-		return errors.New("favorite insert: no row returned")
-	}
-	if err = rows.Scan(&fav.FavID, &fav.CreatedAt); err != nil {
-		rows.Close()
-		return err
-	}
-	rows.Close()
 
-	if _, err = tx.Exec(`
-		UPDATE factory_showcases
-		SET likes_count = likes_count + 1
-		WHERE showcase_id = $1
-	`, fav.ShowcaseID); err != nil {
-		return err
-	}
-
-	return tx.Commit()
+		if _, err = tx.Exec(`
+			UPDATE factory_showcases
+			SET likes_count = likes_count + 1
+			WHERE showcase_id = $1
+		`, fav.ShowcaseID); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (r *FavoriteRepository) Remove(userID, showcaseID int64) error {
-	tx, err := r.db.Beginx()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	res, err := tx.Exec(`DELETE FROM favorites WHERE user_id = $1 AND showcase_id = $2`, userID, showcaseID)
-	if err != nil {
-		return err
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if n > 0 {
-		if _, err = tx.Exec(`
-			UPDATE factory_showcases
-			SET likes_count = GREATEST(likes_count - 1, 0)
-			WHERE showcase_id = $1
-		`, showcaseID); err != nil {
+	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+		res, err := tx.Exec(`DELETE FROM favorites WHERE user_id = $1 AND showcase_id = $2`, userID, showcaseID)
+		if err != nil {
 			return err
 		}
-	}
-
-	return tx.Commit()
+		n, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if n > 0 {
+			if _, err = tx.Exec(`
+				UPDATE factory_showcases
+				SET likes_count = GREATEST(likes_count - 1, 0)
+				WHERE showcase_id = $1
+			`, showcaseID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }

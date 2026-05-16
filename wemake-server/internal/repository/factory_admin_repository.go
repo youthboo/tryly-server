@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 func (r *FactoryRepository) ListAdmin(filter domain.AdminFactoryFilter) ([]domain.AdminFactoryListItem, int, error) {
@@ -119,7 +120,7 @@ func (r *FactoryRepository) UpdateApprovalStatus(factoryID int64, status string,
 		    rejection_reason = CASE WHEN $1 IN ('RJ','SU') THEN $3 ELSE NULL END
 		WHERE user_id = $4
 	`
-	res, err := r.db.Exec(query, status, nullableInt64Value(verifiedBy), nullableStringPtr(reason), factoryID)
+	res, err := r.db.Exec(query, status, domainutil.NullableInt64(verifiedBy), domainutil.NullableString(reason), factoryID)
 	if err != nil {
 		return err
 	}

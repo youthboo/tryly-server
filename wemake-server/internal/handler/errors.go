@@ -1,12 +1,15 @@
 package handler
 
 import (
+	"database/sql"
 	"errors"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/repository"
 )
+
+var errNotFound = sql.ErrNoRows
 
 type serviceErrorCase struct {
 	Err     error

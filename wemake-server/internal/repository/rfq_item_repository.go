@@ -4,6 +4,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type RFQItemRepository struct {
@@ -37,7 +38,7 @@ func (r *RFQItemRepository) BulkInsertTx(tx *sqlx.Tx, rfqID int64, items []domai
 		return err
 	}
 	for _, item := range items {
-		if _, err := stmt.Exec(rfqID, item.ItemNo, item.Description, nullableStringPtr(item.Specification), item.Qty, nullableStringPtr(item.Unit), item.UnitPrice, item.DiscountPct, item.LineTotal, nullableStringPtr(item.Note)); err != nil {
+		if _, err := stmt.Exec(rfqID, item.ItemNo, item.Description, domainutil.NullableString(item.Specification), item.Qty, domainutil.NullableString(item.Unit), item.UnitPrice, item.DiscountPct, item.LineTotal, domainutil.NullableString(item.Note)); err != nil {
 			_ = stmt.Close()
 			return err
 		}

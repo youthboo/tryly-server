@@ -2,10 +2,10 @@ package handler
 
 import (
 	"fmt"
+
 	log "github.com/yourusername/wemake/internal/logger"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/yourusername/wemake/internal/repository"
 	"github.com/yourusername/wemake/internal/service"
 )
 
@@ -38,15 +38,12 @@ func (h *FrontendHandler) GetBootstrap(c *fiber.Ctx) error {
 func (h *FrontendHandler) GetCurrentUser(c *fiber.Ctx) error {
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user context"})
+		return badRequest(c, "invalid user context")
 	}
 
 	item, err := h.service.GetCurrentUser(userID)
 	if err != nil {
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "user not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch current user"})
+		return writeServiceError(c, err, "failed to fetch current user", notFoundCase(errNotFound, "user not found"))
 	}
 
 	return c.JSON(item)
@@ -63,15 +60,12 @@ func (h *FrontendHandler) ListFactories(c *fiber.Ctx) error {
 func (h *FrontendHandler) GetFactoryDetail(c *fiber.Ctx) error {
 	factoryID, err := c.ParamsInt("factory_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_id"})
+		return badRequest(c, "invalid factory_id")
 	}
 
 	item, err := h.service.GetFactoryDetail(int64(factoryID))
 	if err != nil {
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "factory not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch factory detail"})
+		return writeServiceError(c, err, "failed to fetch factory detail", notFoundCase(errNotFound, "factory not found"))
 	}
 	return c.JSON(item)
 }
@@ -79,20 +73,17 @@ func (h *FrontendHandler) GetFactoryDetail(c *fiber.Ctx) error {
 func (h *FrontendHandler) GetRFQDetail(c *fiber.Ctx) error {
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user context"})
+		return badRequest(c, "invalid user context")
 	}
 
 	rfqID, err := c.ParamsInt("rfq_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
+		return badRequest(c, "invalid rfq_id")
 	}
 
 	item, err := h.service.GetRFQDetail(userID, int64(rfqID))
 	if err != nil {
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "rfq not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch rfq detail"})
+		return writeServiceError(c, err, "failed to fetch rfq detail", notFoundCase(errNotFound, "rfq not found"))
 	}
 	return c.JSON(item)
 }
@@ -100,20 +91,17 @@ func (h *FrontendHandler) GetRFQDetail(c *fiber.Ctx) error {
 func (h *FrontendHandler) GetOrderDetail(c *fiber.Ctx) error {
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user context"})
+		return badRequest(c, "invalid user context")
 	}
 
 	orderID, err := c.ParamsInt("order_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
+		return badRequest(c, "invalid order_id")
 	}
 
 	item, err := h.service.GetOrderDetail(userID, int64(orderID))
 	if err != nil {
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "order not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch order detail"})
+		return writeServiceError(c, err, "failed to fetch order detail", notFoundCase(errNotFound, "order not found"))
 	}
 	return c.JSON(item)
 }
@@ -121,7 +109,7 @@ func (h *FrontendHandler) GetOrderDetail(c *fiber.Ctx) error {
 func (h *FrontendHandler) ListThreads(c *fiber.Ctx) error {
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user context"})
+		return badRequest(c, "invalid user context")
 	}
 
 	items, err := h.service.ListThreads(userID)
@@ -134,15 +122,12 @@ func (h *FrontendHandler) ListThreads(c *fiber.Ctx) error {
 func (h *FrontendHandler) GetMockData(c *fiber.Ctx) error {
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user context"})
+		return badRequest(c, "invalid user context")
 	}
 
 	item, err := h.service.GetMockData(userID)
 	if err != nil {
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "user not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch frontend mock data"})
+		return writeServiceError(c, err, "failed to fetch frontend mock data", notFoundCase(errNotFound, "user not found"))
 	}
 	return c.JSON(item)
 }

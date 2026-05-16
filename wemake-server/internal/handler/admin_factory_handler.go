@@ -2,7 +2,6 @@ package handler
 
 import (
 	"errors"
-	"strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -39,16 +38,13 @@ func (h *AdminFactoryHandler) List(c *fiber.Ctx) error {
 }
 
 func (h *AdminFactoryHandler) GetByID(c *fiber.Ctx) error {
-	factoryID, err := strconv.ParseInt(c.Params("factory_id"), 10, 64)
-	if err != nil || factoryID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_id"})
+	factoryID, err := parsePositiveInt64Param(c, "factory_id")
+	if err != nil {
+		return badRequest(c, "invalid factory_id")
 	}
 	item, err := h.service.HydrateAdminDetail(factoryID)
 	if err != nil {
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "factory not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch factory"})
+		return writeServiceError(c, err, "failed to fetch factory", notFoundCase(errNotFound, "factory not found"))
 	}
 	return c.JSON(item)
 }
@@ -78,8 +74,8 @@ func (h *AdminFactoryHandler) PatchVerification(c *fiber.Ctx) error {
 		IsVerified bool   `json:"is_verified"`
 		Note       string `json:"note"`
 	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	ip := c.IP()
 	if err := h.service.ToggleVerification(factoryID, actorID, req.IsVerified, req.Note, &ip); err != nil {
@@ -96,16 +92,13 @@ func (h *AdminFactoryHandler) PatchVerification(c *fiber.Ctx) error {
 }
 
 func (h *AdminFactoryHandler) GetFactoryConfig(c *fiber.Ctx) error {
-	factoryID, err := strconv.ParseInt(c.Params("factory_id"), 10, 64)
-	if err != nil || factoryID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_id"})
+	factoryID, err := parsePositiveInt64Param(c, "factory_id")
+	if err != nil {
+		return badRequest(c, "invalid factory_id")
 	}
 	item, err := h.service.GetFactoryConfig(factoryID)
 	if err != nil {
-		if errors.Is(err, service.ErrFactoryNotFound) || repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "factory not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch factory config"})
+		return writeServiceError(c, err, "failed to fetch factory config", notFoundCase(service.ErrFactoryNotFound, "factory not found"))
 	}
 	return c.JSON(item)
 }
@@ -121,8 +114,8 @@ func (h *AdminFactoryHandler) AssignFactoryConfig(c *fiber.Ctx) error {
 		return c.Status(status).JSON(fiber.Map{"error": err.Error()})
 	}
 	var req domain.AssignFactoryConfigRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	ip := c.IP()
 	item, err := h.service.AssignFactoryConfig(factoryID, actorID, req, &ip)
@@ -147,8 +140,8 @@ func (h *AdminFactoryHandler) mutateFactoryState(c *fiber.Ctx, fn func(int64, in
 	var req struct {
 		Note string `json:"note"`
 	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	ip := c.IP()
 	if err := fn(factoryID, actorID, req.Note, &ip); err != nil {
@@ -166,8 +159,8 @@ func (h *AdminFactoryHandler) mutateFactoryReasonState(c *fiber.Ctx, fn func(int
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	ip := c.IP()
 	if err := fn(factoryID, actorID, req.Reason, &ip); err != nil {
@@ -178,7 +171,7 @@ func (h *AdminFactoryHandler) mutateFactoryReasonState(c *fiber.Ctx, fn func(int
 }
 
 func parseFactoryActor(c *fiber.Ctx) (int64, int64, error) {
-	factoryID, err := strconv.ParseInt(c.Params("factory_id"), 10, 64)
+	factoryID, err := parsePositiveInt64Param(c, "factory_id")
 	if err != nil || factoryID <= 0 {
 		return 0, 0, fiber.NewError(fiber.StatusBadRequest, "invalid factory_id")
 	}

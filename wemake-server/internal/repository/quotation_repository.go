@@ -8,6 +8,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type QuotationRepository struct {
@@ -87,8 +88,8 @@ func (r *QuotationRepository) createWithExecutor(exec quotationExecutor, item *d
 		item.PricePerPiece,
 		item.MoldCost,
 		item.LeadTimeDays,
-		nullableInt64ForZero(item.ShippingMethodID),
-		nullableStringPtr(item.FactoryHighlight),
+		domainutil.NullablePositiveInt64(item.ShippingMethodID),
+		domainutil.NullableString(item.FactoryHighlight),
 		item.Status,
 		item.CreateTime,
 		item.LogTimestamp,
@@ -100,12 +101,12 @@ func (r *QuotationRepository) createWithExecutor(exec quotationExecutor, item *d
 		item.VatAmount,
 		item.PlatformCommissionRate,
 		item.PlatformCommissionAmount,
-		nullableInt64Value(item.PlatformConfigID),
+		domainutil.NullableInt64(item.PlatformConfigID),
 		item.GrandTotal,
 		item.FactoryNetReceivable,
-		nullableStringPtr(item.PaymentTerms),
+		domainutil.NullableString(item.PaymentTerms),
 		item.ValidityDays,
-		nullableTimeValue(item.ValidUntil),
+		domainutil.NullableTime(item.ValidUntil),
 		imageURLs,
 	).Scan(&item.QuotationID); err != nil {
 		return err
@@ -243,35 +244,14 @@ func (r *QuotationRepository) InsertHistory(entry *domain.QuotationHistoryEntry)
 		entry.QuoteID,
 		entry.EventType,
 		entry.VersionAfter,
-		nullableFloat64(entry.PricePerPiece),
-		nullableFloat64(entry.MoldCost),
-		nullableInt64Ptr(entry.LeadTimeDays),
-		nullableInt64Ptr(entry.ShippingMethodID),
-		nullableStringPtr(entry.Status),
-		nullableStringPtr(entry.Reason),
-		nullableInt64Ptr(entry.EditedBy),
+		domainutil.NullableFloat64(entry.PricePerPiece),
+		domainutil.NullableFloat64(entry.MoldCost),
+		domainutil.NullableInt64(entry.LeadTimeDays),
+		domainutil.NullableInt64(entry.ShippingMethodID),
+		domainutil.NullableString(entry.Status),
+		domainutil.NullableString(entry.Reason),
+		domainutil.NullableInt64(entry.EditedBy),
 	).Scan(&entry.HistoryID, &entry.CreatedAt)
-}
-
-func nullableFloat64(f *float64) interface{} {
-	if f == nil {
-		return nil
-	}
-	return *f
-}
-
-func nullableStringPtr(s *string) interface{} {
-	if s == nil {
-		return nil
-	}
-	return *s
-}
-
-func nullableInt64Ptr(v *int64) interface{} {
-	if v == nil {
-		return nil
-	}
-	return *v
 }
 
 func splitCSVUpper(raw string) []string {
@@ -355,9 +335,9 @@ func (r *QuotationRepository) UpdateBody(
 	res, err := r.db.Exec(query,
 		pricePerPiece, moldCost, toolingMoldCost, shippingCost, packagingCost,
 		leadTimeDays, shippingMethodID,
-		nullableStringPtr(paymentTerms),
+		domainutil.NullableString(paymentTerms),
 		newVersion, editorID, quoteID,
-		nullableStringPtr(factoryHighlight),
+		domainutil.NullableString(factoryHighlight),
 		validityDays, validUntil,
 	)
 	if err != nil {
@@ -383,7 +363,7 @@ func enrichQuotationComputed(item *domain.Quotation) {
 		if qty <= 0 {
 			qty = 1
 		}
-		item.QuoteTotal = roundQuotationTotal((item.PricePerPiece * qty) + item.MoldCost)
+		item.QuoteTotal = domainutil.RoundMoney((item.PricePerPiece * qty) + item.MoldCost)
 	}
 	item.Factory = &domain.FactoryBrief{
 		ID:        item.FactoryID,
@@ -391,10 +371,6 @@ func enrichQuotationComputed(item *domain.Quotation) {
 		LogoURL:   item.FactoryLogoURL,
 		RatingAvg: item.FactoryRatingAvg,
 	}
-}
-
-func roundQuotationTotal(v float64) float64 {
-	return float64(int(v*100+0.5)) / 100
 }
 
 func (r *QuotationRepository) UpdateTotals(quoteID int64, subtotal, vatRate, vatAmount, platformCommissionRate, platformCommissionAmount, grandTotal, factoryNetReceivable float64) error {
@@ -411,13 +387,6 @@ func (r *QuotationRepository) UpdateTotals(quoteID int64, subtotal, vatRate, vat
 		WHERE quote_id = $8
 	`, subtotal, vatRate, vatAmount, platformCommissionRate, platformCommissionAmount, grandTotal, factoryNetReceivable, quoteID)
 	return err
-}
-
-func nullableInt64ForZero(v int64) interface{} {
-	if v <= 0 {
-		return nil
-	}
-	return v
 }
 
 func (r *QuotationRepository) UpdateImageURLs(quoteID int64, imageURLs domain.StringArray) error {

@@ -21,13 +21,9 @@ func NewAdminConfigHandler(commission *repository.CommissionRepository, audit *r
 }
 
 func (h *AdminConfigHandler) ListRules(c *fiber.Ctx) error {
-	var factoryID *int64
-	if v := strings.TrimSpace(c.Query("factory_id")); v != "" {
-		id, err := strconv.ParseInt(v, 10, 64)
-		if err != nil || id <= 0 {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_id"})
-		}
-		factoryID = &id
+	factoryID, err := parseOptionalPositiveInt64Query(c, "factory_id")
+	if err != nil {
+		return badRequest(c, "invalid factory_id")
 	}
 	items, err := h.commission.ListRules(factoryID, !strings.EqualFold(c.Query("active_only", "true"), "false"))
 	if err != nil {
@@ -44,27 +40,21 @@ func (h *AdminConfigHandler) CreateRule(c *fiber.Ctx) error {
 		EffectiveTo   *string `json:"effective_to"`
 		Note          *string `json:"note"`
 	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	if req.FactoryID <= 0 || req.RatePercent < 0 || req.RatePercent > 100 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid commission rule payload"})
 	}
 	from := time.Now().UTC()
-	if req.EffectiveFrom != nil && strings.TrimSpace(*req.EffectiveFrom) != "" {
-		t, err := time.Parse(time.RFC3339, strings.TrimSpace(*req.EffectiveFrom))
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "effective_from must be RFC3339"})
-		}
-		from = t
+	if parsedFrom, err := parseOptionalRFC3339Value(req.EffectiveFrom, "effective_from"); err != nil {
+		return badRequest(c, "effective_from must be RFC3339")
+	} else if parsedFrom != nil {
+		from = *parsedFrom
 	}
-	var to *time.Time
-	if req.EffectiveTo != nil && strings.TrimSpace(*req.EffectiveTo) != "" {
-		t, err := time.Parse(time.RFC3339, strings.TrimSpace(*req.EffectiveTo))
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "effective_to must be RFC3339"})
-		}
-		to = &t
+	to, err := parseOptionalRFC3339Value(req.EffectiveTo, "effective_to")
+	if err != nil {
+		return badRequest(c, "effective_to must be RFC3339")
 	}
 	actorID, _ := getUserIDFromHeader(c)
 	factoryID := req.FactoryID
@@ -77,9 +67,9 @@ func (h *AdminConfigHandler) CreateRule(c *fiber.Ctx) error {
 }
 
 func (h *AdminConfigHandler) DeleteRule(c *fiber.Ctx) error {
-	ruleID, err := strconv.ParseInt(c.Params("rule_id"), 10, 64)
-	if err != nil || ruleID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rule_id"})
+	ruleID, err := parsePositiveInt64Param(c, "rule_id")
+	if err != nil {
+		return badRequest(c, "invalid rule_id")
 	}
 	item, err := h.commission.DeactivateRule(ruleID)
 	if err != nil {
@@ -104,8 +94,8 @@ func (h *AdminConfigHandler) CreateExemption(c *fiber.Ctx) error {
 		Reason    string  `json:"reason"`
 		ExpiresAt *string `json:"expires_at"`
 	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	if req.FactoryID <= 0 || strings.TrimSpace(req.Reason) == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "factory_id and reason are required"})
@@ -113,13 +103,9 @@ func (h *AdminConfigHandler) CreateExemption(c *fiber.Ctx) error {
 	if exists, _ := h.commission.ActiveExemptionExists(req.FactoryID); exists {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "factory already has an active exemption"})
 	}
-	var expiresAt *time.Time
-	if req.ExpiresAt != nil && strings.TrimSpace(*req.ExpiresAt) != "" {
-		t, err := time.Parse(time.RFC3339, strings.TrimSpace(*req.ExpiresAt))
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "expires_at must be RFC3339"})
-		}
-		expiresAt = &t
+	expiresAt, err := parseOptionalRFC3339Value(req.ExpiresAt, "expires_at")
+	if err != nil {
+		return badRequest(c, "expires_at must be RFC3339")
 	}
 	actorID, _ := getUserIDFromHeader(c)
 	item := &domain.CommissionExemption{FactoryID: req.FactoryID, Reason: strings.TrimSpace(req.Reason), ExpiresAt: expiresAt, CreatedBy: actorID}
@@ -131,9 +117,9 @@ func (h *AdminConfigHandler) CreateExemption(c *fiber.Ctx) error {
 }
 
 func (h *AdminConfigHandler) DeleteExemption(c *fiber.Ctx) error {
-	exemptionID, err := strconv.ParseInt(c.Params("exemption_id"), 10, 64)
-	if err != nil || exemptionID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid exemption_id"})
+	exemptionID, err := parsePositiveInt64Param(c, "exemption_id")
+	if err != nil {
+		return badRequest(c, "invalid exemption_id")
 	}
 	actorID, _ := getUserIDFromHeader(c)
 	item, err := h.commission.RevokeExemption(exemptionID, actorID)
@@ -151,27 +137,21 @@ func (h *AdminConfigHandler) ListAuditLog(c *fiber.Ctx) error {
 		Page:       c.QueryInt("page", 1),
 		PageSize:   c.QueryInt("page_size", 20),
 	}
-	if v := strings.TrimSpace(c.Query("actor_id")); v != "" {
-		id, err := strconv.ParseInt(v, 10, 64)
-		if err != nil || id <= 0 {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid actor_id"})
-		}
-		filter.ActorID = &id
+	actorID, err := parseOptionalPositiveInt64Query(c, "actor_id")
+	if err != nil {
+		return badRequest(c, "invalid actor_id")
 	}
-	if v := strings.TrimSpace(c.Query("date_from")); v != "" {
-		t, err := time.Parse("2006-01-02", v)
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "date_from must be YYYY-MM-DD"})
-		}
-		filter.DateFrom = &t
+	filter.ActorID = actorID
+	dateFrom, err := parseOptionalDateQuery(c, "date_from")
+	if err != nil {
+		return badRequest(c, "date_from must be YYYY-MM-DD")
 	}
-	if v := strings.TrimSpace(c.Query("date_to")); v != "" {
-		t, err := time.Parse("2006-01-02", v)
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "date_to must be YYYY-MM-DD"})
-		}
-		filter.DateTo = &t
+	filter.DateFrom = dateFrom
+	dateTo, err := parseOptionalDateQuery(c, "date_to")
+	if err != nil {
+		return badRequest(c, "date_to must be YYYY-MM-DD")
 	}
+	filter.DateTo = dateTo
 	items, total, err := h.audit.List(filter)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch audit log"})

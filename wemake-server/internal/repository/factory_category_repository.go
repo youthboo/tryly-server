@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 	"github.com/yourusername/wemake/internal/domain"
 )
@@ -117,59 +118,43 @@ func (r *FactoryRepository) RemoveFactorySubCategory(factoryID, subCategoryID in
 }
 
 func (r *FactoryRepository) ReplaceFactoryCategories(factoryID int64, categoryIDs []int64) error {
-	tx, err := r.db.Beginx()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
-		}
-	}()
-
-	if _, err = tx.Exec(`DELETE FROM map_factory_categories WHERE factory_id = $1`, factoryID); err != nil {
-		return err
-	}
-	for _, categoryID := range categoryIDs {
-		if _, err = tx.Exec(
-			`INSERT INTO map_factory_categories (factory_id, category_id) VALUES ($1, $2)`,
-			factoryID, categoryID,
-		); err != nil {
-			var pqErr *pq.Error
-			if errors.As(err, &pqErr) && pqErr.Code == "23503" {
-				return ErrInvalidFactoryCategory
-			}
+	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+		if _, err := tx.Exec(`DELETE FROM map_factory_categories WHERE factory_id = $1`, factoryID); err != nil {
 			return err
 		}
-	}
-	return tx.Commit()
+		for _, categoryID := range categoryIDs {
+			if _, err := tx.Exec(
+				`INSERT INTO map_factory_categories (factory_id, category_id) VALUES ($1, $2)`,
+				factoryID, categoryID,
+			); err != nil {
+				var pqErr *pq.Error
+				if errors.As(err, &pqErr) && pqErr.Code == "23503" {
+					return ErrInvalidFactoryCategory
+				}
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (r *FactoryRepository) ReplaceFactorySubCategories(factoryID int64, subCategoryIDs []int64) error {
-	tx, err := r.db.Beginx()
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
-		}
-	}()
-
-	if _, err = tx.Exec(`DELETE FROM map_factory_sub_categories WHERE factory_id = $1`, factoryID); err != nil {
-		return err
-	}
-	for _, subCategoryID := range subCategoryIDs {
-		if _, err = tx.Exec(
-			`INSERT INTO map_factory_sub_categories (factory_id, sub_category_id) VALUES ($1, $2)`,
-			factoryID, subCategoryID,
-		); err != nil {
-			var pqErr *pq.Error
-			if errors.As(err, &pqErr) && pqErr.Code == "23503" {
-				return ErrInvalidFactorySubCategory
-			}
+	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+		if _, err := tx.Exec(`DELETE FROM map_factory_sub_categories WHERE factory_id = $1`, factoryID); err != nil {
 			return err
 		}
-	}
-	return tx.Commit()
+		for _, subCategoryID := range subCategoryIDs {
+			if _, err := tx.Exec(
+				`INSERT INTO map_factory_sub_categories (factory_id, sub_category_id) VALUES ($1, $2)`,
+				factoryID, subCategoryID,
+			); err != nil {
+				var pqErr *pq.Error
+				if errors.As(err, &pqErr) && pqErr.Code == "23503" {
+					return ErrInvalidFactorySubCategory
+				}
+				return err
+			}
+		}
+		return nil
+	})
 }
