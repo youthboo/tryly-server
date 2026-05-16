@@ -11,12 +11,12 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
 	quotationrepo "github.com/yourusername/wemake/internal/repository/quotation"
 	rfqrepo "github.com/yourusername/wemake/internal/repository/rfq"
 	orderservice "github.com/yourusername/wemake/internal/service/order"
 	walletservice "github.com/yourusername/wemake/internal/service/wallet"
-	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 var (
@@ -383,9 +383,7 @@ func validateQuotationItems(items []domain.QuotationItem) error {
 
 func validateQuotationTerms(incoterms, paymentTerms *string, validityDays int) error {
 	if incoterms != nil {
-		switch domainutil.NormalizeStatus(*incoterms) {
-		case "EXW", "FOB", "CIF", "DDP":
-		default:
+		if !domainutil.StatusIn(*incoterms, "EXW", "FOB", "CIF", "DDP") {
 			return ErrIncotermsInvalid
 		}
 	}

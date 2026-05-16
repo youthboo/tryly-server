@@ -12,9 +12,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/helper"
 	notificationservice "github.com/yourusername/wemake/internal/service/notification"
-	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 var (
@@ -167,7 +167,7 @@ func normalizeMessageType(t string) string {
 	if trimmed == "" {
 		return "TX"
 	}
-	switch strings.ToLower(trimmed) {
+	switch domainutil.NormalizeLower(trimmed) {
 	case "rfq_card":
 		return "rfq_card"
 	case "quotation_card":
@@ -175,7 +175,7 @@ func normalizeMessageType(t string) string {
 	case "system":
 		return "system"
 	default:
-		return strings.ToUpper(trimmed)
+		return domainutil.NormalizeStatus(trimmed)
 	}
 }
 

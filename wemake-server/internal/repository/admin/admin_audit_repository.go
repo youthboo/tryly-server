@@ -8,6 +8,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
+	"github.com/yourusername/wemake/internal/helper"
 )
 
 type AdminAuditRepository struct {
@@ -83,13 +84,13 @@ func (r *AdminAuditRepository) List(filter domain.AdminAuditFilter) ([]domain.Ad
 
 func normalizePage(page, pageSize int) (int, int) {
 	if page <= 0 {
-		page = 1
+		page = helper.DefaultPage
 	}
 	if pageSize <= 0 {
-		pageSize = 20
+		pageSize = helper.DefaultPageSize
 	}
-	if pageSize > 100 {
-		pageSize = 100
+	if pageSize > helper.MaxPageSize {
+		pageSize = helper.MaxPageSize
 	}
 	return page, pageSize
 }

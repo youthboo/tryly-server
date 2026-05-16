@@ -21,7 +21,7 @@ func NewAdminCustomerHandler(
 // GET /api/admin/customers
 func (h *AdminCustomerHandler) ListCustomers(c *fiber.Ctx) error {
 	search := c.Query("search", "")
-	limit, offset := helper.LimitOffset(c, 20)
+	limit, offset := helper.LimitOffset(c, helper.DefaultPageSize)
 
 	var isActive *bool
 	if v := c.Query("is_active"); v != "" {
@@ -75,7 +75,7 @@ func (h *AdminCustomerHandler) ListCustomerOrders(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.JSONError(c, fiber.StatusBadRequest, "invalid user_id")
 	}
-	limit, offset := helper.LimitOffset(c, 20)
+	limit, offset := helper.LimitOffset(c, helper.DefaultPageSize)
 
 	items, total, err := h.customers.ListCustomerOrders(userID, limit, offset)
 	if err != nil {
@@ -91,7 +91,7 @@ func (h *AdminCustomerHandler) ListCustomerOrders(c *fiber.Ctx) error {
 
 // GET /api/admin/dashboard/top-customers
 func (h *AdminCustomerHandler) ListTopCustomers(c *fiber.Ctx) error {
-	limit := helper.ClampInt(c.QueryInt("limit", 5), 1, 100)
+	limit := helper.ClampInt(c.QueryInt("limit", 5), helper.MinPageSize, helper.MaxPageSize)
 	items, err := h.customers.ListTopCustomers(limit)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch top customers"})
@@ -105,7 +105,7 @@ func (h *AdminCustomerHandler) ListFactorySettlements(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.JSONError(c, fiber.StatusBadRequest, "invalid factory_id")
 	}
-	limit, offset := helper.LimitOffset(c, 20)
+	limit, offset := helper.LimitOffset(c, helper.DefaultPageSize)
 
 	items, total, err := h.settlements.ListByFactory(factoryID, limit, offset)
 	if err != nil {

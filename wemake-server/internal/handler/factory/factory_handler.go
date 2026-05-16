@@ -1,12 +1,12 @@
 package factory
 
 import (
+	"github.com/yourusername/wemake/internal/dbutil"
 	"github.com/yourusername/wemake/internal/dto"
+	handlerregistry "github.com/yourusername/wemake/internal/handler/errorregistry"
 	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
 	authservice "github.com/yourusername/wemake/internal/service/auth"
 	factoryservice "github.com/yourusername/wemake/internal/service/factory"
 )
@@ -31,12 +31,12 @@ func (h *FactoryHandler) GetMe(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("USER_NOT_FOUND", "user not found"))
 	}
-	if u.Role != domain.RoleFactory {
+	if err := helper.RequireFactoryRole(u); err != nil {
 		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FACTORY_ROLE_REQUIRED", "factory role required"))
 	}
 	item, err := h.service.GetPublicDetail(userID)
 	if err != nil {
-		if repository.IsNotFoundError(err) {
+		if dbutil.IsNotFoundError(err) {
 			return helper.WriteAPIError(c, helper.NotFoundAPIError("FACTORY_NOT_FOUND", "factory profile not found"))
 		}
 		return helper.WriteAPIError(c, helper.InternalServerError("FETCH_FACTORY_FAILED", "failed to fetch factory"))
@@ -54,12 +54,12 @@ func (h *FactoryHandler) List(c *fiber.Ctx) error {
 
 func (h *FactoryHandler) GetByID(c *fiber.Ctx) error {
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return err
+	}
 	item, err := h.service.GetPublicDetail(int64(factoryID))
 	if err != nil {
-		if repository.IsNotFoundError(err) {
+		if dbutil.IsNotFoundError(err) {
 			return helper.WriteAPIError(c, helper.NotFoundAPIError("FACTORY_NOT_FOUND", "factory not found"))
 		}
 		return helper.WriteAPIError(c, helper.InternalServerError("FETCH_FACTORY_FAILED", "failed to fetch factory"))
@@ -73,9 +73,9 @@ func (h *FactoryHandler) PatchProfile(c *fiber.Ctx) error {
 		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
 	}
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return err
+	}
 	if int64(factoryID) != userID {
 		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
 	}
@@ -123,10 +123,10 @@ func (h *FactoryHandler) PatchProfile(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.PatchProfile(int64(factoryID), fields); err != nil {
-		if repository.IsNotFoundError(err) {
+		if dbutil.IsNotFoundError(err) {
 			return helper.WriteAPIError(c, helper.NotFoundAPIError("FACTORY_NOT_FOUND", "factory profile not found"))
 		}
-		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to update factory"), patchProfileErrorMap())
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to update factory"), handlerregistry.PatchProfileErrorMap())
 	}
 
 	item, err := h.service.GetPublicDetail(int64(factoryID))
@@ -138,9 +138,9 @@ func (h *FactoryHandler) PatchProfile(c *fiber.Ctx) error {
 
 func (h *FactoryHandler) ListCategories(c *fiber.Ctx) error {
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return err
+	}
 	ok, err := h.service.FactoryExistsActive(int64(factoryID))
 	if err != nil {
 		return helper.WriteAPIError(c, helper.InternalServerError("VERIFY_FACTORY_FAILED", "failed to verify factory"))
@@ -192,9 +192,9 @@ func (h *FactoryHandler) AddCategory(c *fiber.Ctx) error {
 		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
 	}
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return err
+	}
 	if int64(factoryID) != userID {
 		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
 	}
@@ -206,7 +206,7 @@ func (h *FactoryHandler) AddCategory(c *fiber.Ctx) error {
 	}
 	err = h.service.AddFactoryCategory(int64(factoryID), body.CategoryID)
 	if err != nil {
-		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to add category"), addCategoryErrorMap())
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to add category"), handlerregistry.AddCategoryErrorMap())
 	}
 	c.Status(fiber.StatusCreated)
 	return c.JSON(fiber.Map{
@@ -221,9 +221,9 @@ func (h *FactoryHandler) RemoveCategory(c *fiber.Ctx) error {
 		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
 	}
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return err
+	}
 	if int64(factoryID) != userID {
 		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
 	}
@@ -233,7 +233,7 @@ func (h *FactoryHandler) RemoveCategory(c *fiber.Ctx) error {
 	}
 	err = h.service.RemoveFactoryCategory(int64(factoryID), categoryID)
 	if err != nil {
-		if repository.IsNotFoundError(err) {
+		if dbutil.IsNotFoundError(err) {
 			return helper.WriteAPIError(c, helper.NotFoundAPIError("MAPPING_NOT_FOUND", "mapping not found"))
 		}
 		return helper.WriteAPIError(c, helper.InternalServerError("REMOVE_CATEGORY_FAILED", "failed to remove category"))
@@ -247,9 +247,9 @@ func (h *FactoryHandler) ReplaceCategories(c *fiber.Ctx) error {
 		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
 	}
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return err
+	}
 	if int64(factoryID) != userID {
 		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
 	}
@@ -264,7 +264,7 @@ func (h *FactoryHandler) ReplaceCategories(c *fiber.Ctx) error {
 		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_CATEGORY_IDS", "body must include category_ids with at least one positive integer"))
 	}
 	if err := h.service.ReplaceFactoryCategories(int64(factoryID), categoryIDs); err != nil {
-		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to replace categories"), replaceCategoriesErrorMap())
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to replace categories"), handlerregistry.ReplaceCategoriesErrorMap())
 	}
 	items, err := h.service.ListFactoryCategories(int64(factoryID))
 	if err != nil {
@@ -278,9 +278,9 @@ func (h *FactoryHandler) ReplaceCategories(c *fiber.Ctx) error {
 
 func (h *FactoryHandler) ListSubCategories(c *fiber.Ctx) error {
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return err
+	}
 	ok, err := h.service.FactoryExistsActive(int64(factoryID))
 	if err != nil {
 		return helper.WriteAPIError(c, helper.InternalServerError("VERIFY_FACTORY_FAILED", "failed to verify factory"))
@@ -305,9 +305,9 @@ func (h *FactoryHandler) AddSubCategory(c *fiber.Ctx) error {
 		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
 	}
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return err
+	}
 	if int64(factoryID) != userID {
 		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
 	}
@@ -319,7 +319,7 @@ func (h *FactoryHandler) AddSubCategory(c *fiber.Ctx) error {
 	}
 	err = h.service.AddFactorySubCategory(int64(factoryID), body.SubCategoryID)
 	if err != nil {
-		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to add sub-category"), addSubCategoryErrorMap())
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to add sub-category"), handlerregistry.AddSubCategoryErrorMap())
 	}
 	c.Status(fiber.StatusCreated)
 	return c.JSON(fiber.Map{
@@ -334,9 +334,9 @@ func (h *FactoryHandler) RemoveSubCategory(c *fiber.Ctx) error {
 		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
 	}
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return err
+	}
 	if int64(factoryID) != userID {
 		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
 	}
@@ -346,7 +346,7 @@ func (h *FactoryHandler) RemoveSubCategory(c *fiber.Ctx) error {
 	}
 	err = h.service.RemoveFactorySubCategory(int64(factoryID), subID)
 	if err != nil {
-		if repository.IsNotFoundError(err) {
+		if dbutil.IsNotFoundError(err) {
 			return helper.WriteAPIError(c, helper.NotFoundAPIError("MAPPING_NOT_FOUND", "mapping not found"))
 		}
 		return helper.WriteAPIError(c, helper.InternalServerError("REMOVE_SUB_CATEGORY_FAILED", "failed to remove sub-category"))
@@ -360,9 +360,9 @@ func (h *FactoryHandler) ReplaceSubCategories(c *fiber.Ctx) error {
 		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
 	}
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return err
+	}
 	if int64(factoryID) != userID {
 		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
 	}
@@ -383,7 +383,7 @@ func (h *FactoryHandler) ReplaceSubCategories(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.ReplaceFactorySubCategories(int64(factoryID), subCategoryIDs); err != nil {
-		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to replace sub-categories"), replaceSubCategoriesErrorMap())
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to replace sub-categories"), handlerregistry.ReplaceSubCategoriesErrorMap())
 	}
 	items, err := h.service.ListFactorySubCategories(int64(factoryID))
 	if err != nil {
@@ -405,7 +405,7 @@ func (h *FactoryHandler) GetAnalytics(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("USER_NOT_FOUND", "user not found"))
 	}
-	if helper.NormalizeRole(u.Role) != domain.RoleFactory {
+	if err := helper.RequireFactoryRole(u); err != nil {
 		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FACTORY_ROLE_REQUIRED", "factory role required"))
 	}
 	item, err := h.service.GetAnalytics(userID)
@@ -424,7 +424,7 @@ func (h *FactoryHandler) GetDashboard(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("USER_NOT_FOUND", "user not found"))
 	}
-	if helper.NormalizeRole(u.Role) != domain.RoleFactory {
+	if err := helper.RequireFactoryRole(u); err != nil {
 		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FACTORY_ROLE_REQUIRED", "factory role required"))
 	}
 	item, err := h.service.GetDashboard(userID)

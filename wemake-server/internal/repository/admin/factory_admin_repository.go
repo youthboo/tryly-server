@@ -35,7 +35,7 @@ func (r *AdminFactoryRepository) ListAdmin(filter domain.AdminFactoryFilter) ([]
 		where = append(where, "COALESCE(fp.is_verified, FALSE) = "+arg(*filter.IsVerified))
 	}
 	if filter.Search != "" {
-		like := "%" + strings.ToLower(strings.TrimSpace(filter.Search)) + "%"
+		like := "%" + domainutil.NormalizeLower(filter.Search) + "%"
 		where = append(where, "(LOWER(fp.factory_name) LIKE "+arg(like)+" OR LOWER(u.email) LIKE "+arg(like)+")")
 	}
 	condition := strings.Join(where, " AND ")

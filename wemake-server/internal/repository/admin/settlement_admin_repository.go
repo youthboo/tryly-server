@@ -3,6 +3,7 @@ package admin
 import (
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/helper"
 )
 
 type SettlementAdminRepository struct {
@@ -14,8 +15,8 @@ func NewSettlementAdminRepository(db *sqlx.DB) *SettlementAdminRepository {
 }
 
 func (r *SettlementAdminRepository) ListByFactory(factoryID int64, limit, offset int) ([]domain.AdminSettlementListItem, int, error) {
-	if limit <= 0 || limit > 100 {
-		limit = 20
+	if limit <= 0 || limit > helper.MaxPageSize {
+		limit = helper.DefaultPageSize
 	}
 	if offset < 0 {
 		offset = 0

@@ -8,15 +8,15 @@ import (
 	"strings"
 
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
 	showcaserepo "github.com/yourusername/wemake/internal/repository/showcase"
-	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 var (
-	ErrShowcaseInvalidSectionType = errors.New("INVALID_SECTION_TYPE")
-	ErrShowcaseSectionTitleRequired = errors.New("SECTION_TITLE_REQUIRED")
-	ErrShowcaseMaxItemsPerSection = errors.New("MAX_20_ITEMS_PER_SECTION")
+	ErrShowcaseInvalidSectionType      = errors.New("INVALID_SECTION_TYPE")
+	ErrShowcaseSectionTitleRequired    = errors.New("SECTION_TITLE_REQUIRED")
+	ErrShowcaseMaxItemsPerSection      = errors.New("MAX_20_ITEMS_PER_SECTION")
 	ErrShowcaseItemDescriptionRequired = errors.New("ITEM_DESCRIPTION_REQUIRED")
 )
 
@@ -252,54 +252,89 @@ func validShowcaseStatus(status string) bool {
 	}
 }
 
-func (s *ShowcaseService) validateShowcase(item *domain.FactoryShowcase) error {
-	var details []domain.ShowcaseValidationDetail
-	add := func(field, message string) {
-		details = append(details, domain.ShowcaseValidationDetail{Field: field, Message: message})
-	}
+type showcaseValidationCollector struct {
+	details []domain.ShowcaseValidationDetail
+}
 
+func (v *showcaseValidationCollector) add(field, message string) {
+	v.details = append(v.details, domain.ShowcaseValidationDetail{Field: field, Message: message})
+}
+
+func (v *showcaseValidationCollector) err() error {
+	if len(v.details) == 0 {
+		return nil
+	}
+	return domain.ShowcaseValidationError{Details: v.details}
+}
+
+func (s *ShowcaseService) validateShowcase(item *domain.FactoryShowcase) error {
+	var validation showcaseValidationCollector
+	validation.validateBasicFields(item)
+	validation.applyDefaultCoverImage(item)
+	validation.ensureDefaults(item)
+	if err := s.validateShowcaseCategoryRefs(item, validation.add); err != nil {
+		return err
+	}
+	validation.validateContentLength(item)
+	if item.Status == "AC" {
+		validation.validateActiveRequirements(item)
+		validation.validateActiveFieldRules(item)
+	}
+	if err := s.validateLinkedShowcases(item, validation.add); err != nil {
+		return err
+	}
+	return validation.err()
+}
+
+func (v *showcaseValidationCollector) validateBasicFields(item *domain.FactoryShowcase) {
 	if item.ContentType == "" {
-		add("content_type", "must be one of PD, PM, ID, MT")
+		v.add("content_type", "must be one of PD, PM, ID, MT")
 	}
 	switch item.ContentType {
 	case "PD", "PM", "ID", "MT":
 	default:
-		add("content_type", "must be one of PD, PM, ID, MT")
+		v.add("content_type", "must be one of PD, PM, ID, MT")
 	}
 	if !validShowcaseStatus(item.Status) {
-		add("status", "must be one of DR, AC, HI, AR")
+		v.add("status", "must be one of DR, AC, HI, AR")
 	}
 	if strings.TrimSpace(item.Title) == "" {
-		add("title", "must be non-empty")
+		v.add("title", "must be non-empty")
 	} else if len([]rune(strings.TrimSpace(item.Title))) > 200 {
-		add("title", "must be 200 characters or fewer")
+		v.add("title", "must be 200 characters or fewer")
 	}
 	if item.ImageURL != nil && strings.TrimSpace(*item.ImageURL) != "" && !isShowcaseHTTPSURL(*item.ImageURL) {
-		add("image_url", "image URL must be HTTPS")
+		v.add("image_url", "image URL must be HTTPS")
 	}
 	if len(item.LinkedShowcases) > 5 {
-		add("linked_showcases", "maximum 5 linked showcases allowed")
+		v.add("linked_showcases", "maximum 5 linked showcases allowed")
 	}
 	for _, ref := range item.LinkedShowcases {
 		if !isShowcaseHTTPSURL(ref) {
 			if _, err := strconv.ParseInt(ref, 10, 64); err != nil {
-				add("linked_showcases", "all entries must be HTTPS URLs or numeric showcase IDs")
+				v.add("linked_showcases", "all entries must be HTTPS URLs or numeric showcase IDs")
 				break
 			}
 		}
 	}
+}
 
+func (v *showcaseValidationCollector) applyDefaultCoverImage(item *domain.FactoryShowcase) {
 	if (item.ImageURL == nil || strings.TrimSpace(*item.ImageURL) == "") && len(item.LinkedShowcases) > 0 {
 		if isShowcaseHTTPSURL(item.LinkedShowcases[0]) {
 			cover := item.LinkedShowcases[0]
 			item.ImageURL = &cover
 		}
 	}
+}
 
+func (v *showcaseValidationCollector) ensureDefaults(item *domain.FactoryShowcase) {
 	if item.Tags == nil {
 		item.Tags = domain.JSONStringArray{}
 	}
+}
 
+func (s *ShowcaseService) validateShowcaseCategoryRefs(item *domain.FactoryShowcase, add func(field, message string)) error {
 	if item.CategoryID != nil {
 		ok, err := s.repo.CategoryExists(*item.CategoryID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -322,8 +357,10 @@ func (s *ShowcaseService) validateShowcase(item *domain.FactoryShowcase) error {
 			}
 		}
 	}
+	return nil
+}
 
-	fullValidation := item.Status == "AC"
+func (v *showcaseValidationCollector) validateContentLength(item *domain.FactoryShowcase) {
 	contentLen := 0
 	if item.Content != nil {
 		contentLen = len([]rune(*item.Content))
@@ -331,76 +368,78 @@ func (s *ShowcaseService) validateShowcase(item *domain.FactoryShowcase) error {
 	switch item.ContentType {
 	case "PD", "PM", "MT":
 		if contentLen > 50000 {
-			add("content", "content exceeds max length")
+			v.add("content", "content exceeds max length")
 		}
 	case "ID":
 		if contentLen > 20000 {
-			add("content", "content exceeds max length")
+			v.add("content", "content exceeds max length")
 		}
 	}
+}
 
-	if fullValidation {
-		if item.ImageURL == nil || strings.TrimSpace(*item.ImageURL) == "" {
-			add("image_url", "is required when showcase is active")
+func (v *showcaseValidationCollector) validateActiveRequirements(item *domain.FactoryShowcase) {
+	if item.ImageURL == nil || strings.TrimSpace(*item.ImageURL) == "" {
+		v.add("image_url", "is required when showcase is active")
+	}
+	switch item.ContentType {
+	case "PD", "MT":
+		// base_price and lead_time_days are optional
+	case "PM":
+		if item.PromoPrice == nil {
+			v.add("promo_price", "is required for PM")
 		}
-		switch item.ContentType {
-		case "PD", "MT":
-			// base_price and lead_time_days are optional
-		case "PM":
-			if item.PromoPrice == nil {
-				add("promo_price", "is required for PM")
-			}
-			if item.BasePrice != nil && item.PromoPrice != nil && *item.PromoPrice > *item.BasePrice {
-				add("promo_price", "must not exceed base_price")
-			}
-			if item.StartDate == nil {
-				add("start_date", "is required for PM")
-			}
-			if item.EndDate == nil {
-				add("end_date", "is required for PM")
-			}
-		case "ID":
-			if item.Content == nil || strings.TrimSpace(*item.Content) == "" {
-				add("content", "is required for ID")
-			}
+		if item.BasePrice != nil && item.PromoPrice != nil && *item.PromoPrice > *item.BasePrice {
+			v.add("promo_price", "must not exceed base_price")
+		}
+		if item.StartDate == nil {
+			v.add("start_date", "is required for PM")
+		}
+		if item.EndDate == nil {
+			v.add("end_date", "is required for PM")
+		}
+	case "ID":
+		if item.Content == nil || strings.TrimSpace(*item.Content) == "" {
+			v.add("content", "is required for ID")
 		}
 	}
+}
 
-	if fullValidation {
-		switch item.ContentType {
-		case "PD", "MT":
-			if item.PromoPrice != nil {
-				add("promo_price", "must be null for "+item.ContentType)
-			}
-			if item.StartDate != nil {
-				add("start_date", "must be null for "+item.ContentType)
-			}
-			if item.EndDate != nil {
-				add("end_date", "must be null for "+item.ContentType)
-			}
-		case "PM":
-			if item.StartDate != nil && item.EndDate != nil && item.EndDate.Before(*item.StartDate) {
-				add("end_date", "must be greater than or equal to start_date")
-			}
-		case "ID":
-			if item.MOQ != nil {
-				add("moq", "must be null for ID")
-			}
-			if item.BasePrice != nil {
-				add("base_price", "must be null for ID")
-			}
-			if item.PromoPrice != nil {
-				add("promo_price", "must be null for ID")
-			}
-			if item.StartDate != nil {
-				add("start_date", "must be null for ID")
-			}
-			if item.EndDate != nil {
-				add("end_date", "must be null for ID")
-			}
+func (v *showcaseValidationCollector) validateActiveFieldRules(item *domain.FactoryShowcase) {
+	switch item.ContentType {
+	case "PD", "MT":
+		if item.PromoPrice != nil {
+			v.add("promo_price", "must be null for "+item.ContentType)
+		}
+		if item.StartDate != nil {
+			v.add("start_date", "must be null for "+item.ContentType)
+		}
+		if item.EndDate != nil {
+			v.add("end_date", "must be null for "+item.ContentType)
+		}
+	case "PM":
+		if item.StartDate != nil && item.EndDate != nil && item.EndDate.Before(*item.StartDate) {
+			v.add("end_date", "must be greater than or equal to start_date")
+		}
+	case "ID":
+		if item.MOQ != nil {
+			v.add("moq", "must be null for ID")
+		}
+		if item.BasePrice != nil {
+			v.add("base_price", "must be null for ID")
+		}
+		if item.PromoPrice != nil {
+			v.add("promo_price", "must be null for ID")
+		}
+		if item.StartDate != nil {
+			v.add("start_date", "must be null for ID")
+		}
+		if item.EndDate != nil {
+			v.add("end_date", "must be null for ID")
 		}
 	}
+}
 
+func (s *ShowcaseService) validateLinkedShowcases(item *domain.FactoryShowcase, add func(field, message string)) error {
 	if len(item.LinkedShowcases) > 0 {
 		ids := make([]int64, 0, len(item.LinkedShowcases))
 		for _, ref := range item.LinkedShowcases {
@@ -438,10 +477,6 @@ func (s *ShowcaseService) validateShowcase(item *domain.FactoryShowcase) error {
 				}
 			}
 		}
-	}
-
-	if len(details) > 0 {
-		return domain.ShowcaseValidationError{Details: details}
 	}
 	return nil
 }

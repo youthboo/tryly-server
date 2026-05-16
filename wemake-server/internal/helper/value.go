@@ -73,7 +73,7 @@ func NormalizeString(s string) string {
 }
 
 func NormalizeEmail(s string) string {
-	return strings.TrimSpace(strings.ToLower(s))
+	return domainutil.NormalizeLower(s)
 }
 
 func NormalizeRole(s string) string {

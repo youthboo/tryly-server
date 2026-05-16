@@ -6,6 +6,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/helper"
 )
 
 type CustomerAdminRepository struct {
@@ -17,8 +18,8 @@ func NewCustomerAdminRepository(db *sqlx.DB) *CustomerAdminRepository {
 }
 
 func (r *CustomerAdminRepository) ListCustomers(search string, isActive *bool, limit, offset int) ([]domain.AdminCustomerListItem, int, error) {
-	if limit <= 0 || limit > 100 {
-		limit = 20
+	if limit <= 0 || limit > helper.MaxPageSize {
+		limit = helper.DefaultPageSize
 	}
 	if offset < 0 {
 		offset = 0
@@ -171,8 +172,8 @@ func (r *CustomerAdminRepository) GetCustomerWallet(userID int64) (*domain.Admin
 }
 
 func (r *CustomerAdminRepository) ListCustomerOrders(userID int64, limit, offset int) ([]domain.AdminCustomerOrderItem, int, error) {
-	if limit <= 0 || limit > 100 {
-		limit = 20
+	if limit <= 0 || limit > helper.MaxPageSize {
+		limit = helper.DefaultPageSize
 	}
 	if offset < 0 {
 		offset = 0

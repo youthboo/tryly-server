@@ -109,23 +109,11 @@ func UnionOperator(conds ...sq.Sqlizer) sq.Or {
 }
 
 func SafePageParams(pageNum int, pageSize int, minPageNum int, minPageSize int, maxPageSize int) (int, int) {
-	if pageNum < minPageNum {
-		pageNum = minPageNum
-	}
-	if pageSize < minPageSize {
-		pageSize = minPageSize
-	}
-	if pageSize > maxPageSize {
-		pageSize = maxPageSize
-	}
-	return pageNum, pageSize
+	return MaxIntQuery(pageNum, minPageNum), ClampInt(pageSize, minPageSize, maxPageSize)
 }
 
 func OffsetFromPage(pageNum int, pageSize int) int {
-	if pageNum < 1 {
-		pageNum = 1
-	}
-	return (pageNum - 1) * pageSize
+	return CalculateOffset(pageNum, pageSize)
 }
 
 func PageFromOffset(offset int, pageSize int) int {

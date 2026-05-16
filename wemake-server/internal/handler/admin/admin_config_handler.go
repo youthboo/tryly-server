@@ -121,8 +121,8 @@ func (h *AdminConfigHandler) ListAuditLog(c *fiber.Ctx) error {
 	filter := domain.AdminAuditFilter{
 		Action:     strings.TrimSpace(c.Query("action")),
 		TargetType: strings.TrimSpace(c.Query("target_type")),
-		Page:       c.QueryInt("page", 1),
-		PageSize:   c.QueryInt("page_size", 20),
+		Page:       c.QueryInt("page", helper.DefaultPage),
+		PageSize:   c.QueryInt("page_size", helper.DefaultPageSize),
 	}
 	actorID, err := helper.ParseOptionalPositiveInt64Query(c, "actor_id")
 	if err != nil {

@@ -136,6 +136,10 @@ func DecimalPtrToFloatPtr(d *decimal.Decimal) *float64 {
 	return &f
 }
 
+func NullableDecimalToFloat64(d *decimal.Decimal) interface{} {
+	return DecimalPtrToFloatPtr(d)
+}
+
 func DerefDecimal(d *decimal.Decimal) (decimal.Decimal, error) {
 	if d == nil {
 		return decimal.Zero, ErrNilDecimal

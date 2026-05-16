@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/yourusername/wemake/internal/dbutil"
 	"github.com/yourusername/wemake/internal/domain"
 	domainstatus "github.com/yourusername/wemake/internal/domain/status"
 	"github.com/yourusername/wemake/internal/helper"
 	"github.com/yourusername/wemake/internal/logger"
-	"github.com/yourusername/wemake/internal/repository"
 	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
 	frontendrepo "github.com/yourusername/wemake/internal/repository/frontend"
 )
@@ -42,7 +42,7 @@ func (s *FrontendService) GetBootstrap(userID int64) (*domain.FrontendBootstrapR
 		cu, err := s.GetCurrentUser(userID)
 		if err != nil {
 			logger.Warn("frontend current user lookup failed", "user_id", userID, "err", err, "err_type", fmt.Sprintf("%T", err))
-			if !repository.IsNotFoundError(err) {
+			if !dbutil.IsNotFoundError(err) {
 				logger.Error("frontend current user lookup returned non-not-found error", "user_id", userID, "err", err)
 				return nil, err
 			}

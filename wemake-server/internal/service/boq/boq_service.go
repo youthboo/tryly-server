@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/shopspring/decimal"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/helper"
 	conversationrepo "github.com/yourusername/wemake/internal/repository/conversation"
 	quotationrepo "github.com/yourusername/wemake/internal/repository/quotation"
@@ -20,7 +22,6 @@ import (
 	notificationservice "github.com/yourusername/wemake/internal/service/notification"
 	orderservice "github.com/yourusername/wemake/internal/service/order"
 	walletservice "github.com/yourusername/wemake/internal/service/wallet"
-	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 var (
@@ -42,6 +43,20 @@ type BOQInput struct {
 	PaymentTerms   *string
 	ValidityDays   *int
 	Note           *string
+}
+
+type boqSnapshot struct {
+	Subtotal      float64
+	VatAmount     float64
+	GrandTotal    float64
+	Quantity      int64
+	Details       string
+	Currency      string
+	SubtotalDec   decimal.Decimal
+	DiscountDec   decimal.Decimal
+	VatPercentDec decimal.Decimal
+	VatAmountDec  decimal.Decimal
+	GrandTotalDec decimal.Decimal
 }
 
 type BOQService struct {
@@ -87,6 +102,51 @@ func computeBOQTotals(items []domain.RFQItem, discountAmount float64, vatPercent
 	vatAmount := helper.RoundMoney(vatBase * vatPercent / 100)
 	grandTotal := helper.RoundMoney(vatBase + vatAmount)
 	return helper.RoundMoney(subtotal), vatAmount, grandTotal
+}
+
+func prepareBOQSnapshot(input BOQInput) boqSnapshot {
+	subtotal, vatAmount, grandTotal := computeBOQTotals(input.Items, input.DiscountAmount, input.VatPercent)
+	quantity := int64(0)
+	for _, item := range input.Items {
+		quantity += int64(math.Round(item.Qty))
+	}
+	if quantity <= 0 {
+		quantity = 1
+	}
+	details := helper.DerefString(input.Note)
+	if details == "" && len(input.Items) > 0 {
+		details = input.Items[0].Description
+	}
+	return boqSnapshot{
+		Subtotal:      subtotal,
+		VatAmount:     vatAmount,
+		GrandTotal:    grandTotal,
+		Quantity:      quantity,
+		Details:       details,
+		Currency:      input.Currency,
+		SubtotalDec:   helper.MoneyDecimal(subtotal),
+		DiscountDec:   helper.MoneyDecimal(input.DiscountAmount),
+		VatPercentDec: helper.MoneyDecimal(input.VatPercent),
+		VatAmountDec:  helper.MoneyDecimal(vatAmount),
+		GrandTotalDec: helper.MoneyDecimal(grandTotal),
+	}
+}
+
+func applyBOQSnapshot(rfq *domain.RFQ, input BOQInput, snapshot boqSnapshot, sentAt time.Time) {
+	rfq.Quantity = snapshot.Quantity
+	rfq.Details = snapshot.Details
+	rfq.BOQCurrency = &snapshot.Currency
+	rfq.BOQSubtotal = &snapshot.SubtotalDec
+	rfq.BOQDiscountAmount = &snapshot.DiscountDec
+	rfq.BOQVatPercent = &snapshot.VatPercentDec
+	rfq.BOQVatAmount = &snapshot.VatAmountDec
+	rfq.BOQGrandTotal = &snapshot.GrandTotalDec
+	rfq.BOQMOQ = input.MOQ
+	rfq.BOQLeadTimeDays = input.LeadTimeDays
+	rfq.BOQPaymentTerms = input.PaymentTerms
+	rfq.BOQValidityDays = input.ValidityDays
+	rfq.BOQNote = input.Note
+	rfq.BOQSentAt = &sentAt
 }
 
 func normalizeBOQInput(in BOQInput) BOQInput {
@@ -191,55 +251,25 @@ func (s *BOQService) Create(convID, actorUserID int64, input BOQInput) (*domain.
 	if err := validateBOQInput(input); err != nil {
 		return nil, nil, err
 	}
-	subtotal, vatAmount, grandTotal := computeBOQTotals(input.Items, input.DiscountAmount, input.VatPercent)
-	quantity := int64(0)
-	for _, item := range input.Items {
-		quantity += int64(math.Round(item.Qty))
-	}
-	if quantity <= 0 {
-		quantity = 1
-	}
+	snapshot := prepareBOQSnapshot(input)
 
 	primaryCategoryID, _ := s.lookupFactoryPrimaryCategory(actorUserID)
 	now := time.Now()
 	title := fmt.Sprintf("BOQ - %s - %s", helper.DerefString(conv.FactoryName), now.Format("2006-01-02"))
-	details := helper.DerefString(input.Note)
-	if details == "" {
-		details = input.Items[0].Description
-	}
-	currency := input.Currency
-	boqSubtotalDec := helper.MoneyDecimal(subtotal)
-	boqDiscountDec := helper.MoneyDecimal(input.DiscountAmount)
-	boqVatDec := helper.MoneyDecimal(input.VatPercent)
-	boqVatAmountDec := helper.MoneyDecimal(vatAmount)
-	boqGrandTotalDec := helper.MoneyDecimal(grandTotal)
 	rfq := &domain.RFQ{
-		UserID:            conv.CustomerID,
-		CategoryID:        primaryCategoryID,
-		Title:             title,
-		Quantity:          quantity,
-		Details:           details,
-		Status:            "OP",
-		CreatedAt:         now,
-		UpdatedAt:         now,
-		RFQType:           "BQ",
-		InitiatedBy:       "factory",
-		FactoryUserID:     &actorUserID,
-		SourceShowcaseID:  conv.SourceShowcaseID,
-		SourceConvID:      &convID,
-		BOQCurrency:       &currency,
-		BOQSubtotal:       &boqSubtotalDec,
-		BOQDiscountAmount: &boqDiscountDec,
-		BOQVatPercent:     &boqVatDec,
-		BOQVatAmount:      &boqVatAmountDec,
-		BOQGrandTotal:     &boqGrandTotalDec,
-		BOQMOQ:            input.MOQ,
-		BOQLeadTimeDays:   input.LeadTimeDays,
-		BOQPaymentTerms:   input.PaymentTerms,
-		BOQValidityDays:   input.ValidityDays,
-		BOQNote:           input.Note,
-		BOQSentAt:         &now,
+		UserID:           conv.CustomerID,
+		CategoryID:       primaryCategoryID,
+		Title:            title,
+		Status:           "OP",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+		RFQType:          "BQ",
+		InitiatedBy:      "factory",
+		FactoryUserID:    &actorUserID,
+		SourceShowcaseID: conv.SourceShowcaseID,
+		SourceConvID:     &convID,
 	}
+	applyBOQSnapshot(rfq, input, snapshot, now)
 
 	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		if err := s.rfqs.CreateTx(tx, rfq); err != nil {
@@ -285,7 +315,7 @@ func (s *BOQService) Create(convID, actorUserID int64, input BOQInput) (*domain.
 			UserID:      conv.CustomerID,
 			Type:        "BQ",
 			Title:       "โรงงานส่ง BOQ มาแล้ว",
-			Message:     fmt.Sprintf("%s ส่ง BOQ มูลค่า ฿%.2f มาให้คุณ", helper.DerefString(conv.FactoryName), grandTotal),
+			Message:     fmt.Sprintf("%s ส่ง BOQ มูลค่า ฿%.2f มาให้คุณ", helper.DerefString(conv.FactoryName), snapshot.GrandTotal),
 			LinkTo:      fmt.Sprintf("/chat/%d", convID),
 			ReferenceID: &rfq.RFQID,
 		})
@@ -338,38 +368,9 @@ func (s *BOQService) Update(rfqID, actorUserID int64, input BOQInput) (*domain.B
 	if err := validateBOQInput(input); err != nil {
 		return nil, err
 	}
-	subtotal, vatAmount, grandTotal := computeBOQTotals(input.Items, input.DiscountAmount, input.VatPercent)
+	snapshot := prepareBOQSnapshot(input)
 	now := time.Now()
-	details := helper.DerefString(input.Note)
-	if details == "" {
-		details = input.Items[0].Description
-	}
-	quantity := int64(0)
-	for _, item := range input.Items {
-		quantity += int64(math.Round(item.Qty))
-	}
-	if quantity <= 0 {
-		quantity = 1
-	}
-	rfq.Quantity = quantity
-	rfq.Details = details
-	rfq.BOQCurrency = &input.Currency
-	boqSubtotalDec := helper.MoneyDecimal(subtotal)
-	boqDiscountDec := helper.MoneyDecimal(input.DiscountAmount)
-	boqVatDec := helper.MoneyDecimal(input.VatPercent)
-	boqVatAmountDec := helper.MoneyDecimal(vatAmount)
-	boqGrandTotalDec := helper.MoneyDecimal(grandTotal)
-	rfq.BOQSubtotal = &boqSubtotalDec
-	rfq.BOQDiscountAmount = &boqDiscountDec
-	rfq.BOQVatPercent = &boqVatDec
-	rfq.BOQVatAmount = &boqVatAmountDec
-	rfq.BOQGrandTotal = &boqGrandTotalDec
-	rfq.BOQMOQ = input.MOQ
-	rfq.BOQLeadTimeDays = input.LeadTimeDays
-	rfq.BOQPaymentTerms = input.PaymentTerms
-	rfq.BOQValidityDays = input.ValidityDays
-	rfq.BOQNote = input.Note
-	rfq.BOQSentAt = &now
+	applyBOQSnapshot(rfq, input, snapshot, now)
 
 	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		if _, err := tx.Exec(`
@@ -378,7 +379,7 @@ func (s *BOQService) Update(rfqID, actorUserID int64, input BOQInput) (*domain.B
 		    details = $3,
 		    updated_at = NOW()
 		WHERE rfq_id = $1
-	`, rfqID, quantity, details); err != nil {
+	`, rfqID, snapshot.Quantity, snapshot.Details); err != nil {
 			return err
 		}
 		if err := s.rfqItems.DeleteByRFQIDTx(tx, rfqID); err != nil {
@@ -721,7 +722,7 @@ func (s *BOQService) ListMine(factoryUserID int64, status string) ([]domain.BOQS
 }
 
 func statusFilterMatches(status string, item *domain.BOQSummary) bool {
-	switch strings.ToLower(strings.TrimSpace(status)) {
+	switch domainutil.NormalizeLower(status) {
 	case "", "all":
 		return true
 	case "pending":

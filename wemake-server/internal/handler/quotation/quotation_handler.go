@@ -4,12 +4,14 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/dbutil"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/dto"
+	handlerregistry "github.com/yourusername/wemake/internal/handler/errorregistry"
 	"github.com/yourusername/wemake/internal/helper"
 	authservice "github.com/yourusername/wemake/internal/service/auth"
 	quotationservice "github.com/yourusername/wemake/internal/service/quotation"
-	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type QuotationHandler struct {
@@ -70,7 +72,7 @@ func (h *QuotationHandler) CreateQuotation(c *fiber.Ctx) error {
 		FactoryHighlight: req.FactoryHighlight,
 	}
 	if err := h.service.Create(item); err != nil {
-		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to create quotation"), createQuotationErrorMap())
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to create quotation"), handlerregistry.CreateQuotationErrorMap())
 	}
 	return c.Status(fiber.StatusCreated).JSON(item)
 }
@@ -105,7 +107,7 @@ func (h *QuotationHandler) ListMine(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
 	}
-	if u.Role != domain.RoleFactory {
+	if err := helper.RequireFactoryRole(u); err != nil {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "factory role required"})
 	}
 	status := c.Query("status")
@@ -117,33 +119,16 @@ func (h *QuotationHandler) ListMine(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) ListCollection(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, u, err := helper.RequireUser(c, h.auth)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return err
 	}
-	u, err := h.auth.GetUserByID(userID)
+	if err := helper.RequireFactoryRole(u); err != nil {
+		return helper.JSONError(c, fiber.StatusForbidden, "factory role required")
+	}
+	factoryID, err := helper.RequireQueryMatchingSelfOrID(c, "factory_id", userID, "factory_id query is required", "factory_id must match authenticated factory")
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
-	}
-	factoryParam := strings.TrimSpace(c.Query("factory_id"))
-	if factoryParam == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "factory_id query is required"})
-	}
-	if u.Role != domain.RoleFactory {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "factory role required"})
-	}
-	var factoryID int64
-	if strings.EqualFold(factoryParam, "me") {
-		factoryID = userID
-	} else {
-		parsed, parseErr := helper.ParsePositiveInt64Value(factoryParam, "factory_id")
-		if parseErr != nil || parsed <= 0 {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_id"})
-		}
-		if parsed != userID {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "factory_id must match authenticated factory"})
-		}
-		factoryID = parsed
+		return err
 	}
 	items, err := h.service.ListMine(factoryID, c.Query("status"))
 	if err != nil {
@@ -159,7 +144,7 @@ func (h *QuotationHandler) GetQuotation(c *fiber.Ctx) error {
 	}
 	item, err := h.service.GetByID(int64(quotationID))
 	if err != nil {
-		if isNotFoundError(err) {
+		if dbutil.IsNotFoundError(err) {
 			return helper.WriteAPIError(c, helper.NotFoundAPIError("QUOTATION_NOT_FOUND", "quotation not found"))
 		}
 		return helper.WriteAPIError(c, helper.InternalServerError("FETCH_FAILED", "failed to fetch quotation"))
@@ -182,7 +167,7 @@ func (h *QuotationHandler) ListHistory(c *fiber.Ctx) error {
 	}
 	ok, err := h.service.CanView(int64(quotationID), userID, u.Role)
 	if err != nil {
-		if isNotFoundError(err) {
+		if dbutil.IsNotFoundError(err) {
 			return helper.WriteAPIError(c, helper.NotFoundAPIError("QUOTATION_NOT_FOUND", "quotation not found"))
 		}
 		return helper.WriteAPIError(c, helper.InternalServerError("AUTH_FAILED", "failed to authorize"))
@@ -255,7 +240,7 @@ func (h *QuotationHandler) CreateDetailed(c *fiber.Ctx) error {
 		item.DeliveryDate = &d
 	}
 	if err := h.service.CreateDetailed(item); err != nil {
-		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusBadRequest, "failed to create detailed quotation"), createDetailedErrorMap())
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusBadRequest, "failed to create detailed quotation"), handlerregistry.CreateDetailedErrorMap())
 	}
 	return c.Status(fiber.StatusCreated).JSON(item)
 }
@@ -360,7 +345,7 @@ func (h *QuotationHandler) PatchQuotation(c *fiber.Ctx) error {
 		req.ValidityDays,
 	)
 	if err != nil {
-		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to update quotation"), patchQuotationErrorMap())
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to update quotation"), handlerregistry.PatchQuotationErrorMap())
 	}
 	// Update image_urls if provided in request
 	if req.ImageURLs != nil {

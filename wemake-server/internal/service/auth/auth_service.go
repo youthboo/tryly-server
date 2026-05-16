@@ -7,11 +7,11 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/yourusername/wemake/internal/dbutil"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
+	"github.com/yourusername/wemake/internal/domainutil"
 	authrepo "github.com/yourusername/wemake/internal/repository/auth"
 	"golang.org/x/crypto/bcrypt"
-	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 var (
@@ -55,7 +55,7 @@ func (s *AuthService) GetUserByID(userID int64) (*domain.User, error) {
 }
 
 func (s *AuthService) Register(input RegisterInput) (*LoginResult, error) {
-	input.Email = strings.TrimSpace(strings.ToLower(input.Email))
+	input.Email = domainutil.NormalizeLower(input.Email)
 	input.Role = domainutil.NormalizeStatus(input.Role)
 
 	if input.Role != domain.RoleCustomer && input.Role != domain.RoleFactory {
@@ -64,7 +64,7 @@ func (s *AuthService) Register(input RegisterInput) (*LoginResult, error) {
 
 	if _, err := s.repo.GetUserByEmail(input.Email); err == nil {
 		return nil, ErrEmailAlreadyExists
-	} else if !repository.IsNotFoundError(err) {
+	} else if !dbutil.IsNotFoundError(err) {
 		return nil, err
 	}
 
@@ -147,10 +147,10 @@ func (s *AuthService) RegisterAdmin(input RegisterAdminInput, actorRole string) 
 		return nil, ErrMissingRoleData
 	}
 
-	input.Email = strings.TrimSpace(strings.ToLower(input.Email))
+	input.Email = domainutil.NormalizeLower(input.Email)
 	if _, err := s.repo.GetUserByEmail(input.Email); err == nil {
 		return nil, ErrEmailAlreadyExists
-	} else if !repository.IsNotFoundError(err) {
+	} else if !dbutil.IsNotFoundError(err) {
 		return nil, err
 	}
 
@@ -186,11 +186,11 @@ func (s *AuthService) RegisterAdmin(input RegisterAdminInput, actorRole string) 
 }
 
 func (s *AuthService) Login(email, password string) (*LoginResult, error) {
-	normalizedEmail := strings.TrimSpace(strings.ToLower(email))
+	normalizedEmail := domainutil.NormalizeLower(email)
 
 	user, err := s.repo.GetUserByEmail(normalizedEmail)
 	if err != nil {
-		if repository.IsNotFoundError(err) {
+		if dbutil.IsNotFoundError(err) {
 			return nil, ErrInvalidCredentials
 		}
 		return nil, err
@@ -220,9 +220,9 @@ func (s *AuthService) Login(email, password string) (*LoginResult, error) {
 }
 
 func (s *AuthService) ForgotPassword(email string) (string, error) {
-	user, err := s.repo.GetUserByEmail(strings.TrimSpace(strings.ToLower(email)))
+	user, err := s.repo.GetUserByEmail(domainutil.NormalizeLower(email))
 	if err != nil {
-		if repository.IsNotFoundError(err) {
+		if dbutil.IsNotFoundError(err) {
 			return "", nil
 		}
 		return "", err
@@ -245,7 +245,7 @@ func (s *AuthService) ForgotPassword(email string) (string, error) {
 func (s *AuthService) ResetPassword(token, newPassword string) error {
 	resetToken, err := s.repo.GetValidPasswordResetToken(strings.TrimSpace(token))
 	if err != nil {
-		if repository.IsNotFoundError(err) {
+		if dbutil.IsNotFoundError(err) {
 			return ErrInvalidResetToken
 		}
 		return err

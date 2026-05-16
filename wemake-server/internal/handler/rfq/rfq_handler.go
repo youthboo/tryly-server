@@ -6,11 +6,11 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	authservice "github.com/yourusername/wemake/internal/service/auth"
 	rfqservice "github.com/yourusername/wemake/internal/service/rfq"
-	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type RFQHandler struct {
@@ -248,7 +248,7 @@ func (h *RFQHandler) ListMatching(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
 	}
-	if u.Role != domain.RoleFactory {
+	if err := helper.RequireFactoryRole(u); err != nil {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "factory role required"})
 	}
 	status := c.Query("status")
@@ -271,7 +271,7 @@ func (h *RFQHandler) DismissRFQ(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
 	}
-	if u.Role != domain.RoleFactory {
+	if err := helper.RequireFactoryRole(u); err != nil {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "FORBIDDEN"})
 	}
 	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
@@ -302,7 +302,7 @@ func (h *RFQHandler) UndismissRFQ(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
 	}
-	if u.Role != domain.RoleFactory {
+	if err := helper.RequireFactoryRole(u); err != nil {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "FORBIDDEN"})
 	}
 	rfqID, err := helper.RequireInt64Param(c, "rfq_id")

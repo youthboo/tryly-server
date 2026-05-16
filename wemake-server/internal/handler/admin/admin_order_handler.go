@@ -2,19 +2,18 @@ package admin
 
 import (
 	"encoding/json"
-	"github.com/yourusername/wemake/internal/helper"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
 	domainstatus "github.com/yourusername/wemake/internal/domain/status"
+	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/dto"
+	"github.com/yourusername/wemake/internal/helper"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 	orderservice "github.com/yourusername/wemake/internal/service/order"
-	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type AdminOrderHandler struct {
@@ -32,37 +31,26 @@ func NewAdminOrderHandler(repo *adminrepo.AdminOrderRepository, service *orderse
 }
 
 func (h *AdminOrderHandler) List(c *fiber.Ctx) error {
+	query := helper.QueryParams(c)
+	page, pageSize := query.PageSize(helper.DefaultPageSize)
 	filter := domain.AdminOrderFilter{
-		Status:   strings.TrimSpace(c.Query("status")),
-		Search:   strings.TrimSpace(c.Query("search")),
-		Page:     c.QueryInt("page", 1),
-		PageSize: c.QueryInt("page_size", 20),
+		Status:    query.String("status"),
+		Search:    query.String("search"),
+		Page:      page,
+		PageSize:  pageSize,
+		FactoryID: query.OptionalPositiveInt64("factory_id"),
+		UserID:    query.OptionalPositiveInt64("user_id"),
+		DateFrom:  query.OptionalDate("date_from"),
+		DateTo:    query.OptionalDate("date_to"),
 	}
-	factoryID, err := helper.ParseOptionalPositiveInt64Query(c, "factory_id")
-	if err != nil {
-		return helper.JSONError(c, fiber.StatusBadRequest, "invalid factory_id")
+	if err := query.Err(); err != nil {
+		return err
 	}
-	filter.FactoryID = factoryID
-	userID, err := helper.ParseOptionalPositiveInt64Query(c, "user_id")
-	if err != nil {
-		return helper.JSONError(c, fiber.StatusBadRequest, "invalid user_id")
-	}
-	filter.UserID = userID
-	dateFrom, err := helper.ParseOptionalDateQuery(c, "date_from")
-	if err != nil {
-		return helper.BadRequest(c, "date_from must be YYYY-MM-DD")
-	}
-	filter.DateFrom = dateFrom
-	dateTo, err := helper.ParseOptionalDateQuery(c, "date_to")
-	if err != nil {
-		return helper.BadRequest(c, "date_to must be YYYY-MM-DD")
-	}
-	filter.DateTo = dateTo
 	items, total, err := h.repo.ListAdmin(filter)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch orders"})
 	}
-	return c.JSON(fiber.Map{"data": items, "pagination": domain.Pagination{Page: helper.MaxInt(filter.Page, 1), PageSize: helper.NormalizePageSize(filter.PageSize), Total: total}})
+	return c.JSON(fiber.Map{"data": items, "pagination": domain.Pagination{Page: filter.Page, PageSize: filter.PageSize, Total: total}})
 }
 
 func (h *AdminOrderHandler) GetByID(c *fiber.Ctx) error {
@@ -109,15 +97,17 @@ func (h *AdminOrderHandler) PatchStatus(c *fiber.Ctx) error {
 }
 
 func (h *AdminOrderHandler) ListWithdrawals(c *fiber.Ctx) error {
-	factoryID, err := helper.ParseOptionalPositiveInt64Query(c, "factory_id")
-	if err != nil {
-		return helper.JSONError(c, fiber.StatusBadRequest, "invalid factory_id")
+	query := helper.QueryParams(c)
+	page, pageSize := query.PageSize(helper.DefaultPageSize)
+	factoryID := query.OptionalPositiveInt64("factory_id")
+	if err := query.Err(); err != nil {
+		return err
 	}
-	items, total, err := h.adminWithdrawal.ListAdmin(strings.TrimSpace(c.Query("status")), factoryID, c.QueryInt("page", 1), c.QueryInt("page_size", 20))
+	items, total, err := h.adminWithdrawal.ListAdmin(query.String("status"), factoryID, page, pageSize)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch withdrawals"})
 	}
-	return c.JSON(fiber.Map{"data": items, "pagination": domain.Pagination{Page: helper.MaxInt(c.QueryInt("page", 1), 1), PageSize: helper.NormalizePageSize(c.QueryInt("page_size", 20)), Total: total}})
+	return c.JSON(fiber.Map{"data": items, "pagination": domain.Pagination{Page: page, PageSize: pageSize, Total: total}})
 }
 
 func (h *AdminOrderHandler) PatchWithdrawal(c *fiber.Ctx) error {
@@ -146,15 +136,17 @@ func (h *AdminOrderHandler) PatchWithdrawal(c *fiber.Ctx) error {
 }
 
 func (h *AdminOrderHandler) ListDisputes(c *fiber.Ctx) error {
-	orderID, err := helper.ParseOptionalPositiveInt64Query(c, "order_id")
-	if err != nil {
-		return helper.JSONError(c, fiber.StatusBadRequest, "invalid order_id")
+	query := helper.QueryParams(c)
+	page, pageSize := query.PageSize(helper.DefaultPageSize)
+	orderID := query.OptionalPositiveInt64("order_id")
+	if err := query.Err(); err != nil {
+		return err
 	}
-	items, total, err := h.adminDispute.ListAdmin(strings.TrimSpace(c.Query("status")), orderID, c.QueryInt("page", 1), c.QueryInt("page_size", 20))
+	items, total, err := h.adminDispute.ListAdmin(query.String("status"), orderID, page, pageSize)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch disputes"})
 	}
-	return c.JSON(fiber.Map{"data": items, "pagination": domain.Pagination{Page: helper.MaxInt(c.QueryInt("page", 1), 1), PageSize: helper.NormalizePageSize(c.QueryInt("page_size", 20)), Total: total}})
+	return c.JSON(fiber.Map{"data": items, "pagination": domain.Pagination{Page: page, PageSize: pageSize, Total: total}})
 }
 
 func (h *AdminOrderHandler) PatchDispute(c *fiber.Ctx) error {

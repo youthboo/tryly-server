@@ -3,6 +3,7 @@ package boq
 import (
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/dto"
+	handlerregistry "github.com/yourusername/wemake/internal/handler/errorregistry"
 	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/gofiber/fiber/v2"
@@ -174,5 +175,5 @@ func boqPayloadToInput(req dto.BOQPayloadRequest) boqservice.BOQInput {
 }
 
 func mapBOQError(c *fiber.Ctx, err error) error {
-	return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to process boq"), boqErrorMap())
+	return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to process boq"), handlerregistry.BOQErrorMap())
 }

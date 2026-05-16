@@ -6,6 +6,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/dto"
+	handlerregistry "github.com/yourusername/wemake/internal/handler/errorregistry"
 	"github.com/yourusername/wemake/internal/helper"
 	messageservice "github.com/yourusername/wemake/internal/service/message"
 )
@@ -59,7 +60,7 @@ func (h *MessageHandler) CreateMessage(c *fiber.Ctx) error {
 		IsRead:        false,
 	}
 	if err := h.service.Create(item); err != nil {
-		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to create message"), createMessageErrorMap())
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to create message"), handlerregistry.CreateMessageErrorMap())
 	}
 	return c.Status(fiber.StatusCreated).JSON(item)
 }
@@ -90,7 +91,7 @@ func (h *MessageHandler) ListMessages(c *fiber.Ctx) error {
 	}
 	items, err := h.service.ListByReference(referenceType, referenceID, userID)
 	if err != nil {
-		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to fetch messages"), listByReferenceErrorMap())
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to fetch messages"), handlerregistry.ListByReferenceErrorMap())
 	}
 	return c.JSON(items)
 }

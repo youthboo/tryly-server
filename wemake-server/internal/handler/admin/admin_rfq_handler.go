@@ -8,9 +8,9 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/dto"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
-	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type AdminRFQHandler struct {
@@ -26,8 +26,8 @@ func (h *AdminRFQHandler) List(c *fiber.Ctx) error {
 	filter := domain.AdminRFQFilter{
 		Status:   strings.TrimSpace(c.Query("status")),
 		Search:   strings.TrimSpace(c.Query("search")),
-		Page:     c.QueryInt("page", 1),
-		PageSize: c.QueryInt("page_size", 20),
+		Page:     c.QueryInt("page", helper.DefaultPage),
+		PageSize: c.QueryInt("page_size", helper.DefaultPageSize),
 	}
 	userID, err := helper.ParseOptionalPositiveInt64Query(c, "user_id")
 	if err != nil {

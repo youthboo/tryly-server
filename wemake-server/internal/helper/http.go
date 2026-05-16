@@ -14,9 +14,18 @@ import (
 )
 
 var (
-	ErrNotFound           = sql.ErrNoRows
-	ErrDivisionByZero     = errors.New("division by zero")
-	ErrInvalidSortColumn  = errors.New("invalid sort column")
+	ErrNotFound            = sql.ErrNoRows
+	ErrDivisionByZero      = errors.New("division by zero")
+	ErrInvalidSortColumn   = errors.New("invalid sort column")
+	ErrRoleRequired        = errors.New("role required")
+	ErrFactoryRoleRequired = errors.New("factory role required")
+)
+
+const (
+	DefaultPage     = 1
+	DefaultPageSize = 20
+	MaxPageSize     = 100
+	MinPageSize     = 1
 )
 
 type ServiceErrorCase struct {
@@ -39,6 +48,10 @@ type APIError struct {
 }
 
 type ErrorResponseBuilder func(error) ErrorResponse
+
+type UserLoader interface {
+	GetUserByID(userID int64) (*domain.User, error)
+}
 
 func UserIDFromHeader(c *fiber.Ctx) (int64, error) {
 	if localValue := c.Locals("user_id"); localValue != nil {
@@ -71,8 +84,71 @@ func OptionalRoleFromContext(c *fiber.Ctx) string {
 	return ""
 }
 
+func RequireUserID(c *fiber.Ctx) (int64, error) {
+	userID, err := UserIDFromHeader(c)
+	if err != nil {
+		return 0, BadRequest(c, "invalid X-User-ID header")
+	}
+	return userID, nil
+}
+
+func RequireAuthenticatedUserID(c *fiber.Ctx) (int64, error) {
+	userID, err := UserIDFromHeader(c)
+	if err != nil {
+		return 0, Unauthorized(c)
+	}
+	return userID, nil
+}
+
+func RequireUser(c *fiber.Ctx, loader UserLoader) (int64, *domain.User, error) {
+	userID, err := RequireUserID(c)
+	if err != nil {
+		return 0, nil, err
+	}
+	user, err := loader.GetUserByID(userID)
+	if err != nil {
+		return 0, nil, JSONError(c, fiber.StatusUnauthorized, "user not found")
+	}
+	return userID, user, nil
+}
+
+func RequireFactoryUser(c *fiber.Ctx, loader UserLoader) (int64, *domain.User, error) {
+	userID, user, err := RequireUser(c, loader)
+	if err != nil {
+		return 0, nil, err
+	}
+	if err := RequireFactoryRole(user); err != nil {
+		return 0, nil, JSONError(c, fiber.StatusForbidden, "factory role required")
+	}
+	return userID, user, nil
+}
+
+func RequireRole(user *domain.User, allowed ...string) error {
+	if user == nil || len(allowed) == 0 {
+		return ErrRoleRequired
+	}
+	role := domainutil.NormalizeStatus(user.Role)
+	for _, item := range allowed {
+		if role == domainutil.NormalizeStatus(item) {
+			return nil
+		}
+	}
+	return ErrRoleRequired
+}
+
+func RequireFactoryRole(user *domain.User) error {
+	if err := RequireRole(user, domain.RoleFactory); err != nil {
+		return ErrFactoryRoleRequired
+	}
+	return nil
+}
+
 func JSONError(c *fiber.Ctx, status int, message string) error {
-	return c.Status(status).JSON(fiber.Map{"error": message})
+	return c.Status(status).JSON(ErrorMap(message))
+}
+
+func ErrorMap(message string) fiber.Map {
+	return fiber.Map{"error": message}
 }
 
 func Unauthorized(c *fiber.Ctx) error {
@@ -81,6 +157,10 @@ func Unauthorized(c *fiber.Ctx) error {
 
 func BadRequest(c *fiber.Ctx, message string) error {
 	return JSONError(c, fiber.StatusBadRequest, message)
+}
+
+func JSONInternal(c *fiber.Ctx, message string) error {
+	return JSONError(c, fiber.StatusInternalServerError, message)
 }
 
 func RequireBody(c *fiber.Ctx, out interface{}) error {
@@ -112,11 +192,7 @@ func UnmarshalJSON(data []byte, out interface{}) error {
 }
 
 func ParsePositiveInt64Param(c *fiber.Ctx, name string) (int64, error) {
-	value, err := strconv.ParseInt(c.Params(name), 10, 64)
-	if err != nil || value <= 0 {
-		return 0, fiber.NewError(fiber.StatusBadRequest, "invalid "+name)
-	}
-	return value, nil
+	return RequireInt64Param(c, name)
 }
 
 func ParsePositiveInt64Value(raw string, name string) (int64, error) {
@@ -137,6 +213,57 @@ func ParseOptionalPositiveInt64Query(c *fiber.Ctx, name string) (*int64, error) 
 		return nil, fiber.NewError(fiber.StatusBadRequest, "invalid "+name)
 	}
 	return &value, nil
+}
+
+func QueryString(c *fiber.Ctx, name string) string {
+	return strings.TrimSpace(c.Query(name))
+}
+
+func QuerySelfOrID(c *fiber.Ctx, name string) (*int64, error) {
+	raw := QueryString(c, name)
+	if raw == "" {
+		return nil, nil
+	}
+	if strings.EqualFold(raw, "me") {
+		userID, err := RequireAuthenticatedUserID(c)
+		if err != nil {
+			return nil, err
+		}
+		return &userID, nil
+	}
+	value, err := ParsePositiveInt64Value(raw, name)
+	if err != nil {
+		return nil, BadRequest(c, "invalid "+name)
+	}
+	return &value, nil
+}
+
+func QueryMatchingSelfOrID(c *fiber.Ctx, name string, expectedID int64, mismatchMessage string) (*int64, error) {
+	value, err := QuerySelfOrID(c, name)
+	if err != nil || value == nil {
+		return value, err
+	}
+	if *value != expectedID {
+		if mismatchMessage == "" {
+			mismatchMessage = name + " must match authenticated user"
+		}
+		return nil, JSONError(c, fiber.StatusForbidden, mismatchMessage)
+	}
+	return value, nil
+}
+
+func RequireQueryMatchingSelfOrID(c *fiber.Ctx, name string, expectedID int64, requiredMessage string, mismatchMessage string) (int64, error) {
+	value, err := QueryMatchingSelfOrID(c, name, expectedID, mismatchMessage)
+	if err != nil {
+		return 0, err
+	}
+	if value == nil {
+		if requiredMessage == "" {
+			requiredMessage = name + " query is required"
+		}
+		return 0, BadRequest(c, requiredMessage)
+	}
+	return *value, nil
 }
 
 func ParseOptionalPositiveInt64Value(raw string, name string) (*int64, error) {
@@ -258,7 +385,7 @@ func WriteErrorResponse(c *fiber.Ctx, response ErrorResponse) error {
 }
 
 func ErrorMessage(status int, message string) ErrorResponse {
-	return ErrorResponse{Status: status, Body: fiber.Map{"error": message}}
+	return ErrorResponse{Status: status, Body: ErrorMap(message)}
 }
 
 func ErrorBody(status int, body fiber.Map) ErrorResponse {
@@ -310,21 +437,99 @@ func ClampInt(v, min, max int) int {
 }
 
 func NormalizePageSize(size int) int {
+	return NormalizePageSizeWithDefault(size, DefaultPageSize)
+}
+
+func NormalizePageSizeWithDefault(size int, defaultSize int) int {
+	if defaultSize <= 0 {
+		defaultSize = DefaultPageSize
+	}
 	if size <= 0 {
-		return 20
+		return defaultSize
 	}
-	if size > 100 {
-		return 100
-	}
-	return size
+	return ClampInt(size, MinPageSize, MaxPageSize)
 }
 
 func PageLimit(c *fiber.Ctx, defaultLimit int) (int, int) {
-	return MaxIntQuery(c.QueryInt("page", 1), 1), ClampInt(c.QueryInt("limit", defaultLimit), 1, 100)
+	return MaxIntQuery(c.QueryInt("page", DefaultPage), DefaultPage), ClampInt(c.QueryInt("limit", defaultLimit), MinPageSize, MaxPageSize)
 }
 
 func LimitOffset(c *fiber.Ctx, defaultLimit int) (int, int) {
-	return ClampInt(c.QueryInt("limit", defaultLimit), 1, 100), MaxInt(c.QueryInt("offset", 0), 0)
+	return ClampInt(c.QueryInt("limit", defaultLimit), MinPageSize, MaxPageSize), MaxInt(c.QueryInt("offset", 0), 0)
+}
+
+type QueryParser struct {
+	c   *fiber.Ctx
+	err error
+}
+
+func NewQueryParser(c *fiber.Ctx) *QueryParser {
+	return &QueryParser{c: c}
+}
+
+func QueryParams(c *fiber.Ctx) *QueryParser {
+	return NewQueryParser(c)
+}
+
+func (p *QueryParser) Err() error {
+	return p.err
+}
+
+func (p *QueryParser) String(name string) string {
+	if p == nil || p.c == nil {
+		return ""
+	}
+	return QueryString(p.c, name)
+}
+
+func (p *QueryParser) OptionalPositiveInt64(name string) *int64 {
+	if p.err != nil {
+		return nil
+	}
+	value, err := ParseOptionalPositiveInt64Query(p.c, name)
+	if err != nil {
+		p.err = BadRequest(p.c, "invalid "+name)
+		return nil
+	}
+	return value
+}
+
+func (p *QueryParser) RequiredPositiveInt64(name string) int64 {
+	if p.err != nil {
+		return 0
+	}
+	value, err := ParseRequiredPositiveInt64Query(p.c, name)
+	if err != nil {
+		p.err = BadRequest(p.c, err.Error())
+		return 0
+	}
+	return value
+}
+
+func (p *QueryParser) OptionalDate(name string) *time.Time {
+	if p.err != nil {
+		return nil
+	}
+	value, err := ParseOptionalDateQuery(p.c, name)
+	if err != nil {
+		p.err = BadRequest(p.c, name+" must be YYYY-MM-DD")
+		return nil
+	}
+	return value
+}
+
+func (p *QueryParser) PageLimit(defaultLimit int) (int, int) {
+	if p == nil || p.c == nil {
+		return DefaultPage, NormalizePageSizeWithDefault(0, defaultLimit)
+	}
+	return PageLimit(p.c, defaultLimit)
+}
+
+func (p *QueryParser) PageSize(defaultSize int) (int, int) {
+	if p == nil || p.c == nil {
+		return DefaultPage, NormalizePageSizeWithDefault(0, defaultSize)
+	}
+	return MaxIntQuery(p.c.QueryInt("page", DefaultPage), DefaultPage), NormalizePageSizeWithDefault(p.c.QueryInt("page_size", defaultSize), defaultSize)
 }
 
 // RequireInt64Param อ่าน path parameter เป็น int64 (ต้องมีค่า > 0)
@@ -334,6 +539,10 @@ func RequireInt64Param(c *fiber.Ctx, name string) (int64, error) {
 		return 0, fiber.NewError(fiber.StatusBadRequest, "invalid "+name)
 	}
 	return int64(val), nil
+}
+
+func RequirePathID(c *fiber.Ctx, name string) (int64, error) {
+	return RequireInt64Param(c, name)
 }
 
 // RequireStringParam อ่าน path parameter เป็น string (ต้องไม่เป็นค่าว่าง)
@@ -410,18 +619,14 @@ func InternalServerError(code string, message string) *APIError {
 	return NewAPIError(fiber.StatusInternalServerError, code, message)
 }
 
-// ============= RESPONSE WRAPPERS =============
-
-// ListResponse wrapper สำหรับ list endpoints
 type ListResponse struct {
-	Data   interface{} `json:"data"`
-	Total  int         `json:"total"`
-	Page   int         `json:"page,omitempty"`
-	Limit  int         `json:"limit,omitempty"`
+	Data    interface{} `json:"data"`
+	Total   int         `json:"total"`
+	Page    int         `json:"page,omitempty"`
+	Limit   int         `json:"limit,omitempty"`
 	HasMore bool        `json:"has_more,omitempty"`
 }
 
-// PaginatedListResponse wrapper สำหรับ paginated lists
 type PaginatedListResponse struct {
 	Items      interface{} `json:"items"`
 	Total      int         `json:"total"`
@@ -430,13 +635,11 @@ type PaginatedListResponse struct {
 	TotalPages int         `json:"total_pages"`
 }
 
-// SuccessResponse wrapper สำหรับ success responses
 type SuccessResponse struct {
 	Message string      `json:"message"`
 	Data    interface{} `json:"data,omitempty"`
 }
 
-// WriteListResponse เขียน list response
 func WriteListResponse(c *fiber.Ctx, data interface{}, total int) error {
 	return c.JSON(ListResponse{
 		Data:  data,
@@ -444,7 +647,6 @@ func WriteListResponse(c *fiber.Ctx, data interface{}, total int) error {
 	})
 }
 
-// WritePaginatedResponse เขียน paginated response
 func WritePaginatedResponse(c *fiber.Ctx, items interface{}, total int, page int, limit int) error {
 	totalPages := (total + limit - 1) / limit
 	return c.JSON(PaginatedListResponse{
@@ -456,7 +658,6 @@ func WritePaginatedResponse(c *fiber.Ctx, items interface{}, total int, page int
 	})
 }
 
-// WriteSuccess เขียน success response
 func WriteSuccess(c *fiber.Ctx, message string, data interface{}) error {
 	return c.JSON(SuccessResponse{
 		Message: message,
@@ -464,43 +665,25 @@ func WriteSuccess(c *fiber.Ctx, message string, data interface{}) error {
 	})
 }
 
-// PaginationParams holds pagination metadata
 type PaginationParams struct {
 	Page  int
 	Limit int
 }
 
-// SortParams holds sorting metadata
 type SortParams struct {
 	SortBy    string
 	SortOrder string
 }
 
-// ParsePaginationQuery parses page and limit from query parameters
 // Default: page=1, limit=20; Max limit: 100
 func ParsePaginationQuery(c *fiber.Ctx) PaginationParams {
-	page := c.QueryInt("page", 1)
-	limit := c.QueryInt("limit", 20)
-
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 {
-		limit = 20
-	}
-	if limit > 100 {
-		limit = 100
-	}
-
+	page, limit := PageLimit(c, DefaultPageSize)
 	return PaginationParams{Page: page, Limit: limit}
 }
 
-// ParseSortQuery parses sort_by and sort_order from query parameters
-// Default sort_by: "id", sort_order: "asc"
-// Validates sort_order is either "asc" or "desc"
 func ParseSortQuery(c *fiber.Ctx) SortParams {
 	sortBy := strings.TrimSpace(c.Query("sort_by", "id"))
-	sortOrder := strings.TrimSpace(strings.ToLower(c.Query("sort_order", "asc")))
+	sortOrder := domainutil.NormalizeLower(c.Query("sort_order", "asc"))
 
 	if sortBy == "" {
 		sortBy = "id"
@@ -515,7 +698,6 @@ func ParseSortQuery(c *fiber.Ctx) SortParams {
 	}
 }
 
-// CalculateOffset calculates SQL OFFSET from page and limit
 func CalculateOffset(page, limit int) int {
 	if page < 1 {
 		page = 1
@@ -523,7 +705,6 @@ func CalculateOffset(page, limit int) int {
 	return (page - 1) * limit
 }
 
-// CalculateTotalPages calculates total pages from total count and limit
 func CalculateTotalPages(total, limit int) int {
 	if limit <= 0 {
 		return 0

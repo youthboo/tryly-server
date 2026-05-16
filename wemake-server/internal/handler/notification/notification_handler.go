@@ -19,7 +19,7 @@ func (h *NotificationHandler) List(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	page, limit := helper.PageLimit(c, 20)
+	page, limit := helper.PageLimit(c, helper.DefaultPageSize)
 	unreadOnly := c.QueryBool("unread", false)
 	items, total, unreadCount, err := h.service.ListPaginated(userID, page, limit, unreadOnly)
 	if err != nil {

@@ -7,7 +7,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
-	"github.com/shopspring/decimal"
+	"github.com/yourusername/wemake/internal/dbutil"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/helper"
@@ -21,14 +21,6 @@ func NewRFQRepository(db *sqlx.DB) *RFQRepository {
 	return &RFQRepository{db: db}
 }
 
-func nullableDecimalToFloat64(d *decimal.Decimal) interface{} {
-	if d == nil {
-		return nil
-	}
-	f := helper.DecimalToFloat(*d)
-	return &f
-}
-
 func (r *RFQRepository) DB() *sqlx.DB {
 	return r.db
 }
@@ -39,10 +31,6 @@ func (r *RFQRepository) Create(rfq *domain.RFQ) error {
 
 func (r *RFQRepository) CreateTx(tx *sqlx.Tx, rfq *domain.RFQ) error {
 	return r.createWithExecutor(tx, rfq)
-}
-
-type rfqQueryRowExecutor interface {
-	QueryRow(query string, args ...interface{}) *sql.Row
 }
 
 const rfqSelectColumns = `
@@ -75,7 +63,7 @@ const rfqSelectColumnsR = `
 		NULL::timestamptz AS boq_responded_at, NULL::text AS boq_response, NULL::text AS boq_decline_reason
 `
 
-func (r *RFQRepository) createWithExecutor(exec rfqQueryRowExecutor, rfq *domain.RFQ) error {
+func (r *RFQRepository) createWithExecutor(exec dbutil.QueryRower, rfq *domain.RFQ) error {
 	query := `
 		INSERT INTO rfqs (
 			user_id, category_id, sub_category_id, title, quantity, details,
@@ -95,19 +83,19 @@ func (r *RFQRepository) createWithExecutor(exec rfqQueryRowExecutor, rfq *domain
 		query,
 		rfq.UserID,
 		domainutil.NullablePositiveInt64(rfq.CategoryID),
-		domainutil.NullableInt64(rfq.SubCategoryID),
+		domainutil.Nullable(rfq.SubCategoryID),
 		rfq.Title,
 		rfq.Quantity,
 		rfq.Details,
-		domainutil.NullableInt64(rfq.ShippingMethodID),
+		domainutil.Nullable(rfq.ShippingMethodID),
 		rfq.Status,
 		domainutil.NormalizeUpperOrDefault(rfq.RequestKind, domain.RequestKindProduction),
 		rfq.CreatedAt,
 		rfq.UpdatedAt,
-		domainutil.NullableString(rfq.MaterialGrade),
-		nullableDecimalToFloat64(rfq.TargetPrice),
-		domainutil.NullableInt(rfq.TargetLeadTimeDays),
-		domainutil.NullableInt64(rfq.DeliveryAddressID),
+		domainutil.Nullable(rfq.MaterialGrade),
+		helper.NullableDecimalToFloat64(rfq.TargetPrice),
+		domainutil.Nullable(rfq.TargetLeadTimeDays),
+		domainutil.Nullable(rfq.DeliveryAddressID),
 		rfq.CertificationsRequired,
 		rfq.ReferenceImages,
 	).Scan(&rfq.RFQID)

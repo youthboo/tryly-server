@@ -22,6 +22,17 @@ type BulkCheckoutItem struct {
 	Quantity    int64 `json:"quantity" validate:"gt=0"`
 }
 
+type BulkCheckoutItemInput struct {
+	QuotationID int64  `json:"quotation_id"`
+	AddressID   int64  `json:"address_id"`
+	PaymentType string `json:"payment_type"`
+}
+
+type BulkCheckoutBodyRequest struct {
+	Items          []BulkCheckoutItemInput `json:"items"`
+	IdempotencyKey string                  `json:"idempotency_key"`
+}
+
 type ShipOrderRequest struct {
 	TrackingNo string `json:"tracking_no" validate:"notblank"`
 	Courier    string `json:"courier" validate:"notblank"`
@@ -42,14 +53,14 @@ type MarkShippedRequest struct {
 }
 
 type CreateDisputeRequest struct {
-	Category    string `json:"category" validate:"notblank"`
-	Title       string `json:"title" validate:"notblank"`
-	Description string `json:"description" validate:"notblank"`
+	Category    string   `json:"category" validate:"notblank"`
+	Title       string   `json:"title" validate:"notblank"`
+	Description string   `json:"description" validate:"notblank"`
 	ImageURLs   []string `json:"image_urls"`
 }
 
 type PatchDisputeStatusRequest struct {
-	Status   string `json:"status" validate:"notblank"`
+	Status   string  `json:"status" validate:"notblank"`
 	Comments *string `json:"comments"`
 }
 

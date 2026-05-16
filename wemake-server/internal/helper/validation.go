@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 var requestValidator = newRequestValidator()
@@ -15,6 +16,19 @@ func newRequestValidator() *validator.Validate {
 	_ = v.RegisterValidation("notblank", func(fl validator.FieldLevel) bool {
 		field := fl.Field()
 		return field.Kind() == reflect.String && strings.TrimSpace(field.String()) != ""
+	})
+	_ = v.RegisterValidation("statuscode", func(fl validator.FieldLevel) bool {
+		field := fl.Field()
+		if field.Kind() != reflect.String {
+			return false
+		}
+		value := domainutil.NormalizeStatus(field.String())
+		for _, allowed := range strings.Fields(fl.Param()) {
+			if value == domainutil.NormalizeStatus(allowed) {
+				return true
+			}
+		}
+		return false
 	})
 	return v
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/helper"
 	authrepo "github.com/yourusername/wemake/internal/repository/auth"
 	profilerepo "github.com/yourusername/wemake/internal/repository/profile"
 	"golang.org/x/crypto/bcrypt"
@@ -101,7 +102,7 @@ func (s *ProfileService) ListMyReviews(userID int64, page, limit int) ([]domain.
 }
 
 func (s *ProfileService) ListReceivedReviews(userID int64, role string, page, limit int) ([]domain.UserReviewListItem, int64, error) {
-	if role != domain.RoleFactory {
+	if err := helper.RequireFactoryRole(&domain.User{Role: role}); err != nil {
 		return nil, 0, ErrProfileUnauthorized
 	}
 	return s.profiles.ListReceivedReviews(userID, page, limit)

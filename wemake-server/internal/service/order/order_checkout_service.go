@@ -3,22 +3,19 @@ package order
 import (
 	"context"
 	"fmt"
-	"github.com/shopspring/decimal"
-	"github.com/yourusername/wemake/internal/helper"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
+	"github.com/shopspring/decimal"
 	"github.com/yourusername/wemake/internal/domain"
-	orderrepo "github.com/yourusername/wemake/internal/repository/order"
 	"github.com/yourusername/wemake/internal/domainutil"
+	"github.com/yourusername/wemake/internal/dto"
+	"github.com/yourusername/wemake/internal/helper"
+	orderrepo "github.com/yourusername/wemake/internal/repository/order"
 )
 
-type BulkCheckoutItemInput struct {
-	QuotationID int64  `json:"quotation_id"`
-	AddressID   int64  `json:"address_id"`
-	PaymentType string `json:"payment_type"`
-}
+type BulkCheckoutItemInput = dto.BulkCheckoutItemInput
 
 type BulkCheckoutInput struct {
 	RFQID          int64                   `json:"rfq_id"`

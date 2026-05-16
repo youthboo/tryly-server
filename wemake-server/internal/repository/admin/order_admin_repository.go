@@ -42,7 +42,7 @@ func (r *AdminOrderRepository) ListAdmin(filter domain.AdminOrderFilter) ([]doma
 		where = append(where, "o.created_at < "+arg(filter.DateTo.Add(24*time.Hour)))
 	}
 	if filter.Search != "" {
-		where = append(where, "LOWER(r.title) LIKE "+arg("%"+strings.ToLower(strings.TrimSpace(filter.Search))+"%"))
+		where = append(where, "LOWER(r.title) LIKE "+arg("%"+domainutil.NormalizeLower(filter.Search)+"%"))
 	}
 	condition := strings.Join(where, " AND ")
 	var total int

@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/yourusername/wemake/internal/dto"
+	handlerregistry "github.com/yourusername/wemake/internal/handler/errorregistry"
 	"github.com/yourusername/wemake/internal/helper"
 	"strconv"
 
@@ -92,7 +93,7 @@ func (h *PlatformConfigHandler) CreateConfig(c *fiber.Ctx) error {
 	ip := c.IP()
 	item, err := h.service.CreateConfig(req, actorID, &ip)
 	if err != nil {
-		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to create platform config"), createConfigErrorMap())
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to create platform config"), handlerregistry.CreateConfigErrorMap())
 	}
 	c.Status(fiber.StatusCreated)
 	return c.JSON(item)
@@ -114,7 +115,7 @@ func (h *PlatformConfigHandler) UpdateConfig(c *fiber.Ctx) error {
 	ip := c.IP()
 	item, err := h.service.UpdateConfig(configID, req, actorID, &ip)
 	if err != nil {
-		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to update platform config"), updateConfigErrorMap())
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to update platform config"), handlerregistry.UpdateConfigErrorMap())
 	}
 	return c.JSON(item)
 }
@@ -136,7 +137,7 @@ func (h *PlatformConfigHandler) DeleteConfig(c *fiber.Ctx) error {
 			msg := "ไม่สามารถลบได้ มีโรงงาน " + strconv.Itoa(count) + " แห่งกำลังใช้ config นี้อยู่"
 			return helper.WriteAPIError(c, helper.ConflictAPIError("CONFIG_IN_USE", msg))
 		}
-		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to delete platform config"), deleteConfigErrorMap())
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to delete platform config"), handlerregistry.DeleteConfigErrorMap())
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }

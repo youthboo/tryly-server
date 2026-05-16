@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/yourusername/wemake/internal/dbutil"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/helper"
-	"github.com/yourusername/wemake/internal/repository"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 	platformrepo "github.com/yourusername/wemake/internal/repository/platform_config"
-	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 var (
@@ -110,7 +110,7 @@ func (s *PlatformConfigService) UpdateConfig(configID int64, req domain.UpdatePl
 	}
 	before, err := s.repo.GetByID(configID)
 	if err != nil {
-		if repository.IsNotFoundError(err) {
+		if dbutil.IsNotFoundError(err) {
 			return nil, ErrPlatformConfigNotFound
 		}
 		return nil, err
@@ -122,7 +122,7 @@ func (s *PlatformConfigService) UpdateConfig(configID int64, req domain.UpdatePl
 	}
 	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		if err := s.repo.UpdateConfig(tx, configID, after); err != nil {
-			if repository.IsNotFoundError(err) {
+			if dbutil.IsNotFoundError(err) {
 				return ErrPlatformConfigNotFound
 			}
 			return err
@@ -141,7 +141,7 @@ func (s *PlatformConfigService) DeleteConfig(configID int64, actorID int64, ip *
 	}
 	target, err := s.repo.GetByID(configID)
 	if err != nil {
-		if repository.IsNotFoundError(err) {
+		if dbutil.IsNotFoundError(err) {
 			return ErrPlatformConfigNotFound
 		}
 		return err
@@ -161,7 +161,7 @@ func (s *PlatformConfigService) DeleteConfig(configID int64, actorID int64, ip *
 		return ErrPlatformConfigInUse
 	}
 	if err := s.repo.DeleteConfig(configID); err != nil {
-		if repository.IsNotFoundError(err) {
+		if dbutil.IsNotFoundError(err) {
 			return ErrPlatformConfigNotFound
 		}
 		return err

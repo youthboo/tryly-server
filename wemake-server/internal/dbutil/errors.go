@@ -1,4 +1,4 @@
-package repository
+package dbutil
 
 import "database/sql"
 

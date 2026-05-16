@@ -54,7 +54,7 @@ func (s *WithdrawalService) ListByFactoryID(factoryID int64) ([]domain.Withdrawa
 
 func (s *WithdrawalService) UpdateStatus(requestID int64, status string, note *string) error {
 	status = domainutil.NormalizeStatus(status)
-	if status != "AP" && status != "RJ" && status != "CP" {
+	if !domainutil.StatusIn(status, "AP", "RJ", "CP") {
 		return ErrInvalidWithdrawalStatus
 	}
 	return s.repo.UpdateStatus(requestID, status, note)

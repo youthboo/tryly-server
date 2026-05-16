@@ -8,6 +8,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/shopspring/decimal"
+	"github.com/yourusername/wemake/internal/dbutil"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/helper"
@@ -21,19 +22,12 @@ func NewQuotationRepository(db *sqlx.DB) *QuotationRepository {
 	return &QuotationRepository{db: db}
 }
 
-func nullableDecimalToFloat64(d *decimal.Decimal) interface{} {
-	if d == nil {
-		return nil
-	}
-	f := helper.DecimalToFloat(*d)
-	return &f
-}
-
 func quotationSelectBase() string {
 	return `SELECT q.quote_id, q.rfq_id, q.factory_id,
 		NULLIF(TRIM(COALESCE(to_jsonb(u)->>'factory_name', CONCAT_WS(' ', to_jsonb(u)->>'first_name', to_jsonb(u)->>'last_name'))), '') AS factory_name,
 		fp.image_url AS factory_logo_url,
 		fp.rating::double precision AS factory_rating_avg,
+		COALESCE(r.quantity, 1)::double precision AS quote_quantity,
 		q.price_per_piece, q.mold_cost, q.lead_time_days, q.shipping_method_id,
 		COALESCE(r.status, 'OP') AS rfq_status,
 		COALESCE(r.request_kind, 'PR') AS request_kind,
@@ -67,11 +61,7 @@ func (r *QuotationRepository) CreateTx(tx *sqlx.Tx, item *domain.Quotation) erro
 	return r.createWithExecutor(tx, item)
 }
 
-type quotationExecutor interface {
-	QueryRow(query string, args ...interface{}) *sql.Row
-}
-
-func (r *QuotationRepository) createWithExecutor(exec quotationExecutor, item *domain.Quotation) error {
+func (r *QuotationRepository) createWithExecutor(exec dbutil.QueryRower, item *domain.Quotation) error {
 	imageURLs := item.ImageURLs
 	if imageURLs == nil {
 		imageURLs = domain.StringArray{}
@@ -99,7 +89,7 @@ func (r *QuotationRepository) createWithExecutor(exec quotationExecutor, item *d
 		item.MoldCost,
 		item.LeadTimeDays,
 		domainutil.NullablePositiveInt64(item.ShippingMethodID),
-		domainutil.NullableString(item.FactoryHighlight),
+		domainutil.Nullable(item.FactoryHighlight),
 		item.Status,
 		item.CreateTime,
 		item.LogTimestamp,
@@ -111,12 +101,12 @@ func (r *QuotationRepository) createWithExecutor(exec quotationExecutor, item *d
 		item.VatAmount,
 		item.PlatformCommissionRate,
 		item.PlatformCommissionAmount,
-		domainutil.NullableInt64(item.PlatformConfigID),
+		domainutil.Nullable(item.PlatformConfigID),
 		item.GrandTotal,
 		item.FactoryNetReceivable,
-		domainutil.NullableString(item.PaymentTerms),
+		domainutil.Nullable(item.PaymentTerms),
 		item.ValidityDays,
-		domainutil.NullableTime(item.ValidUntil),
+		domainutil.Nullable(item.ValidUntil),
 		imageURLs,
 	).Scan(&item.QuotationID); err != nil {
 		return err
@@ -128,36 +118,9 @@ func (r *QuotationRepository) createWithExecutor(exec quotationExecutor, item *d
 
 func (r *QuotationRepository) ListByRFQID(rfqID int64) ([]domain.Quotation, error) {
 	var items []domain.Quotation
-	query := `SELECT
-		q.quote_id, q.rfq_id, q.factory_id,
-		NULLIF(TRIM(COALESCE(fp.factory_name, CONCAT_WS(' ', to_jsonb(u)->>'first_name', to_jsonb(u)->>'last_name'))), '') AS factory_name,
-		fp.image_url AS factory_logo_url,
-		fp.rating::double precision AS factory_rating_avg,
-		COALESCE(r.quantity, 1)::double precision AS quote_quantity,
-		q.price_per_piece, q.mold_cost, q.lead_time_days, q.shipping_method_id,
-		COALESCE(r.status, 'OP') AS rfq_status,
-		COALESCE(r.request_kind, 'PR') AS request_kind,
-		NULL::integer AS sample_qty,
-		NULL::text AS shipping_method_name,
-		q.factory_highlight,
-		q.status, q.create_time, q.log_timestamp,
-		COALESCE(q.version, 1) AS version, COALESCE(q.is_locked, false) AS is_locked, NULL::timestamptz AS last_edited_at, NULL::bigint AS last_edited_by,
-		q.subtotal, q.discount_amount, q.shipping_cost, NULL::text AS shipping_method, q.packaging_cost, q.mold_cost AS tooling_mold_cost,
-		q.vat_rate, q.vat_amount, q.platform_commission_rate, q.platform_commission_amount, q.platform_config_id,
-		q.grand_total, q.factory_net_receivable, NULL::date AS production_start_date, NULL::date AS delivery_date, NULL::text AS incoterms, q.payment_terms,
-		q.validity_days, COALESCE(q.valid_until, (q.create_time + (q.validity_days::text || ' day')::interval)::date) AS valid_until,
-		NULL::integer AS warranty_period_months, 1 AS revision_no, NULL::bigint AS parent_quotation_id,
-		COALESCE(q.image_urls::text, '[]') AS image_urls,
-		NULL::text AS material_detail,
-		NULL::text AS payment_condition,
-		0::double precision AS sample_cost,
-		'[]'::jsonb AS certifications
-		FROM quotations q
-		INNER JOIN rfqs r ON r.rfq_id = q.rfq_id
-		LEFT JOIN users u ON u.user_id = q.factory_id
-		LEFT JOIN factory_profiles fp ON fp.user_id = q.factory_id
+	query := quotationSelectBase() + `
 		WHERE q.rfq_id = $1
-		ORDER BY create_time DESC
+		ORDER BY q.create_time DESC
 	`
 	if err := r.db.Select(&items, query, rfqID); err != nil {
 		return items, err
@@ -170,11 +133,11 @@ func (r *QuotationRepository) ListByRFQID(rfqID int64) ([]domain.Quotation, erro
 
 func (r *QuotationRepository) ListByFactoryID(factoryID int64, status string) ([]domain.Quotation, error) {
 	var items []domain.Quotation
-	query := quotationSelectBase() + ` WHERE factory_id = $1`
+	query := quotationSelectBase() + ` WHERE q.factory_id = $1`
 	args := []interface{}{factoryID}
 	statuses := splitCSVUpper(status)
 	if len(statuses) == 1 {
-		query += ` AND status = $2`
+		query += ` AND q.status = $2`
 		args = append(args, statuses[0])
 	} else if len(statuses) > 1 {
 		placeholders := make([]string, 0, len(statuses))
@@ -182,9 +145,9 @@ func (r *QuotationRepository) ListByFactoryID(factoryID int64, status string) ([
 			placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)+1))
 			args = append(args, st)
 		}
-		query += ` AND status IN (` + strings.Join(placeholders, ", ") + `)`
+		query += ` AND q.status IN (` + strings.Join(placeholders, ", ") + `)`
 	}
-	query += ` ORDER BY create_time DESC`
+	query += ` ORDER BY q.create_time DESC`
 	err := r.db.Select(&items, query, args...)
 	for i := range items {
 		enrichQuotationComputed(&items[i])
@@ -195,7 +158,7 @@ func (r *QuotationRepository) ListByFactoryID(factoryID int64, status string) ([
 func (r *QuotationRepository) GetByID(quotationID int64) (*domain.Quotation, error) {
 	var item domain.Quotation
 	query := quotationSelectBase() + `
-		WHERE quote_id = $1
+		WHERE q.quote_id = $1
 	`
 	if err := r.db.Get(&item, query, quotationID); err != nil {
 		return nil, err
@@ -254,13 +217,13 @@ func (r *QuotationRepository) InsertHistory(entry *domain.QuotationHistoryEntry)
 		entry.QuoteID,
 		entry.EventType,
 		entry.VersionAfter,
-		nullableDecimalToFloat64(entry.PricePerPiece),
-		nullableDecimalToFloat64(entry.MoldCost),
-		domainutil.NullableInt64(entry.LeadTimeDays),
-		domainutil.NullableInt64(entry.ShippingMethodID),
-		domainutil.NullableString(entry.Status),
-		domainutil.NullableString(entry.Reason),
-		domainutil.NullableInt64(entry.EditedBy),
+		helper.NullableDecimalToFloat64(entry.PricePerPiece),
+		helper.NullableDecimalToFloat64(entry.MoldCost),
+		domainutil.Nullable(entry.LeadTimeDays),
+		domainutil.Nullable(entry.ShippingMethodID),
+		domainutil.Nullable(entry.Status),
+		domainutil.Nullable(entry.Reason),
+		domainutil.Nullable(entry.EditedBy),
 	).Scan(&entry.HistoryID, &entry.CreatedAt)
 }
 
@@ -306,8 +269,8 @@ func (r *QuotationRepository) ListRevisionChain(root *domain.Quotation) ([]domai
 	}
 	var items []domain.Quotation
 	err := r.db.Select(&items, quotationSelectBase()+`
-		WHERE quote_id = $1
-		ORDER BY create_time ASC
+		WHERE q.quote_id = $1
+		ORDER BY q.create_time ASC
 	`, rootID)
 	for i := range items {
 		enrichQuotationComputed(&items[i])
@@ -345,9 +308,9 @@ func (r *QuotationRepository) UpdateBody(
 	res, err := r.db.Exec(query,
 		pricePerPiece, moldCost, toolingMoldCost, shippingCost, packagingCost,
 		leadTimeDays, shippingMethodID,
-		domainutil.NullableString(paymentTerms),
+		domainutil.Nullable(paymentTerms),
 		newVersion, editorID, quoteID,
-		domainutil.NullableString(factoryHighlight),
+		domainutil.Nullable(factoryHighlight),
 		validityDays, validUntil,
 	)
 	if err != nil {

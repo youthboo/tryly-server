@@ -2,6 +2,7 @@ package domainutil
 
 import (
 	"math"
+	"reflect"
 	"strings"
 	"time"
 )
@@ -49,6 +50,20 @@ func NullableString(v *string) interface{} {
 	return *v
 }
 
+func Nullable(v interface{}) interface{} {
+	if v == nil {
+		return nil
+	}
+	rv := reflect.ValueOf(v)
+	for rv.Kind() == reflect.Pointer {
+		if rv.IsNil() {
+			return nil
+		}
+		rv = rv.Elem()
+	}
+	return rv.Interface()
+}
+
 func NullableInt(v *int) interface{} {
 	if v == nil {
 		return nil
@@ -88,8 +103,22 @@ func NormalizeStatus(v string) string {
 	return strings.ToUpper(strings.TrimSpace(v))
 }
 
+func NormalizeLower(v string) string {
+	return strings.ToLower(strings.TrimSpace(v))
+}
+
+func StatusIn(value string, allowed ...string) bool {
+	normalized := NormalizeStatus(value)
+	for _, item := range allowed {
+		if normalized == NormalizeStatus(item) {
+			return true
+		}
+	}
+	return false
+}
+
 func NormalizeUpperOrDefault(v string, fallback string) string {
-	normalized := strings.ToUpper(strings.TrimSpace(v))
+	normalized := NormalizeStatus(v)
 	if normalized == "" {
 		return fallback
 	}

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yourusername/wemake/internal/dbutil"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 	platformrepo "github.com/yourusername/wemake/internal/repository/platform_config"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
@@ -125,7 +125,7 @@ func (s *AdminFactoryService) HydrateAdminDetail(factoryID int64) (*domain.Admin
 func (s *AdminFactoryService) GetFactoryConfig(factoryID int64) (*domain.FactoryConfigResponse, error) {
 	item, err := s.configs.GetFactoryConfig(factoryID)
 	if err != nil {
-		if repository.IsNotFoundError(err) {
+		if dbutil.IsNotFoundError(err) {
 			return nil, ErrFactoryNotFound
 		}
 		return nil, err
@@ -136,7 +136,7 @@ func (s *AdminFactoryService) GetFactoryConfig(factoryID int64) (*domain.Factory
 func (s *AdminFactoryService) AssignFactoryConfig(factoryID, actorID int64, req domain.AssignFactoryConfigRequest, ip *string) (*domain.FactoryConfigResponse, error) {
 	before, err := s.configs.GetFactoryAssignedConfigID(factoryID)
 	if err != nil {
-		if repository.IsNotFoundError(err) {
+		if dbutil.IsNotFoundError(err) {
 			return nil, ErrFactoryNotFound
 		}
 		return nil, err
@@ -149,13 +149,13 @@ func (s *AdminFactoryService) AssignFactoryConfig(factoryID, actorID int64, req 
 		}
 		configID = defaultCfg.ConfigID
 	} else if _, err := s.configs.GetByID(configID); err != nil {
-		if repository.IsNotFoundError(err) {
+		if dbutil.IsNotFoundError(err) {
 			return nil, ErrFactoryConfigMissing
 		}
 		return nil, err
 	}
 	if err := s.configs.AssignFactoryConfig(factoryID, configID); err != nil {
-		if repository.IsNotFoundError(err) {
+		if dbutil.IsNotFoundError(err) {
 			return nil, ErrFactoryNotFound
 		}
 		return nil, err

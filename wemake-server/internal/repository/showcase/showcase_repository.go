@@ -6,6 +6,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/helper"
 )
 
@@ -298,8 +299,10 @@ func (r *ShowcaseRepository) GetDetail(showcaseID int64) (*domain.ShowcaseDetail
 
 	if len(s.LinkedShowcases) > 0 {
 		for _, ref := range s.LinkedShowcases {
-			if strings.HasPrefix(strings.ToLower(strings.TrimSpace(ref)), "http://") || strings.HasPrefix(strings.ToLower(strings.TrimSpace(ref)), "https://") {
-				s.Images = append(s.Images, strings.TrimSpace(ref))
+			trimmed := strings.TrimSpace(ref)
+			lower := domainutil.NormalizeLower(ref)
+			if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+				s.Images = append(s.Images, trimmed)
 			}
 		}
 	}

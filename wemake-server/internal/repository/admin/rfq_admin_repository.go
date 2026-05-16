@@ -8,8 +8,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
-	rfqrepo "github.com/yourusername/wemake/internal/repository/rfq"
 	"github.com/yourusername/wemake/internal/domainutil"
+	rfqrepo "github.com/yourusername/wemake/internal/repository/rfq"
 )
 
 type AdminRFQRepository struct {
@@ -45,7 +45,7 @@ func (r *AdminRFQRepository) ListAdmin(filter domain.AdminRFQFilter) ([]domain.A
 		where = append(where, "r.created_at < "+arg(filter.DateTo.Add(24*time.Hour)))
 	}
 	if filter.Search != "" {
-		where = append(where, "LOWER(r.title) LIKE "+arg("%"+strings.ToLower(strings.TrimSpace(filter.Search))+"%"))
+		where = append(where, "LOWER(r.title) LIKE "+arg("%"+domainutil.NormalizeLower(filter.Search)+"%"))
 	}
 	condition := strings.Join(where, " AND ")
 	var total int

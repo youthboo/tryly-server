@@ -25,8 +25,8 @@ func (h *AdminFactoryHandler) List(c *fiber.Ctx) error {
 	filter := domain.AdminFactoryFilter{
 		ApprovalStatus: strings.TrimSpace(c.Query("approval_status")),
 		Search:         strings.TrimSpace(c.Query("search")),
-		Page:           c.QueryInt("page", 1),
-		PageSize:       c.QueryInt("page_size", 20),
+		Page:           c.QueryInt("page", helper.DefaultPage),
+		PageSize:       c.QueryInt("page_size", helper.DefaultPageSize),
 	}
 	if v := strings.TrimSpace(c.Query("is_verified")); v != "" {
 		isVerified := strings.EqualFold(v, "true") || v == "1"
