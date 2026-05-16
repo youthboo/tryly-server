@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/helper"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 )
 
@@ -29,13 +30,14 @@ func (s *WithdrawalService) Create(factoryID int64, amount float64, bankAccountN
 	if err != nil {
 		return nil, err
 	}
-	if wallet.GoodFund < amount {
+	decimalAmount := helper.MoneyDecimal(amount)
+	if helper.IsMoneyLess(wallet.GoodFund, decimalAmount) {
 		return nil, ErrInsufficientFunds
 	}
 	w := &domain.WithdrawalRequest{
 		WalletID:      *walletID,
 		FactoryID:     factoryID,
-		Amount:        amount,
+		Amount:        decimalAmount,
 		BankAccountNo: bankAccountNo,
 		BankName:      bankName,
 		AccountName:   accountName,

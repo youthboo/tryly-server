@@ -342,7 +342,7 @@ func validateRFQKindRules(rfq *domain.RFQ) error {
 		}
 		// ใช้ค่า target_price ที่ลูกค้าส่งมา ถ้าไม่มีค่อย default เป็น 0
 		if rfq.TargetPrice == nil {
-			zero := float64(0)
+			zero := helper.ZeroMoney()
 			rfq.TargetPrice = &zero
 		}
 		rfq.SampleRequired = true
@@ -358,7 +358,7 @@ func validateRFQKindRules(rfq *domain.RFQ) error {
 		}
 		// ใช้ค่า target_price ที่ลูกค้าส่งมา ถ้าไม่มีค่อย default เป็น 0
 		if rfq.TargetPrice == nil {
-			zero := float64(0)
+			zero := helper.ZeroMoney()
 			rfq.TargetPrice = &zero
 		}
 		rfq.SampleRequired = true

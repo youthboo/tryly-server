@@ -45,7 +45,7 @@ func (h *AdminConfigHandler) CreateRule(c *fiber.Ctx) error {
 	}
 	from := time.Now().UTC()
 	actorID, _ := helper.UserIDFromHeader(c)
-	item := &domain.CommissionRule{RatePercent: req.CommissionRate, EffectiveFrom: from, Note: req.Description, CreatedBy: actorID}
+	item := &domain.CommissionRule{RatePercent: helper.MoneyDecimal(req.CommissionRate), EffectiveFrom: from, Note: req.Description, CreatedBy: actorID}
 	if err := h.commission.CreateRule(item); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create commission rule"})
 	}

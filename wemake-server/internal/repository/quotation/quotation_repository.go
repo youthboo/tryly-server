@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/shopspring/decimal"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
+	"github.com/yourusername/wemake/internal/helper"
 )
 
 type QuotationRepository struct {
@@ -17,6 +19,14 @@ type QuotationRepository struct {
 
 func NewQuotationRepository(db *sqlx.DB) *QuotationRepository {
 	return &QuotationRepository{db: db}
+}
+
+func nullableDecimalToFloat64(d *decimal.Decimal) interface{} {
+	if d == nil {
+		return nil
+	}
+	f := helper.DecimalToFloat(*d)
+	return &f
 }
 
 func quotationSelectBase() string {
@@ -244,8 +254,8 @@ func (r *QuotationRepository) InsertHistory(entry *domain.QuotationHistoryEntry)
 		entry.QuoteID,
 		entry.EventType,
 		entry.VersionAfter,
-		domainutil.NullableFloat64(entry.PricePerPiece),
-		domainutil.NullableFloat64(entry.MoldCost),
+		nullableDecimalToFloat64(entry.PricePerPiece),
+		nullableDecimalToFloat64(entry.MoldCost),
 		domainutil.NullableInt64(entry.LeadTimeDays),
 		domainutil.NullableInt64(entry.ShippingMethodID),
 		domainutil.NullableString(entry.Status),
@@ -358,12 +368,13 @@ func enrichQuotationComputed(item *domain.Quotation) {
 		return
 	}
 	item.QuoteTotal = item.GrandTotal
-	if item.QuoteTotal <= 0 {
+	if helper.IsMoneyLessOrEqual(item.QuoteTotal, helper.ZeroMoney()) {
 		qty := item.QuoteQuantity
 		if qty <= 0 {
 			qty = 1
 		}
-		item.QuoteTotal = domainutil.RoundMoney((item.PricePerPiece * qty) + item.MoldCost)
+		lineTotal := helper.MultiplyMoney(item.PricePerPiece, decimal.NewFromFloat(qty))
+		item.QuoteTotal = helper.AddMoney(lineTotal, item.MoldCost)
 	}
 	item.Factory = &domain.FactoryBrief{
 		ID:        item.FactoryID,

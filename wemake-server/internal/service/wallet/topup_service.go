@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/helper"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 )
 
@@ -31,7 +32,7 @@ func (s *TopupService) CreateIntent(userID int64, amount float64) (*domain.Topup
 	qrPayload := fmt.Sprintf("PROMPTPAY|%d|%.2f|%s", *walletID, amount, expiresAt.Format("20060102150405"))
 	intent := &domain.TopupIntent{
 		WalletID:  *walletID,
-		Amount:    amount,
+		Amount:    helper.MoneyDecimal(amount),
 		QRPayload: &qrPayload,
 		Status:    "PE",
 		ExpiresAt: &expiresAt,
@@ -54,7 +55,7 @@ func (s *TopupService) ConfirmIntent(intentID string) (*domain.TopupIntent, erro
 		}
 		return nil, err
 	}
-	if err := s.repo.AddFunds(intent.WalletID, intent.Amount); err != nil {
+	if err := s.repo.AddFunds(intent.WalletID, helper.DecimalToFloat(intent.Amount)); err != nil {
 		return nil, err
 	}
 	return intent, nil

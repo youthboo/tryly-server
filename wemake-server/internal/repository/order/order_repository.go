@@ -10,6 +10,7 @@ import (
 	"github.com/lib/pq"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
+	"github.com/yourusername/wemake/internal/helper"
 )
 
 type OrderRepository struct {
@@ -27,11 +28,32 @@ type QuotationOrderSource struct {
 	LeadTimeDays  int64      `db:"lead_time_days"`
 	DeliveryDate  *time.Time `db:"delivery_date"`
 	Status        string     `db:"status"`
-	GrandTotal    float64    `db:"grand_total"` // VAT-inclusive total from commission calculation
+	GrandTotal    float64    `db:"grand_total"`
+}
+
+func (q *QuotationOrderSource) ToOrderDomain() *domain.Order {
+	return &domain.Order{
+		QuotationID: q.QuotationID,
+		UserID:      q.UserID,
+		FactoryID:   q.FactoryID,
+		TotalAmount: helper.MoneyDecimal(q.GrandTotal),
+	}
 }
 
 type OrderDetailRow struct {
-	domain.Order
+	OrderID            int64      `db:"order_id"`
+	QuotationID        int64      `db:"quote_id"`
+	UserID             int64      `db:"user_id"`
+	FactoryID          int64      `db:"factory_id"`
+	TotalAmount        float64    `db:"total_amount"`
+	DepositAmount      float64    `db:"deposit_amount"`
+	Status             string     `db:"status"`
+	EstimatedDelivery  *time.Time `db:"estimated_delivery"`
+	TrackingNo         *string    `db:"tracking_no"`
+	Courier            *string    `db:"courier"`
+	ShippedAt          *time.Time `db:"shipped_at"`
+	CreatedAt          time.Time  `db:"created_at"`
+	UpdatedAt          time.Time  `db:"updated_at"`
 	FactoryName        string     `db:"factory_name"`
 	DepositScheduleDue *time.Time `db:"deposit_schedule_due"`
 	PaymentType        *string    `db:"payment_type"`
@@ -134,8 +156,42 @@ func (r *OrderRepository) GetOrderSourceByQuotationIDTx(tx *sqlx.Tx, quotationID
 	return &src, nil
 }
 
+type orderRow struct {
+	OrderID           int64      `db:"order_id"`
+	QuotationID       int64      `db:"quote_id"`
+	UserID            int64      `db:"user_id"`
+	FactoryID         int64      `db:"factory_id"`
+	TotalAmount       float64    `db:"total_amount"`
+	DepositAmount     float64    `db:"deposit_amount"`
+	Status            string     `db:"status"`
+	EstimatedDelivery *time.Time `db:"estimated_delivery"`
+	TrackingNo        *string    `db:"tracking_no"`
+	Courier           *string    `db:"courier"`
+	ShippedAt         *time.Time `db:"shipped_at"`
+	CreatedAt         time.Time  `db:"created_at"`
+	UpdatedAt         time.Time  `db:"updated_at"`
+}
+
+func (row *orderRow) toDomain() *domain.Order {
+	return &domain.Order{
+		OrderID:           row.OrderID,
+		QuotationID:       row.QuotationID,
+		UserID:            row.UserID,
+		FactoryID:         row.FactoryID,
+		TotalAmount:       helper.MoneyDecimal(row.TotalAmount),
+		DepositAmount:     helper.MoneyDecimal(row.DepositAmount),
+		Status:            row.Status,
+		EstimatedDelivery: row.EstimatedDelivery,
+		TrackingNo:        row.TrackingNo,
+		Courier:           row.Courier,
+		ShippedAt:         row.ShippedAt,
+		CreatedAt:         row.CreatedAt,
+		UpdatedAt:         row.UpdatedAt,
+	}
+}
+
 func (r *OrderRepository) ListByUserID(userID int64, status string) ([]domain.Order, error) {
-	var orders []domain.Order
+	var rows []orderRow
 	query := `
 		SELECT order_id, quote_id, customer_id AS user_id, factory_id, total_amount, deposit_amount, status,
 		       estimated_delivery, tracking_no, courier, NULL::timestamp AS shipped_at, created_at, updated_at
@@ -156,8 +212,15 @@ func (r *OrderRepository) ListByUserID(userID int64, status string) ([]domain.Or
 		query += " AND status IN (" + strings.Join(placeholders, ", ") + ")"
 	}
 	query += " ORDER BY created_at DESC"
-	err := r.db.Select(&orders, query, args...)
-	return orders, err
+	err := r.db.Select(&rows, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	orders := make([]domain.Order, 0, len(rows))
+	for _, row := range rows {
+		orders = append(orders, *row.toDomain())
+	}
+	return orders, nil
 }
 
 type orderListRow struct {
@@ -194,8 +257,8 @@ func (r orderListRow) toDomain() domain.OrderListItem {
 		UserID:            r.UserID,
 		FactoryID:         r.FactoryID,
 		Status:            r.Status,
-		TotalAmount:       r.TotalAmount,
-		DepositAmount:     r.DepositAmount,
+		TotalAmount:       helper.MoneyDecimal(r.TotalAmount),
+		DepositAmount:     helper.MoneyDecimal(r.DepositAmount),
 		EstimatedDelivery: r.EstimatedDelivery,
 		CreatedAt:         r.CreatedAt,
 		UpdatedAt:         r.UpdatedAt,
@@ -347,17 +410,17 @@ func orderTypeFromRequestKind(kind string) string {
 }
 
 func (r *OrderRepository) GetByID(orderID, userID int64) (*domain.Order, error) {
-	var order domain.Order
+	var row orderRow
 	query := `
 		SELECT order_id, quote_id, customer_id AS user_id, factory_id, total_amount, deposit_amount, status,
 		       estimated_delivery, tracking_no, courier, NULL::timestamp AS shipped_at, created_at, updated_at
 		FROM orders
 		WHERE order_id = $1 AND customer_id = $2
 	`
-	if err := r.db.Get(&order, query, orderID, userID); err != nil {
+	if err := r.db.Get(&row, query, orderID, userID); err != nil {
 		return nil, err
 	}
-	return &order, nil
+	return row.toDomain(), nil
 }
 
 func (r *OrderRepository) UpdateStatus(orderID int64, status string) error {
@@ -372,7 +435,7 @@ func (r *OrderRepository) UpdateStatusTx(tx *sqlx.Tx, orderID int64, status stri
 }
 
 func (r *OrderRepository) ListByFactoryID(factoryID int64, status string) ([]domain.Order, error) {
-	var orders []domain.Order
+	var rows []orderRow
 	query := `
 		SELECT order_id, quote_id, customer_id AS user_id, factory_id, total_amount, deposit_amount, status,
 		       estimated_delivery, tracking_no, courier, NULL::timestamp AS shipped_at, created_at, updated_at
@@ -393,31 +456,38 @@ func (r *OrderRepository) ListByFactoryID(factoryID int64, status string) ([]dom
 		query += " AND status IN (" + strings.Join(placeholders, ", ") + ")"
 	}
 	query += " ORDER BY created_at DESC"
-	err := r.db.Select(&orders, query, args...)
-	return orders, err
+	err := r.db.Select(&rows, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	orders := make([]domain.Order, 0, len(rows))
+	for _, row := range rows {
+		orders = append(orders, *row.toDomain())
+	}
+	return orders, nil
 }
 
 func (r *OrderRepository) GetByParticipant(orderID, userID int64, role string) (*domain.Order, error) {
-	var order domain.Order
+	var row orderRow
 	query := `
 		SELECT order_id, quote_id, customer_id AS user_id, factory_id, total_amount, deposit_amount, status,
 		       estimated_delivery, tracking_no, courier, NULL::timestamp AS shipped_at, created_at, updated_at
 		FROM orders
 		WHERE order_id = $1
 	`
-	if err := r.db.Get(&order, query, orderID); err != nil {
+	if err := r.db.Get(&row, query, orderID); err != nil {
 		return nil, err
 	}
 	if role == "FT" {
-		if order.FactoryID != userID {
+		if row.FactoryID != userID {
 			return nil, sql.ErrNoRows
 		}
 	} else {
-		if order.UserID != userID {
+		if row.UserID != userID {
 			return nil, sql.ErrNoRows
 		}
 	}
-	return &order, nil
+	return row.toDomain(), nil
 }
 
 func (r *OrderRepository) GetDetailByParticipant(orderID, userID int64, role string) (*OrderDetailRow, error) {

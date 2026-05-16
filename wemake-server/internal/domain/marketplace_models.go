@@ -1,10 +1,10 @@
 package domain
 
 import (
-	"math"
 	"time"
 
 	"github.com/lib/pq"
+	"github.com/shopspring/decimal"
 )
 
 const (
@@ -51,10 +51,10 @@ type Address struct {
 }
 
 type Wallet struct {
-	WalletID    int64   `db:"wallet_id" json:"wallet_id"`
-	UserID      int64   `db:"user_id" json:"user_id"`
-	GoodFund    float64 `db:"good_fund" json:"good_fund"`
-	PendingFund float64 `db:"pending_fund" json:"pending_fund"`
+	WalletID    int64           `db:"wallet_id" json:"wallet_id"`
+	UserID      int64           `db:"user_id" json:"user_id"`
+	GoodFund    decimal.Decimal `db:"good_fund" json:"good_fund"`
+	PendingFund decimal.Decimal `db:"pending_fund" json:"pending_fund"`
 }
 
 type RFQ struct {
@@ -82,7 +82,7 @@ type RFQ struct {
 	ShippingMethodName *string    `db:"shipping_method_name" json:"shipping_method_name"`
 	AddressSummary     *string    `db:"address_summary" json:"address_summary"`
 
-	TargetPrice          *float64   `db:"target_price" json:"target_price,omitempty"`
+	TargetPrice          *decimal.Decimal `db:"target_price" json:"target_price,omitempty"`
 	TargetLeadTimeDays   *int       `db:"target_lead_time_days" json:"target_lead_time_days,omitempty"`
 	RequiredDeliveryDate *time.Time `db:"required_delivery_date" json:"required_delivery_date,omitempty"`
 	DeliveryAddressID    *int64     `db:"delivery_address_id" json:"delivery_address_id,omitempty"`
@@ -102,11 +102,11 @@ type RFQ struct {
 	SourceConvID      *int64         `db:"source_conv_id" json:"source_conv_id,omitempty"`
 	ConversationID    *int64         `db:"conversation_id" json:"conversation_id,omitempty"`
 	BOQCurrency       *string        `db:"boq_currency" json:"boq_currency,omitempty"`
-	BOQSubtotal       *float64       `db:"boq_subtotal" json:"boq_subtotal,omitempty"`
-	BOQDiscountAmount *float64       `db:"boq_discount_amount" json:"boq_discount_amount,omitempty"`
-	BOQVatPercent     *float64       `db:"boq_vat_percent" json:"boq_vat_percent,omitempty"`
-	BOQVatAmount      *float64       `db:"boq_vat_amount" json:"boq_vat_amount,omitempty"`
-	BOQGrandTotal     *float64       `db:"boq_grand_total" json:"boq_grand_total,omitempty"`
+	BOQSubtotal       *decimal.Decimal `db:"boq_subtotal" json:"boq_subtotal,omitempty"`
+	BOQDiscountAmount *decimal.Decimal `db:"boq_discount_amount" json:"boq_discount_amount,omitempty"`
+	BOQVatPercent     *decimal.Decimal `db:"boq_vat_percent" json:"boq_vat_percent,omitempty"`
+	BOQVatAmount      *decimal.Decimal `db:"boq_vat_amount" json:"boq_vat_amount,omitempty"`
+	BOQGrandTotal     *decimal.Decimal `db:"boq_grand_total" json:"boq_grand_total,omitempty"`
 	BOQMOQ            *int           `db:"boq_moq" json:"boq_moq,omitempty"`
 	BOQLeadTimeDays   *int           `db:"boq_lead_time_days" json:"boq_lead_time_days,omitempty"`
 	BOQPaymentTerms   *string        `db:"boq_payment_terms" json:"boq_payment_terms,omitempty"`
@@ -119,9 +119,9 @@ type RFQ struct {
 	Items             []RFQItem      `db:"-" json:"items,omitempty"`
 
 	// Budget UX: target_price is total budget (งบประมาณรวม), not per-piece price.
-	BudgetTotal    *float64 `db:"-" json:"budget_total"`
-	BudgetPerPiece *float64 `db:"-" json:"budget_per_piece"`
-	EstimatedTotal *float64 `db:"-" json:"estimated_total"`
+	BudgetTotal    *decimal.Decimal `db:"-" json:"budget_total"`
+	BudgetPerPiece *decimal.Decimal `db:"-" json:"budget_per_piece"`
+	EstimatedTotal *decimal.Decimal `db:"-" json:"estimated_total"`
 
 	// Factory-board quotation overlay — populated by ListMatchingForFactory only.
 	// nil  = factory has NOT submitted a quotation for this RFQ.
@@ -130,7 +130,7 @@ type RFQ struct {
 	// "AC" = buyer accepted (rows with AC are excluded from the board entirely).
 	MyQuoteStatus *string  `db:"my_quote_status" json:"my_quote_status,omitempty"`
 	MyQuoteID     *int64   `db:"my_quote_id"     json:"my_quote_id,omitempty"`
-	MyQuotedPrice *float64 `db:"my_quoted_price" json:"my_quoted_price,omitempty"`
+	MyQuotedPrice *decimal.Decimal `db:"my_quoted_price" json:"my_quoted_price,omitempty"`
 }
 
 type FactoryRFQDismissal struct {
@@ -160,6 +160,6 @@ func EnrichRFQBudgetFields(rfq *RFQ) {
 	if rfq.Quantity <= 0 {
 		return
 	}
-	per := math.Round((total/float64(rfq.Quantity))*100) / 100
+	per := total.Div(decimal.NewFromInt(rfq.Quantity)).Round(2)
 	rfq.BudgetPerPiece = &per
 }

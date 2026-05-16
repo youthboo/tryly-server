@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/shopspring/decimal"
 	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 	"time"
@@ -29,9 +30,9 @@ type BulkCheckoutInput struct {
 }
 
 type BulkCheckoutSummary struct {
-	OrderCount   int     `json:"order_count"`
-	TotalAmount  float64 `json:"total_amount"`
-	TotalDeposit float64 `json:"total_deposit"`
+	OrderCount   int             `json:"order_count"`
+	TotalAmount  decimal.Decimal `json:"total_amount"`
+	TotalDeposit decimal.Decimal `json:"total_deposit"`
 }
 
 type BulkCheckoutResult struct {
@@ -105,8 +106,8 @@ func (s *OrderService) CreateFromQuotation(quotationID, userID int64) (*domain.O
 			QuotationID:       src.QuotationID,
 			UserID:            src.UserID,
 			FactoryID:         src.FactoryID,
-			TotalAmount:       total,
-			DepositAmount:     deposit,
+			TotalAmount:       helper.MoneyDecimal(total),
+			DepositAmount:     helper.MoneyDecimal(deposit),
 			Status:            status,
 			EstimatedDelivery: &deliveryDate,
 			CreatedAt:         now,
@@ -122,7 +123,7 @@ func (s *OrderService) CreateFromQuotation(quotationID, userID int64) (*domain.O
 				OrderID:       order.OrderID,
 				InstallmentNo: 1,
 				DueDate:       depositDueDate,
-				Amount:        deposit,
+				Amount:        helper.MoneyDecimal(deposit),
 			}); err != nil {
 				return err
 			}
@@ -299,8 +300,8 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 				QuotationID:       q.QuoteID,
 				UserID:            input.UserID,
 				FactoryID:         q.FactoryID,
-				TotalAmount:       total,
-				DepositAmount:     deposit,
+				TotalAmount:       helper.MoneyDecimal(total),
+				DepositAmount:     helper.MoneyDecimal(deposit),
 				Status:            status,
 				EstimatedDelivery: &deliveryDate,
 				CreatedAt:         now,
@@ -317,7 +318,7 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 					OrderID:       order.OrderID,
 					InstallmentNo: 1,
 					DueDate:       deriveDefaultDepositScheduleDate(order.CreatedAt),
-					Amount:        deposit,
+					Amount:        helper.MoneyDecimal(deposit),
 				}); err != nil {
 					return err
 				}
@@ -347,8 +348,8 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 	}
 	uid := input.UserID
 	for _, order := range orders {
-		result.Summary.TotalAmount += order.TotalAmount
-		result.Summary.TotalDeposit += order.DepositAmount
+		result.Summary.TotalAmount = helper.AddMoney(result.Summary.TotalAmount, order.TotalAmount)
+		result.Summary.TotalDeposit = helper.AddMoney(result.Summary.TotalDeposit, order.DepositAmount)
 		_ = s.repo.InsertActivity(order.OrderID, &uid, "ORDER_CREATED", map[string]interface{}{
 			"status":         order.Status,
 			"quote_id":       order.QuotationID,

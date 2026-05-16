@@ -106,23 +106,23 @@ func (s *QuotationService) Create(item *domain.Quotation) error {
 			Items: []domain.QuotationItem{{
 				Description: "สินค้า",
 				Qty:         rfqQty,
-				UnitPrice:   item.PricePerPiece,
+				UnitPrice:   helper.DecimalToFloat(item.PricePerPiece),
 				DiscountPct: 0,
 			}},
-			DiscountAmount: item.DiscountAmount,
-			ShippingCost:   item.ShippingCost,
-			PackagingCost:  item.PackagingCost,
-			ToolingCost:    item.ToolingMoldCost,
+			DiscountAmount: helper.DecimalToFloat(item.DiscountAmount),
+			ShippingCost:   helper.DecimalToFloat(item.ShippingCost),
+			PackagingCost:  helper.DecimalToFloat(item.PackagingCost),
+			ToolingCost:    helper.DecimalToFloat(item.ToolingMoldCost),
 			FactoryID:      &item.FactoryID,
 		})
 		if err == nil {
-			item.Subtotal = breakdown.Subtotal
-			item.VatRate = breakdown.VatRate
-			item.VatAmount = breakdown.VatAmount
-			item.GrandTotal = breakdown.GrandTotal
-			item.PlatformCommissionRate = breakdown.PlatformCommissionRate
-			item.PlatformCommissionAmount = breakdown.PlatformCommissionAmount
-			item.FactoryNetReceivable = breakdown.FactoryNetReceivable
+			item.Subtotal = helper.MoneyDecimal(breakdown.Subtotal)
+			item.VatRate = helper.MoneyDecimal(breakdown.VatRate)
+			item.VatAmount = helper.MoneyDecimal(breakdown.VatAmount)
+			item.GrandTotal = helper.MoneyDecimal(breakdown.GrandTotal)
+			item.PlatformCommissionRate = helper.MoneyDecimal(breakdown.PlatformCommissionRate)
+			item.PlatformCommissionAmount = helper.MoneyDecimal(breakdown.PlatformCommissionAmount)
+			item.FactoryNetReceivable = helper.MoneyDecimal(breakdown.FactoryNetReceivable)
 			item.PlatformConfigID = &breakdown.PlatformConfigID
 		}
 	}
@@ -297,13 +297,13 @@ func (s *QuotationService) PatchBody(
 			Items: []domain.QuotationItem{{
 				Description: "สินค้า",
 				Qty:         rfqQty,
-				UnitPrice:   q2.PricePerPiece,
+				UnitPrice:   helper.DecimalToFloat(q2.PricePerPiece),
 				DiscountPct: 0,
 			}},
-			DiscountAmount: q2.DiscountAmount,
-			ShippingCost:   q2.ShippingCost,
-			PackagingCost:  q2.PackagingCost,
-			ToolingCost:    q2.ToolingMoldCost,
+			DiscountAmount: helper.DecimalToFloat(q2.DiscountAmount),
+			ShippingCost:   helper.DecimalToFloat(q2.ShippingCost),
+			PackagingCost:  helper.DecimalToFloat(q2.PackagingCost),
+			ToolingCost:    helper.DecimalToFloat(q2.ToolingMoldCost),
 			FactoryID:      &q2.FactoryID,
 		})
 		if calcErr == nil {
@@ -413,10 +413,10 @@ func (s *QuotationService) CreateDetailed(item *domain.Quotation) error {
 	}
 	breakdown, err := s.commission.Calculate(walletservice.CommissionInput{
 		Items:          item.Items,
-		DiscountAmount: item.DiscountAmount,
-		ShippingCost:   item.ShippingCost,
-		PackagingCost:  item.PackagingCost,
-		ToolingCost:    item.ToolingMoldCost,
+		DiscountAmount: helper.DecimalToFloat(item.DiscountAmount),
+		ShippingCost:   helper.DecimalToFloat(item.ShippingCost),
+		PackagingCost:  helper.DecimalToFloat(item.PackagingCost),
+		ToolingCost:    helper.DecimalToFloat(item.ToolingMoldCost),
 		FactoryID:      &item.FactoryID,
 	})
 	if err != nil {
@@ -433,13 +433,13 @@ func (s *QuotationService) CreateDetailed(item *domain.Quotation) error {
 	}
 	validUntil := now.AddDate(0, 0, item.ValidityDays)
 	item.ValidUntil = &validUntil
-	item.Subtotal = breakdown.Subtotal
-	item.VatRate = breakdown.VatRate
-	item.VatAmount = breakdown.VatAmount
-	item.GrandTotal = breakdown.GrandTotal
-	item.PlatformCommissionRate = breakdown.PlatformCommissionRate
-	item.PlatformCommissionAmount = breakdown.PlatformCommissionAmount
-	item.FactoryNetReceivable = breakdown.FactoryNetReceivable
+	item.Subtotal = helper.MoneyDecimal(breakdown.Subtotal)
+	item.VatRate = helper.MoneyDecimal(breakdown.VatRate)
+	item.VatAmount = helper.MoneyDecimal(breakdown.VatAmount)
+	item.GrandTotal = helper.MoneyDecimal(breakdown.GrandTotal)
+	item.PlatformCommissionRate = helper.MoneyDecimal(breakdown.PlatformCommissionRate)
+	item.PlatformCommissionAmount = helper.MoneyDecimal(breakdown.PlatformCommissionAmount)
+	item.FactoryNetReceivable = helper.MoneyDecimal(breakdown.FactoryNetReceivable)
 	item.PlatformConfigID = &breakdown.PlatformConfigID
 	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		if item.ParentQuotationID != nil {

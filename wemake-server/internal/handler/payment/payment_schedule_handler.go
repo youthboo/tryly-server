@@ -53,7 +53,7 @@ func (h *PaymentScheduleHandler) Create(c *fiber.Ctx) error {
 		OrderID:       int64(orderID),
 		InstallmentNo: req.InstallmentNo,
 		DueDate:       dueDate,
-		Amount:        req.Amount,
+		Amount:        helper.MoneyDecimal(req.Amount),
 	}
 	if err := h.service.CreateSchedule(item); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create payment schedule"})

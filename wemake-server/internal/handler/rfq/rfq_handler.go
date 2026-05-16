@@ -53,7 +53,7 @@ func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
 		AddressID:              req.AddressID,
 		ShippingMethodID:       req.ShippingMethodID,
 		MaterialGrade:          req.MaterialGrade,
-		TargetPrice:            req.TargetPrice,
+		TargetPrice:            helper.MoneyDecimalPtr(req.TargetPrice),
 		TargetLeadTimeDays:     req.TargetLeadTimeDays,
 		DeliveryAddressID:      req.DeliveryAddressID,
 		CertificationsRequired: req.CertificationsRequired,
@@ -123,7 +123,7 @@ func (h *RFQHandler) PatchRFQ(c *fiber.Ctx) error {
 		rfq.MaterialGrade = req.MaterialGrade
 	}
 	if req.TargetPrice != nil {
-		rfq.TargetPrice = req.TargetPrice
+		rfq.TargetPrice = helper.MoneyDecimalPtr(req.TargetPrice)
 	}
 	if req.TargetLeadTimeDays != nil {
 		rfq.TargetLeadTimeDays = req.TargetLeadTimeDays

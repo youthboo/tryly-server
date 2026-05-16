@@ -3,6 +3,8 @@ package domain
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 type Pagination struct {
@@ -71,10 +73,10 @@ type AdminDashboardSummary struct {
 }
 
 type AdminDashboardRevenue struct {
-	GrossOrderValue    float64 `db:"gross_order_value" json:"gross_order_value"`
-	TotalVATCollected  float64 `db:"total_vat_collected" json:"total_vat_collected"`
-	PlatformCommission float64 `db:"platform_commission" json:"platform_commission"`
-	FactoryNetPayable  float64 `db:"factory_net_payable" json:"factory_net_payable"`
+	GrossOrderValue    decimal.Decimal `db:"gross_order_value" json:"gross_order_value"`
+	TotalVATCollected  decimal.Decimal `db:"total_vat_collected" json:"total_vat_collected"`
+	PlatformCommission decimal.Decimal `db:"platform_commission" json:"platform_commission"`
+	FactoryNetPayable  decimal.Decimal `db:"factory_net_payable" json:"factory_net_payable"`
 }
 
 type AdminDashboardOrders struct {
@@ -104,31 +106,31 @@ type AdminDashboardCustomers struct {
 }
 
 type AdminDashboardMoney struct {
-	PendingAmount   float64 `db:"pending_amount" json:"pending_amount,omitempty"`
-	CompletedAmount float64 `db:"completed_amount" json:"completed_amount,omitempty"`
+	PendingAmount   decimal.Decimal `db:"pending_amount" json:"pending_amount,omitempty"`
+	CompletedAmount decimal.Decimal `db:"completed_amount" json:"completed_amount,omitempty"`
 }
 
 type AdminDashboardPending struct {
-	PendingCount  int64   `db:"pending_count" json:"pending_count"`
-	PendingAmount float64 `db:"pending_amount" json:"pending_amount"`
+	PendingCount  int64           `db:"pending_count" json:"pending_count"`
+	PendingAmount decimal.Decimal `db:"pending_amount" json:"pending_amount"`
 }
 
 type RevenueChartPoint struct {
-	Date               string  `db:"bucket" json:"date"`
-	GrossOrderValue    float64 `db:"gross_order_value" json:"gross_order_value"`
-	PlatformCommission float64 `db:"platform_commission" json:"platform_commission"`
-	VATCollected       float64 `db:"vat_collected" json:"vat_collected"`
-	OrderCount         int64   `db:"order_count" json:"order_count"`
+	Date               string          `db:"bucket" json:"date"`
+	GrossOrderValue    decimal.Decimal `db:"gross_order_value" json:"gross_order_value"`
+	PlatformCommission decimal.Decimal `db:"platform_commission" json:"platform_commission"`
+	VATCollected       decimal.Decimal `db:"vat_collected" json:"vat_collected"`
+	OrderCount         int64           `db:"order_count" json:"order_count"`
 }
 
 type TopFactoryRow struct {
-	FactoryID          int64    `db:"factory_id" json:"factory_id"`
-	FactoryName        string   `db:"factory_name" json:"factory_name"`
-	TotalOrders        int64    `db:"total_orders" json:"total_orders"`
-	CompletedOrders    int64    `db:"completed_orders" json:"completed_orders"`
-	GrossRevenue       float64  `db:"gross_revenue" json:"gross_revenue"`
-	PlatformCommission float64  `db:"platform_commission" json:"platform_commission"`
-	AvgRating          *float64 `db:"avg_rating" json:"avg_rating,omitempty"`
+	FactoryID          int64            `db:"factory_id" json:"factory_id"`
+	FactoryName        string           `db:"factory_name" json:"factory_name"`
+	TotalOrders        int64            `db:"total_orders" json:"total_orders"`
+	CompletedOrders    int64            `db:"completed_orders" json:"completed_orders"`
+	GrossRevenue       decimal.Decimal  `db:"gross_revenue" json:"gross_revenue"`
+	PlatformCommission decimal.Decimal  `db:"platform_commission" json:"platform_commission"`
+	AvgRating          *float64         `db:"avg_rating" json:"avg_rating,omitempty"`
 }
 
 type AdminRFQFilter struct {
@@ -153,7 +155,7 @@ type AdminRFQListItem struct {
 	Quantity         int64      `db:"quantity" json:"quantity"`
 	Status           string     `db:"status" json:"status"`
 	QuotationCount   int64      `db:"quotation_count" json:"quotation_count"`
-	TargetPrice      *float64   `db:"target_price" json:"target_price,omitempty"`
+	TargetPrice      *decimal.Decimal `db:"target_price" json:"target_price,omitempty"`
 	CreatedAt        time.Time  `db:"created_at" json:"created_at"`
 }
 
@@ -186,22 +188,22 @@ type AdminOrderListItem struct {
 	UserID                   int64      `db:"user_id" json:"user_id"`
 	CustomerName             string     `db:"customer_name" json:"customer_name"`
 	Status                   string     `db:"status" json:"status"`
-	TotalAmount              float64    `db:"total_amount" json:"total_amount"`
-	PlatformCommissionAmount float64    `db:"platform_commission_amount" json:"platform_commission_amount"`
-	VATAmount                float64    `db:"vat_amount" json:"vat_amount"`
-	FactoryNetReceivable     float64    `db:"factory_net_receivable" json:"factory_net_receivable"`
+	TotalAmount              decimal.Decimal `db:"total_amount" json:"total_amount"`
+	PlatformCommissionAmount decimal.Decimal `db:"platform_commission_amount" json:"platform_commission_amount"`
+	VATAmount                decimal.Decimal `db:"vat_amount" json:"vat_amount"`
+	FactoryNetReceivable     decimal.Decimal `db:"factory_net_receivable" json:"factory_net_receivable"`
 	PaymentType              *string    `db:"payment_type" json:"payment_type,omitempty"`
 	EstimatedDelivery        *time.Time `db:"estimated_delivery" json:"estimated_delivery,omitempty"`
 	CreatedAt                time.Time  `db:"created_at" json:"created_at"`
 }
 
 type AdminOrderFinance struct {
-	PlatformCommissionRate   float64 `db:"platform_commission_rate" json:"platform_commission_rate"`
-	PlatformCommissionAmount float64 `db:"platform_commission_amount" json:"platform_commission_amount"`
-	VATRate                  float64 `db:"vat_rate" json:"vat_rate"`
-	VATAmount                float64 `db:"vat_amount" json:"vat_amount"`
-	FactoryNetReceivable     float64 `db:"factory_net_receivable" json:"factory_net_receivable"`
-	GrandTotal               float64 `db:"grand_total" json:"grand_total"`
+	PlatformCommissionRate   decimal.Decimal `db:"platform_commission_rate" json:"platform_commission_rate"`
+	PlatformCommissionAmount decimal.Decimal `db:"platform_commission_amount" json:"platform_commission_amount"`
+	VATRate                  decimal.Decimal `db:"vat_rate" json:"vat_rate"`
+	VATAmount                decimal.Decimal `db:"vat_amount" json:"vat_amount"`
+	FactoryNetReceivable     decimal.Decimal `db:"factory_net_receivable" json:"factory_net_receivable"`
+	GrandTotal               decimal.Decimal `db:"grand_total" json:"grand_total"`
 }
 
 type AdminOrderDetailResponse struct {
@@ -213,8 +215,8 @@ type AdminWithdrawalListItem struct {
 	RequestID      int64      `db:"request_id" json:"request_id"`
 	FactoryID      int64      `db:"factory_id" json:"factory_id"`
 	FactoryName    string     `db:"factory_name" json:"factory_name"`
-	Amount         float64    `db:"amount" json:"amount"`
-	BankName       string     `db:"bank_name" json:"bank_name"`
+	Amount         decimal.Decimal `db:"amount" json:"amount"`
+	BankName       string          `db:"bank_name" json:"bank_name"`
 	BankAccountNo  string     `db:"bank_account_no" json:"bank_account_no"`
 	AccountName    string     `db:"account_name" json:"account_name"`
 	Status         string     `db:"status" json:"status"`
@@ -238,11 +240,11 @@ type AdminDisputeListItem struct {
 }
 
 type CommissionRule struct {
-	RuleID        int64      `db:"rule_id" json:"rule_id"`
-	FactoryID     *int64     `db:"factory_id" json:"factory_id,omitempty"`
-	FactoryName   *string    `db:"factory_name" json:"factory_name,omitempty"`
-	RatePercent   float64    `db:"rate_percent" json:"rate_percent"`
-	EffectiveFrom time.Time  `db:"effective_from" json:"effective_from"`
+	RuleID        int64           `db:"rule_id" json:"rule_id"`
+	FactoryID     *int64          `db:"factory_id" json:"factory_id,omitempty"`
+	FactoryName   *string         `db:"factory_name" json:"factory_name,omitempty"`
+	RatePercent   decimal.Decimal `db:"rate_percent" json:"rate_percent"`
+	EffectiveFrom time.Time       `db:"effective_from" json:"effective_from"`
 	EffectiveTo   *time.Time `db:"effective_to" json:"effective_to,omitempty"`
 	Note          *string    `db:"note" json:"note,omitempty"`
 	CreatedBy     int64      `db:"created_by" json:"created_by"`

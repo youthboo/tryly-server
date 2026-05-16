@@ -12,7 +12,11 @@ import (
 	"github.com/yourusername/wemake/internal/domain"
 )
 
-var ErrNotFound = sql.ErrNoRows
+var (
+	ErrNotFound           = sql.ErrNoRows
+	ErrDivisionByZero     = errors.New("division by zero")
+	ErrInvalidSortColumn  = errors.New("invalid sort column")
+)
 
 type ServiceErrorCase struct {
 	Err     error

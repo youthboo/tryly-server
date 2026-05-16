@@ -2,14 +2,15 @@ package rfq
 
 import (
 	"database/sql"
-	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
+	"github.com/shopspring/decimal"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
+	"github.com/yourusername/wemake/internal/helper"
 )
 
 type RFQRepository struct {
@@ -18,6 +19,14 @@ type RFQRepository struct {
 
 func NewRFQRepository(db *sqlx.DB) *RFQRepository {
 	return &RFQRepository{db: db}
+}
+
+func nullableDecimalToFloat64(d *decimal.Decimal) interface{} {
+	if d == nil {
+		return nil
+	}
+	f := helper.DecimalToFloat(*d)
+	return &f
 }
 
 func (r *RFQRepository) DB() *sqlx.DB {
@@ -96,7 +105,7 @@ func (r *RFQRepository) createWithExecutor(exec rfqQueryRowExecutor, rfq *domain
 		rfq.CreatedAt,
 		rfq.UpdatedAt,
 		domainutil.NullableString(rfq.MaterialGrade),
-		domainutil.NullableFloat64(rfq.TargetPrice),
+		nullableDecimalToFloat64(rfq.TargetPrice),
 		domainutil.NullableInt(rfq.TargetLeadTimeDays),
 		domainutil.NullableInt64(rfq.DeliveryAddressID),
 		rfq.CertificationsRequired,

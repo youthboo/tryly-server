@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/helper"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 )
 
@@ -25,7 +26,7 @@ func (s *SettlementService) Create(factoryID int64, orderID *int64, amount float
 	s2 := &domain.Settlement{
 		FactoryID: factoryID,
 		OrderID:   orderID,
-		Amount:    amount,
+		Amount:    helper.MoneyDecimal(amount),
 		Status:    "PE",
 		Note:      note,
 	}

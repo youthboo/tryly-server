@@ -3,6 +3,8 @@ package domain
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 type Quotation struct {
@@ -12,9 +14,9 @@ type Quotation struct {
 	FactoryName        *string    `db:"factory_name" json:"factory_name"`
 	FactoryLogoURL     *string    `db:"factory_logo_url" json:"-"`
 	FactoryRatingAvg   *float64   `db:"factory_rating_avg" json:"-"`
-	QuoteQuantity      float64    `db:"quote_quantity" json:"-"`
-	PricePerPiece      float64    `db:"price_per_piece" json:"price_per_piece"`
-	MoldCost           float64    `db:"mold_cost" json:"mold_cost"`
+	QuoteQuantity      float64         `db:"quote_quantity" json:"-"`
+	PricePerPiece      decimal.Decimal `db:"price_per_piece" json:"price_per_piece"`
+	MoldCost           decimal.Decimal `db:"mold_cost" json:"mold_cost"`
 	LeadTimeDays       int64      `db:"lead_time_days" json:"lead_time_days"`
 	ShippingMethodID   int64      `db:"shipping_method_id" json:"shipping_method_id"`
 	ShippingMethodName *string    `db:"shipping_method_name" json:"shipping_method_name"`
@@ -27,19 +29,19 @@ type Quotation struct {
 	LastEditedAt       *time.Time `db:"last_edited_at" json:"last_edited_at,omitempty"`
 	LastEditedBy       *int64     `db:"last_edited_by" json:"last_edited_by,omitempty"`
 
-	Subtotal                 float64 `db:"subtotal" json:"subtotal"`
-	DiscountAmount           float64 `db:"discount_amount" json:"discount_amount"`
-	ShippingCost             float64 `db:"shipping_cost" json:"shipping_cost"`
-	ShippingMethod           *string `db:"shipping_method" json:"shipping_method,omitempty"`
-	PackagingCost            float64 `db:"packaging_cost" json:"packaging_cost"`
-	ToolingMoldCost          float64 `db:"tooling_mold_cost" json:"tooling_mold_cost"`
-	VatRate                  float64 `db:"vat_rate" json:"vat_rate"`
-	VatAmount                float64 `db:"vat_amount" json:"vat_amount"`
-	PlatformCommissionRate   float64 `db:"platform_commission_rate" json:"platform_commission_rate"`
-	PlatformCommissionAmount float64 `db:"platform_commission_amount" json:"platform_commission_amount"`
-	PlatformConfigID         *int64  `db:"platform_config_id" json:"platform_config_id,omitempty"`
-	GrandTotal               float64 `db:"grand_total" json:"grand_total"`
-	FactoryNetReceivable     float64 `db:"factory_net_receivable" json:"factory_net_receivable"`
+	Subtotal                 decimal.Decimal `db:"subtotal" json:"subtotal"`
+	DiscountAmount           decimal.Decimal `db:"discount_amount" json:"discount_amount"`
+	ShippingCost             decimal.Decimal `db:"shipping_cost" json:"shipping_cost"`
+	ShippingMethod           *string         `db:"shipping_method" json:"shipping_method,omitempty"`
+	PackagingCost            decimal.Decimal `db:"packaging_cost" json:"packaging_cost"`
+	ToolingMoldCost          decimal.Decimal `db:"tooling_mold_cost" json:"tooling_mold_cost"`
+	VatRate                  decimal.Decimal `db:"vat_rate" json:"vat_rate"`
+	VatAmount                decimal.Decimal `db:"vat_amount" json:"vat_amount"`
+	PlatformCommissionRate   decimal.Decimal `db:"platform_commission_rate" json:"platform_commission_rate"`
+	PlatformCommissionAmount decimal.Decimal `db:"platform_commission_amount" json:"platform_commission_amount"`
+	PlatformConfigID         *int64          `db:"platform_config_id" json:"platform_config_id,omitempty"`
+	GrandTotal               decimal.Decimal `db:"grand_total" json:"grand_total"`
+	FactoryNetReceivable     decimal.Decimal `db:"factory_net_receivable" json:"factory_net_receivable"`
 
 	ProductionStartDate  *time.Time `db:"production_start_date" json:"production_start_date,omitempty"`
 	DeliveryDate         *time.Time `db:"delivery_date" json:"delivery_date,omitempty"`
@@ -54,10 +56,10 @@ type Quotation struct {
 	ImageURLs         StringArray     `db:"image_urls" json:"image_urls"`
 	MaterialDetail    *string         `db:"material_detail" json:"material_detail"`
 	PaymentCondition  *string         `db:"payment_condition" json:"payment_condition"`
-	SampleCost        float64         `db:"sample_cost" json:"sample_cost"`
+	SampleCost        decimal.Decimal `db:"sample_cost" json:"sample_cost"`
 	Certifications    StringArray     `db:"certifications" json:"certifications"`
 	Items             []QuotationItem `db:"-" json:"items,omitempty"`
-	QuoteTotal        float64         `db:"-" json:"quote_total"`
+	QuoteTotal        decimal.Decimal `db:"-" json:"quote_total"`
 	Factory           *FactoryBrief   `db:"-" json:"factory,omitempty"`
 	RFQStatus         string          `db:"rfq_status" json:"rfq_status,omitempty"`
 	RequestKind       string          `db:"request_kind" json:"request_kind,omitempty"`
@@ -76,8 +78,8 @@ type QuotationHistoryEntry struct {
 	QuoteID          int64     `db:"quote_id" json:"quote_id"`
 	EventType        string    `db:"event_type" json:"event_type"`
 	VersionAfter     int       `db:"version_after" json:"version_after"`
-	PricePerPiece    *float64  `db:"price_per_piece" json:"price_per_piece,omitempty"`
-	MoldCost         *float64  `db:"mold_cost" json:"mold_cost,omitempty"`
+	PricePerPiece    *decimal.Decimal `db:"price_per_piece" json:"price_per_piece,omitempty"`
+	MoldCost         *decimal.Decimal `db:"mold_cost" json:"mold_cost,omitempty"`
 	LeadTimeDays     *int64    `db:"lead_time_days" json:"lead_time_days,omitempty"`
 	ShippingMethodID *int64    `db:"shipping_method_id" json:"shipping_method_id,omitempty"`
 	Status           *string   `db:"status" json:"status,omitempty"`
@@ -100,8 +102,8 @@ type Order struct {
 	QuotationID       int64      `db:"quote_id" json:"quote_id"`
 	UserID            int64      `db:"user_id" json:"user_id"`
 	FactoryID         int64      `db:"factory_id" json:"factory_id"`
-	TotalAmount       float64    `db:"total_amount" json:"total_amount"`
-	DepositAmount     float64    `db:"deposit_amount" json:"deposit_amount"`
+	TotalAmount       decimal.Decimal `db:"total_amount" json:"total_amount"`
+	DepositAmount     decimal.Decimal `db:"deposit_amount" json:"deposit_amount"`
 	Status            string     `db:"status" json:"status"`
 	EstimatedDelivery *time.Time `db:"estimated_delivery" json:"estimated_delivery,omitempty"`
 	TrackingNo        *string    `db:"tracking_no" json:"tracking_no,omitempty"`
@@ -144,8 +146,8 @@ type OrderListItem struct {
 	UserID              int64                     `json:"user_id"`
 	FactoryID           int64                     `json:"factory_id"`
 	Status              string                    `json:"status"`
-	TotalAmount         float64                   `json:"total_amount"`
-	DepositAmount       float64                   `json:"deposit_amount"`
+	TotalAmount         decimal.Decimal           `json:"total_amount"`
+	DepositAmount       decimal.Decimal           `json:"deposit_amount"`
 	EstimatedDelivery   *time.Time                `json:"estimated_delivery,omitempty"`
 	CreatedAt           time.Time                 `json:"created_at"`
 	UpdatedAt           time.Time                 `json:"updated_at"`
@@ -168,10 +170,10 @@ type OrderFactorySummary struct {
 }
 
 type OrderNextAction struct {
-	Actor      string     `json:"actor"`
-	Type       string     `json:"type"`
-	Amount     float64    `json:"amount"`
-	Currency   string     `json:"currency"`
+	Actor      string          `json:"actor"`
+	Type       string          `json:"type"`
+	Amount     decimal.Decimal `json:"amount"`
+	Currency   string          `json:"currency"`
 	DueDate    *time.Time `json:"due_date,omitempty"`
 	CTAURL     string     `json:"cta_url,omitempty"`
 	CTALabelTH string     `json:"cta_label_th,omitempty"`
@@ -188,7 +190,7 @@ type RfqNested struct {
 	Details        string     `json:"details"`
 	Quantity       int64      `json:"quantity"`
 	UnitName       string     `json:"unit_name"`
-	BudgetPerPiece float64    `json:"budget_per_piece"`
+	BudgetPerPiece decimal.Decimal `json:"budget_per_piece"`
 	CategoryID     int64      `json:"category_id"`
 	CategoryName   string     `json:"category_name"`
 	DeadlineDate   *time.Time `json:"deadline_date,omitempty"`
@@ -197,10 +199,10 @@ type RfqNested struct {
 }
 
 type QuoteNested struct {
-	QuoteID       int64   `json:"quote_id"`
-	PricePerPiece float64 `json:"price_per_piece"`
-	MoldCost      float64 `json:"mold_cost"`
-	LeadTimeDays  int64   `json:"lead_time_days"`
+	QuoteID       int64           `json:"quote_id"`
+	PricePerPiece decimal.Decimal `json:"price_per_piece"`
+	MoldCost      decimal.Decimal `json:"mold_cost"`
+	LeadTimeDays  int64           `json:"lead_time_days"`
 }
 
 // OrderDetailResponse extends the legacy order payload with FE-ready action state.
@@ -209,8 +211,8 @@ type OrderDetailResponse struct {
 	QuotationID       int64                      `json:"quote_id"`
 	UserID            int64                      `json:"user_id"`
 	FactoryID         int64                      `json:"factory_id"`
-	TotalAmount       float64                    `json:"total_amount"`
-	DepositAmount     float64                    `json:"deposit_amount"`
+	TotalAmount       decimal.Decimal            `json:"total_amount"`
+	DepositAmount     decimal.Decimal            `json:"deposit_amount"`
 	Status            string                     `json:"status"`
 	StatusLabelTH     string                     `json:"status_label_th"`
 	PaymentType       *string                    `json:"payment_type,omitempty"`

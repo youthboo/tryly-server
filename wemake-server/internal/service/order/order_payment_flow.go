@@ -327,7 +327,7 @@ func (s *OrderService) confirmReceiptTx(orderID int64, actorUserID *int64, note 
 		if err != nil {
 			return err
 		}
-		movedAmount := helper.RoundCurrency(order.TotalAmount)
+		movedAmount := helper.RoundCurrency(helper.DecimalToFloat(order.TotalAmount))
 		if movedAmount < 0 {
 			movedAmount = 0
 		}
@@ -338,10 +338,10 @@ func (s *OrderService) confirmReceiptTx(orderID int64, actorUserID *int64, note 
 			FactoryUserID: order.FactoryID,
 			WalletID:      factoryWallet.WalletID,
 			MovedAmount:   movedAmount,
-			PendingBefore: factoryWallet.PendingFund,
-			PendingAfter:  helper.RoundCurrency(factoryWallet.PendingFund - movedAmount),
-			GoodBefore:    factoryWallet.GoodFund,
-			GoodAfter:     helper.RoundCurrency(factoryWallet.GoodFund + movedAmount),
+			PendingBefore: helper.DecimalToFloat(factoryWallet.PendingFund),
+			PendingAfter:  helper.RoundCurrency(helper.DecimalToFloat(factoryWallet.PendingFund) - movedAmount),
+			GoodBefore:    helper.DecimalToFloat(factoryWallet.GoodFund),
+			GoodAfter:     helper.RoundCurrency(helper.DecimalToFloat(factoryWallet.GoodFund) + movedAmount),
 		}
 
 		// Settle the factory's pending SC receivables for this order: PT -> ST.

@@ -13,9 +13,9 @@ import (
 func expectedPaymentAmount(order *domain.Order, paymentType string) (float64, error) {
 	switch paymentType {
 	case "DP":
-		return order.DepositAmount, nil
+		return helper.DecimalToFloat(order.DepositAmount), nil
 	case "FP":
-		return order.TotalAmount - order.DepositAmount, nil
+		return helper.DecimalToFloat(helper.SubtractMoney(order.TotalAmount, order.DepositAmount)), nil
 	default:
 		return 0, ErrPaymentTypeInvalid
 	}
@@ -59,7 +59,7 @@ func buildNextAction(row *orderrepo.OrderDetailRow, status string, depositDueDat
 		return &domain.OrderNextAction{
 			Actor:      "CUSTOMER",
 			Type:       "PAY_FULL_AMOUNT",
-			Amount:     row.TotalAmount,
+			Amount:     helper.MoneyDecimal(row.TotalAmount),
 			Currency:   "THB",
 			DueDate:    depositDueDate,
 			CTAURL:     fmt.Sprintf("/orders/%d/payment?stage=full", row.OrderID),
@@ -84,8 +84,8 @@ func buildPaymentSchedule(row *orderrepo.OrderDetailRow, status string, depositD
 	return []domain.OrderPaymentScheduleItem{
 		{
 			Stage:   domain.PaymentStageFullPayment,
-			Percent: 100,
-			Amount:  total,
+			Percent: helper.MoneyDecimal(100),
+			Amount:  helper.MoneyDecimal(total),
 			Status:  paidStatus,
 			DueDate: depositDueDate,
 			PaidAt:  depositPaidAt,
@@ -152,7 +152,10 @@ func (s *OrderService) lookupDepositDueDate(order *domain.Order) *time.Time {
 			}
 		}
 	}
-	detailRow := &orderrepo.OrderDetailRow{Order: *order}
+	detailRow := &orderrepo.OrderDetailRow{
+		CreatedAt:          order.CreatedAt,
+		DepositScheduleDue: nil,
+	}
 	return deriveDepositDueDate(detailRow)
 }
 
