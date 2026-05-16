@@ -93,7 +93,7 @@ func (r *RFQRepository) createWithExecutor(exec dbutil.QueryRower, rfq *domain.R
 		rfq.CreatedAt,
 		rfq.UpdatedAt,
 		domainutil.Nullable(rfq.MaterialGrade),
-		helper.NullableDecimalToFloat64(rfq.TargetPrice),
+		domainutil.Nullable(rfq.TargetPrice),
 		domainutil.Nullable(rfq.TargetLeadTimeDays),
 		domainutil.Nullable(rfq.DeliveryAddressID),
 		rfq.CertificationsRequired,

@@ -1,14 +1,11 @@
 package helper
 
 import (
-	"fmt"
-
 	"github.com/shopspring/decimal"
 )
 
 func MoneyDecimal(v float64) decimal.Decimal {
-	d, _ := decimal.NewFromString(fmt.Sprintf("%.2f", v))
-	return d
+	return decimal.NewFromFloat(v).Round(2)
 }
 
 func DecimalToFloat(d decimal.Decimal) float64 {
@@ -60,28 +57,12 @@ func IsMoneyGreater(a decimal.Decimal, b decimal.Decimal) bool {
 	return a.GreaterThan(b)
 }
 
-func IsMoneyGreaterOrEqual(a decimal.Decimal, b decimal.Decimal) bool {
-	return a.GreaterThanOrEqual(b)
-}
-
 func MoneyDecimalPtrFromFloat64(v *float64) *decimal.Decimal {
 	if v == nil {
 		return nil
 	}
 	d := MoneyDecimal(*v)
 	return &d
-}
-
-func DecimalPtrToFloatPtr(d *decimal.Decimal) *float64 {
-	if d == nil {
-		return nil
-	}
-	f := DecimalToFloat(*d)
-	return &f
-}
-
-func NullableDecimalToFloat64(d *decimal.Decimal) interface{} {
-	return DecimalPtrToFloatPtr(d)
 }
 
 func DerefDecimalToFloat(d *decimal.Decimal) float64 {

@@ -18,7 +18,16 @@ func NewFavoriteRepository(db *sqlx.DB) *FavoriteRepository {
 
 func (r *FavoriteRepository) ListByUserID(userID int64) ([]domain.Favorite, error) {
 	var items []domain.Favorite
-	query := `SELECT * FROM favorites WHERE user_id = $1 ORDER BY created_at DESC`
+	query := `
+		SELECT
+			fav_id,
+			user_id,
+			showcase_id,
+			created_at
+		FROM favorites
+		WHERE user_id = $1
+		ORDER BY created_at DESC
+	`
 	err := r.db.Select(&items, query, userID)
 	return items, err
 }

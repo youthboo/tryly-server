@@ -25,9 +25,9 @@ type BulkCheckoutInput struct {
 }
 
 type BulkCheckoutSummary struct {
-	OrderCount   int             `json:"order_count"`
-	TotalAmount  decimal.Decimal `json:"total_amount"`
-	TotalDeposit decimal.Decimal `json:"total_deposit"`
+	OrderCount   int                `json:"order_count"`
+	TotalAmount  domain.MoneyString `json:"total_amount"`
+	TotalDeposit domain.MoneyString `json:"total_deposit"`
 }
 
 type BulkCheckoutResult struct {
@@ -336,18 +336,12 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 		return nil, ErrNoOrdersCreated
 	}
 
-	result := &BulkCheckoutResult{
-		RFQID:     input.RFQID,
-		RFQStatus: domain.RFQStatusInReview,
-		Orders:    orders,
-		Summary: BulkCheckoutSummary{
-			OrderCount: len(orders),
-		},
-	}
+	totalAmount := decimal.Zero
+	totalDeposit := decimal.Zero
 	uid := input.UserID
 	for _, order := range orders {
-		result.Summary.TotalAmount = helper.AddMoney(result.Summary.TotalAmount, order.TotalAmount)
-		result.Summary.TotalDeposit = helper.AddMoney(result.Summary.TotalDeposit, order.DepositAmount)
+		totalAmount = helper.AddMoney(totalAmount, order.TotalAmount)
+		totalDeposit = helper.AddMoney(totalDeposit, order.DepositAmount)
 		_ = s.repo.InsertActivity(order.OrderID, &uid, "ORDER_CREATED", map[string]interface{}{
 			"status":         order.Status,
 			"quote_id":       order.QuotationID,
@@ -369,6 +363,16 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 			ReferenceID: &order.OrderID,
 			CreatedAt:   now,
 		})
+	}
+	result := &BulkCheckoutResult{
+		RFQID:     input.RFQID,
+		RFQStatus: domain.RFQStatusInReview,
+		Orders:    orders,
+		Summary: BulkCheckoutSummary{
+			OrderCount:   len(orders),
+			TotalAmount:  domain.NewMoneyString(totalAmount),
+			TotalDeposit: domain.NewMoneyString(totalDeposit),
+		},
 	}
 	return result, nil
 }

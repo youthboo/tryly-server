@@ -97,9 +97,9 @@ func (h *ProductionHandler) RejectUpdate(c *fiber.Ctx) error {
 }
 
 func requireProductionUserID(c *fiber.Ctx) (int64, error) {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return 0, productionError(c, fiber.StatusUnauthorized, "UNAUTHORIZED", "unauthorized", nil)
+		return 0, err
 	}
 	return userID, nil
 }

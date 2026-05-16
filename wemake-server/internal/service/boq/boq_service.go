@@ -467,7 +467,7 @@ func (s *BOQService) Accept(rfqID, buyerUserID int64) (*domain.Order, int64, err
 		FactoryID:                *rfq.FactoryUserID,
 		PricePerPiece:            helper.MoneyDecimal(pricePerPiece),
 		MoldCost:                 helper.ZeroMoney(),
-		LeadTimeDays:             int64(helper.DerefInt(rfq.BOQLeadTimeDays)),
+		LeadTimeDays:             int64(domainutil.IntValue(rfq.BOQLeadTimeDays)),
 		ShippingMethodID:         shippingMethodID,
 		Status:                   domain.QuotationStatusPrepared,
 		CreateTime:               now,
@@ -563,7 +563,7 @@ func (s *BOQService) finalizeAcceptedBOQ(rfq *domain.RFQ, order *domain.Order) e
 	if rfq.SourceConvID != nil {
 		_ = s.messages.Create(&domain.Message{
 			SenderID:    rfq.UserID,
-			ReceiverID:  helper.DerefInt64(rfq.FactoryUserID),
+			ReceiverID:  domainutil.Int64Value(rfq.FactoryUserID),
 			Content:     fmt.Sprintf("ยืนยัน BOQ แล้ว — คำสั่งซื้อ #%d ถูกสร้างแล้ว", order.OrderID),
 			ConvID:      rfq.SourceConvID,
 			MessageType: "TX",
@@ -633,7 +633,7 @@ func (s *BOQService) Decline(rfqID, buyerUserID int64, reason *string) (*domain.
 	if rfq.SourceConvID != nil {
 		_ = s.messages.Create(&domain.Message{
 			SenderID:    buyerUserID,
-			ReceiverID:  helper.DerefInt64(rfq.FactoryUserID),
+			ReceiverID:  domainutil.Int64Value(rfq.FactoryUserID),
 			Content:     "ลูกค้าปฏิเสธ BOQ",
 			ConvID:      rfq.SourceConvID,
 			MessageType: "TX",
@@ -739,7 +739,7 @@ func statusFilterMatches(status string, item *domain.BOQSummary) bool {
 }
 
 func (s *BOQService) buildBOQDetail(rfq *domain.RFQ, items []domain.RFQItem) (*domain.BOQDetail, error) {
-	factoryName, imageURL, err := s.lookupFactorySummary(helper.DerefInt64(rfq.FactoryUserID))
+	factoryName, imageURL, err := s.lookupFactorySummary(domainutil.Int64Value(rfq.FactoryUserID))
 	if err != nil {
 		return nil, err
 	}
@@ -757,7 +757,7 @@ func (s *BOQService) buildBOQDetail(rfq *domain.RFQ, items []domain.RFQItem) (*d
 		BOQDeclineReason:  rfq.BOQDeclineReason,
 		BOQSentAt:         rfq.BOQSentAt,
 		BOQRespondedAt:    rfq.BOQRespondedAt,
-		BOQValidityDays:   helper.MaxInt(helper.DerefInt(rfq.BOQValidityDays), domain.DefaultBOQValidityDays),
+		BOQValidityDays:   helper.MaxInt(domainutil.IntValue(rfq.BOQValidityDays), domain.DefaultBOQValidityDays),
 		BOQExpiresAt:      expiresAt,
 		IsExpired:         boqIsExpired(rfq),
 		BOQGrandTotal:     helper.DerefDecimalToFloat(rfq.BOQGrandTotal),
@@ -773,7 +773,7 @@ func (s *BOQService) buildBOQDetail(rfq *domain.RFQ, items []domain.RFQItem) (*d
 		SourceConvID:      rfq.SourceConvID,
 		SourceShowcaseID:  rfq.SourceShowcaseID,
 		Factory: domain.BOQFactorySummary{
-			FactoryID:   helper.DerefInt64(rfq.FactoryUserID),
+			FactoryID:   domainutil.Int64Value(rfq.FactoryUserID),
 			FactoryName: factoryName,
 			ImageURL:    imageURL,
 		},
@@ -805,7 +805,7 @@ func (s *BOQService) buildBOQQuoteDataString(rfq *domain.RFQ, items []domain.RFQ
 		MOQ:            rfq.BOQMOQ,
 		LeadTimeDays:   rfq.BOQLeadTimeDays,
 		PaymentTerms:   rfq.BOQPaymentTerms,
-		ValidityDays:   helper.MaxInt(helper.DerefInt(rfq.BOQValidityDays), domain.DefaultBOQValidityDays),
+		ValidityDays:   helper.MaxInt(domainutil.IntValue(rfq.BOQValidityDays), domain.DefaultBOQValidityDays),
 		ExpiresAt:      expiresAt,
 		Note:           rfq.BOQNote,
 		Status:         boqCardStatus(rfq),

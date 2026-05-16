@@ -176,9 +176,9 @@ func (h *FrontendHandler) GetExplore(c *fiber.Ctx) error {
 }
 
 func requireFrontendUserID(c *fiber.Ctx) (int64, error) {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireUserID(c)
 	if err != nil {
-		return 0, helper.BadRequest(c, "invalid user context")
+		return 0, err
 	}
 	return userID, nil
 }

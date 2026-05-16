@@ -247,7 +247,7 @@ func aggregateSections(rows []sectionRow) []domain.ShowcaseSection {
 				Title:       row.ItemTitle,
 				Description: helper.DerefString(row.Description),
 				IconName:    row.IconName,
-				SortOrder:   helper.DerefInt(row.ItemSort),
+				SortOrder:   domainutil.IntValue(row.ItemSort),
 			})
 		}
 	}
@@ -370,7 +370,18 @@ func (r *ShowcaseRepository) GetAnalytics(showcaseID, factoryID int64) (*domain.
 
 func (r *ShowcaseRepository) ListPromoSlides() ([]domain.PromoSlide, error) {
 	var items []domain.PromoSlide
-	query := `SELECT * FROM promo_slides WHERE status = '1' ORDER BY slide_id DESC`
+	query := `
+		SELECT
+			slide_id,
+			title,
+			subtitle,
+			code,
+			image_url,
+			status
+		FROM promo_slides
+		WHERE status = '1'
+		ORDER BY slide_id DESC
+	`
 	err := r.db.Select(&items, query)
 	return items, err
 }

@@ -32,14 +32,6 @@ func DerefString(value *string) string {
 	return strings.TrimSpace(*value)
 }
 
-func DerefInt64(v *int64) int64 {
-	return domainutil.Int64Value(v)
-}
-
-func DerefInt(v *int) int {
-	return domainutil.IntValue(v)
-}
-
 func MaxInt64(a, b int64) int64 {
 	if a > b {
 		return a

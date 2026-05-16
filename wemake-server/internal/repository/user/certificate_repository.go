@@ -18,7 +18,20 @@ func NewCertificateRepository(db *sqlx.DB) *CertificateRepository {
 
 func (r *CertificateRepository) ListByFactoryID(factoryID int64) ([]domain.FactoryCertificate, error) {
 	var items []domain.FactoryCertificate
-	query := `SELECT * FROM map_factory_certificates WHERE factory_id = $1 ORDER BY uploaded_at DESC`
+	query := `
+		SELECT
+			map_id,
+			factory_id,
+			cert_id,
+			document_url,
+			expire_date,
+			cert_number,
+			verify_status,
+			uploaded_at
+		FROM map_factory_certificates
+		WHERE factory_id = $1
+		ORDER BY uploaded_at DESC
+	`
 	err := r.db.Select(&items, query, factoryID)
 	return items, err
 }
