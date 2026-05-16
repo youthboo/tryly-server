@@ -140,16 +140,16 @@ func (s *OrderService) CreateFromQuotation(quotationID, userID int64) (*domain.O
 		"amount":         total,
 		"deposit_amount": deposit,
 	})
-	createNotificationSafe(s.notifications, &domain.Notification{
+	helper.CreateNotificationSafe(s.notifications, &domain.Notification{
 		UserID:  order.FactoryID,
 		Type:    "ORDER_PLACED",
 		Title:   "คำสั่งซื้อใหม่",
 		Message: fmt.Sprintf("ลูกค้าสั่งซื้อ Order #%d", order.OrderID),
-		LinkTo:  orderLink(order.OrderID),
-		Data: notificationData(map[string]interface{}{
+		LinkTo:  helper.OrderLink(order.OrderID),
+		Data: helper.NotificationData(map[string]interface{}{
 			"order_id": order.OrderID,
 			"quote_id": order.QuotationID,
-			"url":      orderLink(order.OrderID),
+			"url":      helper.OrderLink(order.OrderID),
 		}),
 		ReferenceID: &order.OrderID,
 		CreatedAt:   now,
@@ -356,16 +356,16 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 			"deposit_amount": order.DepositAmount,
 			"bulk_checkout":  true,
 		})
-		createNotificationSafe(s.notifications, &domain.Notification{
+		helper.CreateNotificationSafe(s.notifications, &domain.Notification{
 			UserID:  order.FactoryID,
 			Type:    "ORDER_PLACED",
 			Title:   "คำสั่งซื้อใหม่",
 			Message: fmt.Sprintf("ลูกค้าสั่งซื้อ Order #%d", order.OrderID),
-			LinkTo:  orderLink(order.OrderID),
-			Data: notificationData(map[string]interface{}{
+			LinkTo:  helper.OrderLink(order.OrderID),
+			Data: helper.NotificationData(map[string]interface{}{
 				"order_id": order.OrderID,
 				"quote_id": order.QuotationID,
-				"url":      orderLink(order.OrderID),
+				"url":      helper.OrderLink(order.OrderID),
 			}),
 			ReferenceID: &order.OrderID,
 			CreatedAt:   now,

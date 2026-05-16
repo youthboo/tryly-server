@@ -42,6 +42,15 @@ type QuotationService struct {
 	messages      systemMessageSender
 }
 
+type notificationCreator interface {
+	Create(*domain.Notification) error
+}
+
+type systemMessageSender interface {
+	AutoSendSystemMessage(context.Context, int64, int64, int64, string) error
+	AutoSendQuotationCard(context.Context, int64, int64, *domain.Quotation) error
+}
+
 func NewQuotationService(db *sqlx.DB, repo *quotationrepo.QuotationRepository, rfqRepo *rfqrepo.RFQRepository, items *quotationrepo.QuotationItemRepository, commission *walletservice.CommissionService, orders *orderservice.OrderService, factories *factoryrepo.FactoryRepository, notifications notificationCreator, messages systemMessageSender) *QuotationService {
 	return &QuotationService{db: db, repo: repo, rfqRepo: rfqRepo, items: items, commission: commission, orders: orders, factories: factories, notifications: notifications, messages: messages}
 }
@@ -500,16 +509,16 @@ func (s *QuotationService) Accept(quoteID, customerID int64) (*domain.Order, err
 	if err != nil {
 		return nil, err
 	}
-	createNotificationSafe(s.notifications, &domain.Notification{
+	helper.CreateNotificationSafe(s.notifications, &domain.Notification{
 		UserID:  q.FactoryID,
 		Type:    "QUOTATION_ACCEPTED",
 		Title:   "ใบเสนอราคาได้รับการยอมรับ",
 		Message: fmt.Sprintf("ลูกค้ายอมรับ Quote #%d", q.QuotationID),
-		LinkTo:  orderLink(order.OrderID),
-		Data: notificationData(map[string]interface{}{
+		LinkTo:  helper.OrderLink(order.OrderID),
+		Data: helper.NotificationData(map[string]interface{}{
 			"quote_id": q.QuotationID,
 			"order_id": order.OrderID,
-			"url":      orderLink(order.OrderID),
+			"url":      helper.OrderLink(order.OrderID),
 		}),
 		ReferenceID: &order.OrderID,
 		CreatedAt:   time.Now(),
@@ -532,15 +541,15 @@ func (s *QuotationService) Reject(quoteID, customerID int64) error {
 	if err := s.repo.UpdateStatus(quoteID, "RJ"); err != nil {
 		return err
 	}
-	createNotificationSafe(s.notifications, &domain.Notification{
+	helper.CreateNotificationSafe(s.notifications, &domain.Notification{
 		UserID:  q.FactoryID,
 		Type:    "QUOTATION_REJECTED",
 		Title:   "ใบเสนอราคาถูกปฏิเสธ",
 		Message: fmt.Sprintf("Quote #%d ถูกปฏิเสธ", q.QuotationID),
-		LinkTo:  quoteLink(q.QuotationID),
-		Data: notificationData(map[string]interface{}{
+		LinkTo:  helper.QuoteLink(q.QuotationID),
+		Data: helper.NotificationData(map[string]interface{}{
 			"quote_id": q.QuotationID,
-			"url":      quoteLink(q.QuotationID),
+			"url":      helper.QuoteLink(q.QuotationID),
 		}),
 		ReferenceID: &q.QuotationID,
 		CreatedAt:   time.Now(),
@@ -571,17 +580,17 @@ func (s *QuotationService) notifyQuotationQuoted(item *domain.Quotation) {
 	if rfqTitle == "" {
 		rfqTitle = fmt.Sprintf("RFQ #%d", rfq.RFQID)
 	}
-	createNotificationSafe(s.notifications, &domain.Notification{
+	helper.CreateNotificationSafe(s.notifications, &domain.Notification{
 		UserID:  rfq.UserID,
 		Type:    "RFQ_QUOTED",
 		Title:   title,
 		Message: fmt.Sprintf("โรงงาน %s ส่งใบเสนอราคาสำหรับ %s", factoryName, rfqTitle),
-		LinkTo:  quoteLink(item.QuotationID),
-		Data: notificationData(map[string]interface{}{
+		LinkTo:  helper.QuoteLink(item.QuotationID),
+		Data: helper.NotificationData(map[string]interface{}{
 			"rfq_id":     rfq.RFQID,
 			"quote_id":   item.QuotationID,
 			"factory_id": item.FactoryID,
-			"url":        quoteLink(item.QuotationID),
+			"url":        helper.QuoteLink(item.QuotationID),
 		}),
 		ReferenceID: &item.QuotationID,
 		CreatedAt:   item.CreateTime,

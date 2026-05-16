@@ -6,7 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
+	"github.com/yourusername/wemake/internal/helper"
 	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
 	rfqrepo "github.com/yourusername/wemake/internal/repository/rfq"
 	notificationservice "github.com/yourusername/wemake/internal/service/notification"
@@ -39,23 +42,6 @@ func NewRFQService(repo *rfqrepo.RFQRepository, factoryRepo *factoryrepo.Factory
 	return &RFQService{repo: repo, factoryRepo: factoryRepo, notifications: notifications}
 }
 
-func normalizeStringSlice(values []string) []string {
-	seen := make(map[string]struct{})
-	out := make([]string, 0, len(values))
-	for _, v := range values {
-		v = strings.TrimSpace(v)
-		if v == "" {
-			continue
-		}
-		if _, ok := seen[v]; ok {
-			continue
-		}
-		seen[v] = struct{}{}
-		out = append(out, v)
-	}
-	return out
-}
-
 func (s *RFQService) Create(rfq *domain.RFQ) error {
 	now := time.Now()
 	rfq.Title = strings.TrimSpace(rfq.Title)
@@ -76,7 +62,7 @@ func (s *RFQService) Create(rfq *domain.RFQ) error {
 	rfq.UpdatedAt = now
 	rfq.UploadedAt = &now
 
-	rfq.ReferenceImages = normalizeStringSlice([]string(rfq.ReferenceImages))
+	rfq.ReferenceImages = pq.StringArray(domainutil.NormalizeStringSlice([]string(rfq.ReferenceImages)))
 	if len(rfq.ReferenceImages) > maxRFQImages {
 		return ErrMaxRFQReferenceImages
 	}
@@ -294,7 +280,7 @@ func (s *RFQService) Patch(userID, rfqID int64, rfq *domain.RFQ) error {
 	rfq.UploadedAt = existing.UploadedAt
 	rfq.UpdatedAt = time.Now()
 	rfq.Details = strings.TrimSpace(rfq.Details)
-	rfq.ReferenceImages = normalizeStringSlice([]string(rfq.ReferenceImages))
+	rfq.ReferenceImages = pq.StringArray(domainutil.NormalizeStringSlice([]string(rfq.ReferenceImages)))
 	if len(rfq.ReferenceImages) > maxRFQImages {
 		return ErrMaxRFQReferenceImages
 	}
@@ -433,16 +419,16 @@ func (s *RFQService) notifyMatchingFactories(rfq *domain.RFQ) {
 		rfqTitle = "RFQ ใหม่"
 	}
 	for _, factoryID := range factoryIDs {
-		createNotificationSafe(s.notifications, &domain.Notification{
+		helper.CreateNotificationSafe(s.notifications, &domain.Notification{
 			UserID:  factoryID,
 			Type:    "RFQ_RECEIVED",
 			Title:   title,
 			Message: "มี RFQ ใหม่ที่ตรงหมวดของคุณ: " + rfqTitle,
-			LinkTo:  rfqLink(rfq.RFQID),
-			Data: notificationData(map[string]interface{}{
+			LinkTo:  helper.RFQLink(rfq.RFQID),
+			Data: helper.NotificationData(map[string]interface{}{
 				"rfq_id":    rfq.RFQID,
 				"rfq_title": rfqTitle,
-				"url":       rfqLink(rfq.RFQID),
+				"url":       helper.RFQLink(rfq.RFQID),
 			}),
 			ReferenceID: &rfq.RFQID,
 			CreatedAt:   rfq.CreatedAt,

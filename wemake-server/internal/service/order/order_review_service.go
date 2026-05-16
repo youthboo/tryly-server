@@ -5,12 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
+	"github.com/yourusername/wemake/internal/helper"
 	userrepo "github.com/yourusername/wemake/internal/repository/user"
 )
 
@@ -19,6 +20,8 @@ type CreateOrderReviewInput struct {
 	Comment   string
 	ImageURLs domain.StringArray
 }
+
+const maxReviewImages = 5
 
 func (s *OrderService) GetReviewState(orderID, userID int64, role string) (*domain.OrderReviewState, error) {
 	if role != domain.RoleCustomer {
@@ -54,7 +57,7 @@ func (s *OrderService) GetReviewState(orderID, userID int64, role string) (*doma
 		return nil, err
 	}
 
-	if normalizeOrderStatus(order.Status) != "CP" {
+	if helper.NormalizeOrderStatus(order.Status) != "CP" {
 		reason := "order_not_completed"
 		state.Reason = &reason
 		return state, nil
@@ -75,7 +78,7 @@ func (s *OrderService) CreateReview(orderID, userID int64, role string, input Cr
 	if comment == "" || len(comment) > 1000 {
 		return nil, ErrReviewCommentInvalid
 	}
-	imageURLs := normalizeReviewImageURLs(input.ImageURLs)
+	imageURLs := domain.StringArray(domainutil.NormalizeStringSlice([]string(input.ImageURLs)))
 	if len(imageURLs) > maxReviewImages {
 		return nil, ErrReviewImagesInvalid
 	}
@@ -84,7 +87,7 @@ func (s *OrderService) CreateReview(orderID, userID int64, role string, input Cr
 	if err != nil {
 		return nil, err
 	}
-	if normalizeOrderStatus(order.Status) != "CP" {
+	if helper.NormalizeOrderStatus(order.Status) != "CP" {
 		return nil, ErrReviewOrderNotCompleted
 	}
 	if _, err := s.reviews.GetByOrderAndUser(orderID, userID); err == nil {
@@ -119,17 +122,17 @@ func (s *OrderService) CreateReview(orderID, userID int64, role string, input Cr
 	}); err != nil {
 		return nil, err
 	}
-	createNotificationSafe(s.notifications, &domain.Notification{
+	helper.CreateNotificationSafe(s.notifications, &domain.Notification{
 		UserID:  order.FactoryID,
 		Type:    "REVIEW_RECEIVED",
 		Title:   "ได้รับรีวิวใหม่",
-		Message: fmt.Sprintf("ลูกค้าให้ %d ดาว: \"%s\"", review.Rating, trimNotificationPreview(review.Comment, 80)),
-		LinkTo:  orderLink(orderID),
-		Data: notificationData(map[string]interface{}{
+		Message: fmt.Sprintf("ลูกค้าให้ %d ดาว: \"%s\"", review.Rating, helper.TrimNotificationPreview(review.Comment, 80)),
+		LinkTo:  helper.OrderLink(orderID),
+		Data: helper.NotificationData(map[string]interface{}{
 			"review_id": review.ReviewID,
 			"order_id":  orderID,
 			"rating":    review.Rating,
-			"url":       orderLink(orderID),
+			"url":       helper.OrderLink(orderID),
 		}),
 		ReferenceID: &review.ReviewID,
 		CreatedAt:   time.Now(),

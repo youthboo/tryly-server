@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/helper"
 )
 
 func (s *OrderService) UpdateStatus(orderID int64, status string, actorUserID *int64) error {
@@ -38,15 +39,15 @@ func (s *OrderService) Cancel(orderID, userID int64, role string) error {
 	}
 	now := time.Now()
 	for _, recipient := range []int64{order.UserID, order.FactoryID} {
-		createNotificationSafe(s.notifications, &domain.Notification{
+		helper.CreateNotificationSafe(s.notifications, &domain.Notification{
 			UserID:  recipient,
 			Type:    "ORDER_CANCELLED",
 			Title:   "คำสั่งซื้อถูกยกเลิก",
 			Message: fmt.Sprintf("Order #%d ถูกยกเลิก", orderID),
-			LinkTo:  orderLink(orderID),
-			Data: notificationData(map[string]interface{}{
+			LinkTo:  helper.OrderLink(orderID),
+			Data: helper.NotificationData(map[string]interface{}{
 				"order_id": orderID,
-				"url":      orderLink(orderID),
+				"url":      helper.OrderLink(orderID),
 			}),
 			ReferenceID: &orderID,
 			CreatedAt:   now,
@@ -79,17 +80,17 @@ func (s *OrderService) MarkShipped(orderID, factoryID int64, trackingNo, courier
 	}); err != nil {
 		return err
 	}
-	createNotificationSafe(s.notifications, &domain.Notification{
+	helper.CreateNotificationSafe(s.notifications, &domain.Notification{
 		UserID:  order.UserID,
 		Type:    "ORDER_SHIPPED",
 		Title:   "สินค้ากำลังจัดส่ง",
 		Message: fmt.Sprintf("Tracking: %s", trackingNo),
-		LinkTo:  orderLink(orderID),
-		Data: notificationData(map[string]interface{}{
+		LinkTo:  helper.OrderLink(orderID),
+		Data: helper.NotificationData(map[string]interface{}{
 			"order_id":    orderID,
 			"tracking_no": trackingNo,
 			"courier":     courier,
-			"url":         orderLink(orderID),
+			"url":         helper.OrderLink(orderID),
 		}),
 		ReferenceID: &orderID,
 		CreatedAt:   time.Now(),

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/helper"
 	orderrepo "github.com/yourusername/wemake/internal/repository/order"
 )
 
@@ -91,7 +92,7 @@ func (s *OrderService) buildOrderDetailResponse(row *orderrepo.OrderDetailRow) (
 	nowTH := time.Now().In(thailandLocation)
 	depositPaidAt := s.depositPaidAt(row.OrderID)
 	finalPaidAt := s.finalPaymentPaidAt(row.OrderID)
-	statusCode := normalizeOrderStatus(row.Status)
+	statusCode := helper.NormalizeOrderStatus(row.Status)
 	rfqDetails := ""
 	if row.RFQDetails != nil {
 		rfqDetails = *row.RFQDetails

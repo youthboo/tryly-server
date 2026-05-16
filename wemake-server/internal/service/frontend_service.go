@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/helper"
 	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/repository"
 	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
@@ -411,7 +412,7 @@ func (s *FrontendService) GetMockData(userID int64) (*domain.FrontendMockDataRes
 
 	for index, row := range factoryRows {
 		factory := mapMockFactory(row)
-		factoryID := parseFactoryID(factory.ID)
+		factoryID := helper.ParseFactoryID(factory.ID)
 		factories = append(factories, factory)
 		factoryMap[factoryID] = factory
 
@@ -679,7 +680,7 @@ func mapMockCurrentUser(row *repository.FrontendCurrentUserRow) *domain.MockCurr
 		ID:             "u" + strconv.FormatInt(row.ID, 10),
 		Name:           name,
 		NameEn:         name,
-		Avatar:         avatarURL(name),
+		Avatar:         helper.AvatarURL(name),
 		Company:        company,
 		Email:          row.Email,
 		Phone:          row.Phone.String,
@@ -708,7 +709,7 @@ func mapMockCategory(row repository.FrontendCategoryRow) domain.MockCategory {
 		"อุปกรณ์สัตว์เลี้ยง":  "#F59E0B",
 	}
 
-	id := slugifyCategory(row.Name)
+	id := helper.SlugifyCategory(row.Name)
 	icon := iconMap[row.Name]
 	if icon == "" {
 		icon = "📦"
@@ -757,8 +758,8 @@ func mapMockFactory(row repository.FrontendFactoryRow) domain.MockFactory {
 		Specialization:  fallbackString(row.Specialization.String, "โรงงานรับผลิตสินค้า"),
 		Tags:            tags,
 		MinOrder:        minOrder,
-		LeadTime:        fallbackString(formatLeadTimeRange(row.AverageLeadDays.Float64), "7-14 วัน"),
-		Image:           factoryImageURL(row.ID),
+		LeadTime:        fallbackString(helper.FormatLeadTimeRange(row.AverageLeadDays.Float64), "7-14 วัน"),
+		Image:           helper.FactoryImageURL(row.ID),
 		Verified:        row.Verified,
 		CompletedOrders: row.CompletedOrders,
 		PriceRange:      priceRange,
@@ -810,7 +811,7 @@ func buildMockFactoryReview(factory domain.MockFactory, index int) domain.MockFa
 		Reviewer:  brands[index%len(brands)],
 		Rating:    factory.Rating,
 		Comment:   comments[index%len(comments)],
-		Date:      dateDaysAgo(index + 7),
+		Date:      helper.DateDaysAgo(index + 7),
 	}
 }
 
@@ -827,7 +828,7 @@ func buildMockIdeaArticle(factory domain.MockFactory, index int) domain.MockIdea
 		Excerpt:     fmt.Sprintf("แนวทางเลือกสเปก MOQ และช่วงราคาให้เหมาะกับ %s", factory.Name),
 		Image:       factory.Image,
 		Tag:         tag,
-		PublishedAt: dateDaysAgo(index + 1),
+		PublishedAt: helper.DateDaysAgo(index + 1),
 	}
 }
 
@@ -842,7 +843,7 @@ func buildMockShowcases(factory domain.MockFactory, index int) []domain.MockShow
 		Image:       factory.Image,
 		ContentType: "product",
 		Category:    baseCategory,
-		PostedAt:    dateDaysAgo(index + 1),
+		PostedAt:    helper.DateDaysAgo(index + 1),
 		Likes:       60 + int64(index*12),
 		MinOrder:    factory.MinOrder,
 		LeadTime:    factory.LeadTime,
@@ -861,7 +862,7 @@ func buildMockShowcases(factory domain.MockFactory, index int) []domain.MockShow
 		Image:       factory.Image,
 		ContentType: secondType,
 		Category:    baseCategory,
-		PostedAt:    dateDaysAgo(index + 2),
+		PostedAt:    helper.DateDaysAgo(index + 2),
 		Likes:       42 + int64(index*9),
 		MinOrder:    factory.MinOrder,
 		LeadTime:    factory.LeadTime,
@@ -911,7 +912,7 @@ func (s *FrontendService) buildMockRFQ(row repository.FrontendRFQRow, categoryIc
 		Budget:       row.Budget,
 		Quantity:     row.Quantity,
 		Material:     "รายละเอียดวัสดุเพิ่มเติม",
-		Deadline:     dateDaysFromNow(14),
+		Deadline:     helper.DateDaysFromNow(14),
 		CreatedAt:    row.CreatedAt,
 		Description:  row.Description,
 		Offers:       offers,
@@ -933,7 +934,7 @@ func (s *FrontendService) buildMockOrder(row repository.FrontendOrderRow, rfq do
 		if index == len(timelineRows)-1 && mapOrderStatus(row.Status) != "completed" {
 			status = "current"
 		}
-		photo := optionalString(item.Photo.String)
+		photo := helper.OptionalString(item.Photo.String)
 		timeline = append(timeline, domain.MockOrderTimelineItem{
 			ID:          fmt.Sprintf("t%d", index+1),
 			Title:       fallbackString(item.Title.String, "Production Update"),
@@ -981,7 +982,7 @@ func (s *FrontendService) buildMockConversation(userID int64, thread repository.
 	} else {
 		for _, rfq := range rfqMap {
 			if rfq.ProjectName == ref.ProjectName {
-				rfqID = parseRFQID(rfq.ID)
+				rfqID = helper.ParseRFQID(rfq.ID)
 				break
 			}
 		}
@@ -1014,12 +1015,12 @@ func (s *FrontendService) buildMockConversation(userID int64, thread repository.
 			ID:     fmt.Sprintf("m%d", len(messages)+1),
 			Sender: "factory",
 			Text:   "",
-			Time:   fallbackString(lastMessageTime(messagesRows), "10:00"),
+			Time:   fallbackString(lastFrontendMessageTime(messagesRows), "10:00"),
 			Type:   "quote",
 			QuoteData: &domain.MockQuoteData{
 				Price:      quote.Price,
 				LeadTime:   quote.LeadTime,
-				ValidUntil: dateDaysFromNow(7),
+				ValidUntil: helper.DateDaysFromNow(7),
 			},
 		})
 	}
@@ -1034,10 +1035,10 @@ func (s *FrontendService) buildMockConversation(userID int64, thread repository.
 		FactoryID:     fmt.Sprintf("f%d", thread.CounterpartID),
 		RFQID:         fallbackString(rfq.ID, fmt.Sprintf("rfq%d", thread.ReferenceID)),
 		FactoryName:   fallbackString(factory.Name, userLabel.Name),
-		FactoryAvatar: avatarURL(userLabel.Name),
+		FactoryAvatar: helper.AvatarURL(userLabel.Name),
 		RFQName:       ref.ProjectName,
 		LastMessage:   lastMessage,
-		Time:          relativeThaiTimeFromISO(thread.LastMessageAt),
+		Time:          helper.RelativeThaiTimeFromISO(thread.LastMessageAt),
 		Unread:        0,
 		HasQuote:      ref.HasQuote,
 		Messages:      messages,
@@ -1054,7 +1055,7 @@ func buildMockNotifications(rfqs []domain.MockRFQ, orders []domain.MockOrder, co
 				Type:    "rfq",
 				Title:   "มีใบเสนอราคาใหม่",
 				Message: fmt.Sprintf("โครงการ \"%s\" ได้รับใบเสนอราคา %d รายการ", rfq.ProjectName, rfq.OfferCount),
-				Time:    relativeThaiTime(rfq.CreatedAt),
+				Time:    helper.RelativeThaiTime(rfq.CreatedAt),
 				Read:    false,
 				LinkTo:  fmt.Sprintf("/rfqs/%s", rfq.ID),
 				RFQID:   rfq.ID,
@@ -1072,7 +1073,7 @@ func buildMockNotifications(rfqs []domain.MockRFQ, orders []domain.MockOrder, co
 			Type:    "order",
 			Title:   "อัปเดตคำสั่งซื้อ",
 			Message: fmt.Sprintf("คำสั่งซื้อ \"%s\" อยู่สถานะ %s", order.ProjectName, order.Status),
-			Time:    relativeThaiTime(order.CreatedAt),
+			Time:    helper.RelativeThaiTime(order.CreatedAt),
 			Read:    false,
 			LinkTo:  fmt.Sprintf("/orders/%s", order.ID),
 			OrderID: order.ID,
@@ -1198,4 +1199,11 @@ func (s *FrontendService) GetExploreData(userID int64) (*domain.ExploreData, err
 		IdeaArticles: mockData.IdeaArticles,
 		Categories:   mockData.Categories,
 	}, nil
+}
+
+func lastFrontendMessageTime(items []repository.FrontendMessageRow) string {
+	if len(items) == 0 {
+		return ""
+	}
+	return items[len(items)-1].CreatedAt
 }

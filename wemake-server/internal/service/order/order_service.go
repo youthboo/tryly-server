@@ -1,12 +1,14 @@
 package order
 
 import (
+	"context"
 	"errors"
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/yourusername/wemake/internal/domain"
 	orderrepo "github.com/yourusername/wemake/internal/repository/order"
 	paymentrepo "github.com/yourusername/wemake/internal/repository/payment"
 	quotationrepo "github.com/yourusername/wemake/internal/repository/quotation"
@@ -54,6 +56,14 @@ type OrderService struct {
 	reviews       *userrepo.ReviewRepository
 	notifications notificationCreator
 	messages      systemMessageSender
+}
+
+type notificationCreator interface {
+	Create(*domain.Notification) error
+}
+
+type systemMessageSender interface {
+	AutoSendSystemMessage(context.Context, int64, int64, int64, string) error
 }
 
 func NewOrderService(db *sqlx.DB, repo *orderrepo.OrderRepository, schedules *paymentrepo.PaymentScheduleRepository, wallets *walletrepo.WalletRepository, txLedger *walletrepo.TransactionRepository, quotations *quotationrepo.QuotationRepository, rfqs *rfqrepo.RFQRepository, reviews *userrepo.ReviewRepository, notifications notificationCreator, messages systemMessageSender) *OrderService {

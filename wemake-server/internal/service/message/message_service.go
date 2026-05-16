@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/helper"
 	notificationservice "github.com/yourusername/wemake/internal/service/notification"
 )
 
@@ -257,7 +258,7 @@ func (s *MessageService) notifyReceiver(item *domain.Message) {
 	}
 
 	title := "ข้อความใหม่"
-	preview := trimNotificationPreview(item.Content, 80)
+	preview := helper.TrimNotificationPreview(item.Content, 80)
 	if preview == "" {
 		switch item.MessageType {
 		case "IM":
@@ -302,13 +303,13 @@ func (s *MessageService) notifyReceiver(item *domain.Message) {
 		}
 	}
 
-	createNotificationSafe(s.notifications, &domain.Notification{
+	helper.CreateNotificationSafe(s.notifications, &domain.Notification{
 		UserID:  item.ReceiverID,
 		Type:    "CHAT_MESSAGE",
 		Title:   title,
 		Message: fmt.Sprintf("%s: %s", senderName, preview),
 		LinkTo:  link,
-		Data: notificationData(map[string]interface{}{
+		Data: helper.NotificationData(map[string]interface{}{
 			"conv_id":     item.ConvID,
 			"sender_id":   item.SenderID,
 			"sender_name": senderName,

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/helper"
 	orderrepo "github.com/yourusername/wemake/internal/repository/order"
@@ -94,10 +93,6 @@ func buildPaymentSchedule(row *orderrepo.OrderDetailRow, status string, depositD
 	}
 }
 
-func normalizeOrderStatus(status string) string {
-	return helper.NormalizeOrderStatus(status)
-}
-
 func orderStatusLabelTH(status string) string {
 	switch status {
 	case "PP":
@@ -130,7 +125,7 @@ func timePtrInTH(v *time.Time) *time.Time {
 }
 
 func (s *OrderService) ensureDepositPayable(order *domain.Order) error {
-	status := normalizeOrderStatus(order.Status)
+	status := helper.NormalizeOrderStatus(order.Status)
 	if status == "PD" || status == "PR" || status == "QC" || status == "SH" || status == "CP" {
 		return ErrDepositAlreadyPaid
 	}
@@ -169,8 +164,4 @@ func deriveDefaultDepositScheduleDate(createdAt time.Time) time.Time {
 func deriveDefaultDepositDueTimestamp(createdAt time.Time) time.Time {
 	due := deriveDefaultDepositScheduleDate(createdAt)
 	return time.Date(due.Year(), due.Month(), due.Day(), 23, 59, 59, 0, thailandLocation)
-}
-
-func insertDomainEventTx(tx *sqlx.Tx, eventType string, payload interface{}) error {
-	return helper.InsertDomainEventTx(tx, eventType, payload)
 }

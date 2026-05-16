@@ -200,7 +200,7 @@ func (s *OrderService) VerifyPayment(orderID, userID int64, role, txID string) (
 			return err
 		}
 
-		if paymentTx.Type == "DP" && (normalizeOrderStatus(order.Status) == "PP" || normalizeOrderStatus(order.Status) == "PE") {
+		if paymentTx.Type == "DP" && (helper.NormalizeOrderStatus(order.Status) == "PP" || helper.NormalizeOrderStatus(order.Status) == "PE") {
 			if err := s.repo.UpdateStatusTx(tx, orderID, "PD"); err != nil {
 				return err
 			}
@@ -226,14 +226,14 @@ func (s *OrderService) VerifyPayment(orderID, userID int64, role, txID string) (
 					return err
 				}
 			}
-			if err := insertDomainEventTx(tx, "order.deposit_paid", map[string]interface{}{
+			if err := helper.InsertDomainEventTx(tx, "order.deposit_paid", map[string]interface{}{
 				"order_id": orderID,
 				"tx_id":    paymentTx.TxID,
 				"amount":   paymentTx.Amount,
 			}); err != nil {
 				return err
 			}
-			if err := insertDomainEventTx(tx, "cache.invalidate", map[string]interface{}{
+			if err := helper.InsertDomainEventTx(tx, "cache.invalidate", map[string]interface{}{
 				"paths": []string{
 					fmt.Sprintf("/orders/%d", orderID),
 					fmt.Sprintf("/orders/%d/production-updates", orderID),
@@ -250,16 +250,16 @@ func (s *OrderService) VerifyPayment(orderID, userID int64, role, txID string) (
 		return nil, err
 	}
 	paymentTx.Status = "PT"
-	createNotificationSafe(s.notifications, &domain.Notification{
+	helper.CreateNotificationSafe(s.notifications, &domain.Notification{
 		UserID:  order.FactoryID,
 		Type:    "PAYMENT_RECEIVED",
 		Title:   "รับชำระเงินแล้ว",
 		Message: fmt.Sprintf("ได้รับการชำระเงิน ฿%.2f สำหรับ Order #%d", paymentTx.Amount, order.OrderID),
-		LinkTo:  orderLink(order.OrderID),
-		Data: notificationData(map[string]interface{}{
+		LinkTo:  helper.OrderLink(order.OrderID),
+		Data: helper.NotificationData(map[string]interface{}{
 			"order_id": order.OrderID,
 			"amount":   paymentTx.Amount,
-			"url":      orderLink(order.OrderID),
+			"url":      helper.OrderLink(order.OrderID),
 		}),
 		ReferenceID: &order.OrderID,
 		CreatedAt:   now,
@@ -289,7 +289,7 @@ func (s *OrderService) confirmReceiptTx(orderID int64, actorUserID *int64, note 
 			return domain.ErrForbidden
 		}
 
-		statusBefore = normalizeOrderStatus(order.Status)
+		statusBefore = helper.NormalizeOrderStatus(order.Status)
 		if statusBefore == "CP" {
 			if !idempotent {
 				return ErrConfirmReceiptNotAllowed
@@ -370,15 +370,15 @@ func (s *OrderService) confirmReceiptTx(orderID int64, actorUserID *int64, note 
 		}, nil
 	}
 	for _, recipient := range []int64{order.UserID, order.FactoryID} {
-		createNotificationSafe(s.notifications, &domain.Notification{
+		helper.CreateNotificationSafe(s.notifications, &domain.Notification{
 			UserID:  recipient,
 			Type:    "ORDER_COMPLETED",
 			Title:   "คำสั่งซื้อเสร็จสมบูรณ์",
 			Message: fmt.Sprintf("Order #%d เสร็จสมบูรณ์", orderID),
-			LinkTo:  orderLink(orderID),
-			Data: notificationData(map[string]interface{}{
+			LinkTo:  helper.OrderLink(orderID),
+			Data: helper.NotificationData(map[string]interface{}{
 				"order_id": orderID,
-				"url":      orderLink(orderID),
+				"url":      helper.OrderLink(orderID),
 			}),
 			ReferenceID: &orderID,
 			CreatedAt:   completedAt,

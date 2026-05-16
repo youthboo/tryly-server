@@ -18,11 +18,14 @@ import (
 var (
 	ErrPaymentMethodNotSupported       = errors.New("METHOD_NOT_SUPPORTED")
 	ErrPaymentTypeNotSupported         = errors.New("TYPE_NOT_SUPPORTED")
+	ErrPaymentAmountMismatch           = errors.New("payment amount does not match order amount for payment type")
 	ErrPaymentInsufficientWallet       = errors.New("INSUFFICIENT_WALLET_BALANCE")
 	ErrPaymentFactoryWalletNotFound    = errors.New("FACTORY_WALLET_NOT_FOUND")
 	ErrPaymentNotOrderOwner            = errors.New("NOT_ORDER_OWNER")
 	ErrPaymentIdempotencyKeyRequired   = errors.New("IDEMPOTENCY_KEY_REQUIRED")
 	ErrPaymentIdempotencyReplayMissing = errors.New("IDEMPOTENCY_REPLAY_MISSING")
+	ErrDepositAlreadyPaid              = errors.New("DEPOSIT_ALREADY_PAID")
+	ErrDepositExpired                  = errors.New("DEPOSIT_EXPIRED")
 	errPaymentReplayReady              = errors.New("payment replay ready")
 )
 
@@ -128,7 +131,7 @@ func (s *OrderPaymentService) PayDeposit(input OrderPaymentInput) (*OrderPayment
 			out = replay
 			return errPaymentReplayReady
 		}
-		switch normalizeOrderStatus(order.Status) {
+		switch helper.NormalizeOrderStatus(order.Status) {
 		case "PR", "QC", "SH", "CP", "PD":
 			return &PaymentRuleError{Err: ErrDepositAlreadyPaid}
 		case "PE":
@@ -248,14 +251,14 @@ func (s *OrderPaymentService) PayDeposit(input OrderPaymentInput) (*OrderPayment
 		); err != nil {
 			return err
 		}
-		if err := insertDomainEventTx(tx, "order.deposit_paid", map[string]interface{}{
+		if err := helper.InsertDomainEventTx(tx, "order.deposit_paid", map[string]interface{}{
 			"order_id":            input.OrderID,
 			"settlement_group_id": groupID.String(),
 			"amount":              input.Amount,
 		}); err != nil {
 			return err
 		}
-		if err := insertDomainEventTx(tx, "cache.invalidate", map[string]interface{}{
+		if err := helper.InsertDomainEventTx(tx, "cache.invalidate", map[string]interface{}{
 			"paths": []string{
 				"/orders/" + formatInt64(input.OrderID),
 				"/orders/" + formatInt64(input.OrderID) + "/production-updates",
