@@ -38,7 +38,7 @@ func (r *RFQItemRepository) BulkInsertTx(tx *sqlx.Tx, rfqID int64, items []domai
 		return err
 	}
 	for _, item := range items {
-		if _, err := stmt.Exec(rfqID, item.ItemNo, item.Description, domainutil.NullableString(item.Specification), item.Qty, domainutil.NullableString(item.Unit), item.UnitPrice, item.DiscountPct, item.LineTotal, domainutil.NullableString(item.Note)); err != nil {
+		if _, err := stmt.Exec(rfqID, item.ItemNo, item.Description, domainutil.Nullable(item.Specification), item.Qty, domainutil.Nullable(item.Unit), item.UnitPrice, item.DiscountPct, item.LineTotal, domainutil.Nullable(item.Note)); err != nil {
 			_ = stmt.Close()
 			return err
 		}

@@ -18,9 +18,9 @@ func NewOrderPaymentHandler(service *paymentservice.OrderPaymentService) *OrderP
 }
 
 func (h *OrderPaymentHandler) PayDeposit(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	orderID, err := helper.RequireInt64Param(c, "order_id")
 	if err != nil {

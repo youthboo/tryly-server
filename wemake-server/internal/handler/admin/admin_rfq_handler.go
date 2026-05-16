@@ -39,9 +39,9 @@ func (h *AdminRFQHandler) List(c *fiber.Ctx) error {
 	}
 	items, total, err := h.repo.ListAdmin(filter)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch rfqs"})
+		return helper.InternalServerError(c, "failed to fetch rfqs")
 	}
-	return c.JSON(fiber.Map{"data": items, "pagination": domain.Pagination{Page: filter.Page, PageSize: filter.PageSize, Total: total}})
+	return helper.PaginatedResponse(c, items, filter.Page, filter.PageSize, total)
 }
 
 func (h *AdminRFQHandler) GetByID(c *fiber.Ctx) error {
@@ -66,11 +66,13 @@ func (h *AdminRFQHandler) PatchStatus(c *fiber.Ctx) error {
 		return err
 	}
 	status := domainutil.NormalizeStatus(req.Status)
-	if status != "CL" && status != "CC" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "status must be CL or CC"})
+	v := domain.NewValidationCollector()
+	v.AddIf(!domainutil.StatusIn(status, "CL", "CC"), "status", "must be CL or CC")
+	if err := helper.ValidateRequest(c, v); err != nil {
+		return err
 	}
 	if err := h.repo.UpdateStatusAdmin(rfqID, status); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update rfq status"})
+		return helper.InternalServerError(c, "failed to update rfq status")
 	}
 	actorID := helper.OptionalActorID(c)
 	notes := helper.DereferenceString(req.Notes, "")

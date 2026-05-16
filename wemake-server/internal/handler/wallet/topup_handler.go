@@ -19,9 +19,9 @@ func NewTopupHandler(svc *walletservice.TopupService) *TopupHandler {
 
 // POST /wallets/topup
 func (h *TopupHandler) CreateIntent(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	var req dto.TopupIntentRequest
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -38,7 +38,7 @@ func (h *TopupHandler) CreateIntent(c *fiber.Ctx) error {
 func (h *TopupHandler) GetIntent(c *fiber.Ctx) error {
 	intentID := c.Params("intent_id")
 	if intentID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid intent_id"})
+		return helper.BadRequestError(c, "invalid intent_id")
 	}
 	intent, err := h.service.GetIntent(intentID)
 	if err != nil {
@@ -51,7 +51,7 @@ func (h *TopupHandler) GetIntent(c *fiber.Ctx) error {
 func (h *TopupHandler) ConfirmIntent(c *fiber.Ctx) error {
 	intentID := c.Params("intent_id")
 	if intentID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid intent_id"})
+		return helper.BadRequestError(c, "invalid intent_id")
 	}
 	intent, err := h.service.ConfirmIntent(intentID)
 	if err != nil {

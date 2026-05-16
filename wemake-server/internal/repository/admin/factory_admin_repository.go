@@ -131,7 +131,7 @@ func (r *AdminFactoryRepository) UpdateApprovalStatus(factoryID int64, status st
 		    rejection_reason = CASE WHEN $1 IN ('RJ','SU') THEN $3 ELSE NULL END
 		WHERE user_id = $4
 	`
-	res, err := r.db.Exec(query, status, domainutil.NullableInt64(verifiedBy), domainutil.NullableString(reason), factoryID)
+	res, err := r.db.Exec(query, status, domainutil.Nullable(verifiedBy), domainutil.Nullable(reason), factoryID)
 	if err != nil {
 		return err
 	}

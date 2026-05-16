@@ -435,7 +435,7 @@ func (r *RFQRepository) ListMatchingFactoryIDsForKind(kind string, categoryID in
 			)
 		  )
 	`
-	if err := r.db.Select(&ids, query, domainutil.NullablePositiveInt64(categoryID), domainutil.NullableInt64(subCategoryID)); err != nil {
+	if err := r.db.Select(&ids, query, domainutil.NullablePositiveInt64(categoryID), domainutil.Nullable(subCategoryID)); err != nil {
 		return nil, err
 	}
 	return ids, nil
@@ -527,7 +527,7 @@ func (r *RFQRepository) FactoryHasMatchingCategory(factoryID int64, rfq *domain.
 			)
 		)
 	`
-	err := r.db.Get(&ok, query, factoryID, rfq.CategoryID, domainutil.NullableInt64(rfq.SubCategoryID))
+	err := r.db.Get(&ok, query, factoryID, rfq.CategoryID, domainutil.Nullable(rfq.SubCategoryID))
 	return ok, err
 }
 

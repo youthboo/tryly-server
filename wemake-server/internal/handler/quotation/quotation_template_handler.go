@@ -24,22 +24,22 @@ var quotationTemplateNotFoundErrorMap = map[error]helper.ErrorResponse{
 
 // GET /quotation-templates
 func (h *QuotationTemplateHandler) List(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	items, err := h.service.ListByFactoryID(userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch quotation templates"})
+		return helper.JSONInternal(c, "failed to fetch quotation templates")
 	}
 	return c.JSON(items)
 }
 
 // POST /quotation-templates
 func (h *QuotationTemplateHandler) Create(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	var req dto.CreateQuotationTemplateRequest
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -52,20 +52,20 @@ func (h *QuotationTemplateHandler) Create(c *fiber.Ctx) error {
 	}
 	helper.AssignIfNotNil(&tmpl.IsActive, req.IsActive)
 	if err := h.service.Create(tmpl); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create quotation template"})
+		return helper.JSONInternal(c, "failed to create quotation template")
 	}
 	return c.Status(fiber.StatusCreated).JSON(tmpl)
 }
 
 // PATCH /quotation-templates/:template_id
 func (h *QuotationTemplateHandler) Patch(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	templateID, err := helper.ParsePositiveInt64Param(c, "template_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid template_id"})
+		return helper.BadRequestError(c, "invalid template_id")
 	}
 	var req dto.PatchQuotationTemplateRequest
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -92,13 +92,13 @@ func (h *QuotationTemplateHandler) Patch(c *fiber.Ctx) error {
 
 // DELETE /quotation-templates/:template_id
 func (h *QuotationTemplateHandler) Delete(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	templateID, err := helper.ParsePositiveInt64Param(c, "template_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid template_id"})
+		return helper.BadRequestError(c, "invalid template_id")
 	}
 	if err := h.service.Delete(templateID, userID); err != nil {
 		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to delete quotation template"), quotationTemplateNotFoundErrorMap)

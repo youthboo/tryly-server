@@ -25,7 +25,7 @@ func (h *BOQHandler) Create(c *fiber.Ctx) error {
 	}
 	convID, err := helper.ParsePositiveInt64Param(c, "conv_id")
 	if err != nil || convID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid conv_id"})
+		return helper.BadRequestError(c, "invalid conv_id")
 	}
 	var req dto.BOQPayloadRequest
 	if err := helper.ParseBody(c, &req, "invalid payload"); err != nil {
@@ -46,7 +46,7 @@ func (h *BOQHandler) Get(c *fiber.Ctx) error {
 	}
 	rfqID, err := helper.ParsePositiveInt64Param(c, "rfq_id")
 	if err != nil || rfqID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
+		return helper.BadRequestError(c, "invalid rfq_id")
 	}
 	boq, _, err := h.service.Get(rfqID, userID)
 	if err != nil {
@@ -62,7 +62,7 @@ func (h *BOQHandler) Update(c *fiber.Ctx) error {
 	}
 	rfqID, err := helper.ParsePositiveInt64Param(c, "rfq_id")
 	if err != nil || rfqID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
+		return helper.BadRequestError(c, "invalid rfq_id")
 	}
 	var req dto.BOQPayloadRequest
 	if err := helper.ParseBody(c, &req, "invalid payload"); err != nil {
@@ -83,7 +83,7 @@ func (h *BOQHandler) Accept(c *fiber.Ctx) error {
 	}
 	rfqID, err := helper.ParsePositiveInt64Param(c, "rfq_id")
 	if err != nil || rfqID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
+		return helper.BadRequestError(c, "invalid rfq_id")
 	}
 	order, quotationID, err := h.service.Accept(rfqID, userID)
 	if err != nil {
@@ -106,7 +106,7 @@ func (h *BOQHandler) Decline(c *fiber.Ctx) error {
 	}
 	rfqID, err := helper.ParsePositiveInt64Param(c, "rfq_id")
 	if err != nil || rfqID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
+		return helper.BadRequestError(c, "invalid rfq_id")
 	}
 	var req dto.DeclineBOQRequest
 	_ = helper.ParseBody(c, &req, "invalid payload")
@@ -126,9 +126,9 @@ func (h *BOQHandler) ListMine(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	items, err := h.service.ListMine(userID, c.Query("status"))
+	items, err := h.service.ListMine(userID, helper.QueryString(c, "status"))
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch boqs"})
+		return helper.InternalServerError(c, "failed to fetch boqs")
 	}
 	return c.JSON(items)
 }

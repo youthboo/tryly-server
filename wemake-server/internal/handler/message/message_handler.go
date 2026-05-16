@@ -1,8 +1,6 @@
 package message
 
 import (
-	"strings"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/dto"
@@ -28,11 +26,11 @@ func (h *MessageHandler) CreateMessage(c *fiber.Ctx) error {
 	if err := helper.ParseJSONBody(c, &req, "invalid request payload"); err != nil {
 		return err
 	}
-	if err := helper.ValidatePointerInt64(req.ReceiverID, "receiver_id"); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-	}
-	if err := helper.ValidatePointerString(req.Content, "content"); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	v := domain.NewValidationCollector()
+	v.AddIf(req.ReceiverID == nil || *req.ReceiverID <= 0, "receiver_id", "is required and must be positive")
+	v.AddIf(req.Content == nil || helper.DereferenceString(req.Content, "") == "", "content", "is required")
+	if err := helper.ValidateRequest(c, v); err != nil {
+		return err
 	}
 
 	referenceType := helper.DereferenceString(req.ReferenceType, "")
@@ -63,22 +61,25 @@ func (h *MessageHandler) ListMessages(c *fiber.Ctx) error {
 		return err
 	}
 
-	convID := c.QueryInt("conv_id", 0)
-	if convID > 0 {
-		items, err := h.service.ListByConvID(int64(convID))
+	query := helper.QueryParams(c)
+	convID := query.OptionalPositiveInt64("conv_id")
+	if err := query.Err(); err != nil {
+		return err
+	}
+	if convID != nil {
+		items, err := h.service.ListByConvID(*convID)
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch messages by conv_id"})
+			return helper.JSONInternal(c, "failed to fetch messages by conv_id")
 		}
 		return c.JSON(items)
 	}
 
-	referenceType := c.Query("reference_type")
-	referenceIDRaw := c.Query("reference_id")
-	if strings.TrimSpace(referenceType) == "" || strings.TrimSpace(referenceIDRaw) == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "reference_type and reference_id (or conv_id) are required"})
+	referenceType := query.String("reference_type")
+	if referenceType == "" || query.String("reference_id") == "" {
+		return helper.BadRequestError(c, "reference_type and reference_id (or conv_id) are required")
 	}
-	referenceID, err := helper.ParseRequiredPositiveInt64Query(c, "reference_id")
-	if err != nil {
+	referenceID := query.RequiredPositiveInt64("reference_id")
+	if query.Err() != nil {
 		return helper.BadRequest(c, "reference_id must be a positive integer")
 	}
 	items, err := h.service.ListByReference(referenceType, referenceID, userID)
@@ -95,7 +96,7 @@ func (h *MessageHandler) ListThreads(c *fiber.Ctx) error {
 	}
 	items, err := h.service.ListThreads(userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch threads"})
+		return helper.JSONInternal(c, "failed to fetch threads")
 	}
 	return c.JSON(items)
 }

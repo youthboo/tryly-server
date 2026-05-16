@@ -6,9 +6,10 @@ import (
 	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/dto"
 	walletservice "github.com/yourusername/wemake/internal/service/wallet"
-	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type SettlementHandler struct {
@@ -21,26 +22,26 @@ func NewSettlementHandler(svc *walletservice.SettlementService) *SettlementHandl
 
 // GET /settlements
 func (h *SettlementHandler) List(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	items, err := h.service.ListByFactoryID(userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch settlements"})
+		return helper.JSONInternal(c, "failed to fetch settlements")
 	}
 	return c.JSON(items)
 }
 
 // GET /settlements/:settlement_id
 func (h *SettlementHandler) GetByID(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	settlementID, err := helper.ParsePositiveInt64Param(c, "settlement_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid settlement_id"})
+		return helper.BadRequestError(c, "invalid settlement_id")
 	}
 	item, err := h.service.GetByID(settlementID, userID)
 	if err != nil {
@@ -51,9 +52,9 @@ func (h *SettlementHandler) GetByID(c *fiber.Ctx) error {
 
 // POST /settlements — create a settlement record (factory or system initiated)
 func (h *SettlementHandler) Create(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	var req dto.CreateSettlementRequest
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -61,7 +62,7 @@ func (h *SettlementHandler) Create(c *fiber.Ctx) error {
 	}
 	item, err := h.service.Create(userID, nil, req.Amount, req.Notes)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create settlement"})
+		return helper.JSONInternal(c, "failed to create settlement")
 	}
 	return c.Status(fiber.StatusCreated).JSON(item)
 }
@@ -70,15 +71,17 @@ func (h *SettlementHandler) Create(c *fiber.Ctx) error {
 func (h *SettlementHandler) PatchStatus(c *fiber.Ctx) error {
 	settlementID, err := helper.ParsePositiveInt64Param(c, "settlement_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid settlement_id"})
+		return helper.BadRequestError(c, "invalid settlement_id")
 	}
 	var req dto.PatchSettlementStatusRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	status := domainutil.NormalizeStatus(req.Status)
-	if status != "PR" && status != "CP" && status != "FL" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "status must be PR, CP, or FL"})
+	v := domain.NewValidationCollector()
+	v.AddIf(!domainutil.StatusIn(status, "PR", "CP", "FL"), "status", "must be PR, CP, or FL")
+	if err := helper.ValidateRequest(c, v); err != nil {
+		return err
 	}
 	if err := h.service.UpdateStatus(settlementID, status); err != nil {
 		return helper.MapServiceError(c, err, settlementPatchStatusFallback, settlementPatchStatusResponses)

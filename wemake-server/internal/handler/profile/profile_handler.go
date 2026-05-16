@@ -1,20 +1,16 @@
 package profile
 
 import (
-	"context"
-	"github.com/yourusername/wemake/internal/helper"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/cloudinary/cloudinary-go/v2"
-	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/dto"
-	"github.com/yourusername/wemake/internal/logger"
+	"github.com/yourusername/wemake/internal/helper"
+	mediautil "github.com/yourusername/wemake/internal/media"
 	profileservice "github.com/yourusername/wemake/internal/service/profile"
 )
 
@@ -29,27 +25,27 @@ func NewProfileHandler(service *profileservice.ProfileService, publicBaseURL str
 }
 
 func (h *ProfileHandler) GetProfile(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	item, err := h.service.GetProfile(userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch profile"})
+		return helper.JSONInternal(c, "failed to fetch profile")
 	}
 	return c.JSON(item)
 }
 
 func (h *ProfileHandler) UpdateProfile(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	role := helper.OptionalRoleFromContext(c)
 	if role == "" {
 		profile, err := h.service.GetProfile(userID)
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to resolve profile"})
+			return helper.JSONInternal(c, "failed to resolve profile")
 		}
 		role = profile.Role
 	}
@@ -67,7 +63,7 @@ func (h *ProfileHandler) UpdateProfile(c *fiber.Ctx) error {
 			PriceRange:     nil,
 		})
 		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid profile input"})
+			return helper.BadRequestError(c, "invalid profile input")
 		}
 		return c.JSON(item)
 	default:
@@ -80,72 +76,46 @@ func (h *ProfileHandler) UpdateProfile(c *fiber.Ctx) error {
 			SubDistrict: nil, District: nil, Province: nil, PostalCode: nil,
 		})
 		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid profile input"})
+			return helper.BadRequestError(c, "invalid profile input")
 		}
 		return c.JSON(item)
 	}
 }
 
 func (h *ProfileHandler) UploadAvatar(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
-	file, err := c.FormFile("file")
+	result, err := mediautil.SaveUploadedFile(c, mediautil.UploadOptions{
+		FileNamePrefix:        "avatar_" + strconv.FormatInt(userID, 10) + "_" + uuid.NewString(),
+		Folder:                "wemake/avatars",
+		PublicBaseURL:         h.publicBaseURL,
+		MaxSize:               5 * 1024 * 1024,
+		RequiredMessage:       "file is required",
+		MaxSizeMessage:        "file exceeds 5MB",
+		CloudUploadMessage:    "failed to upload avatar",
+		CloudUploadLogMessage: "cloudinary avatar upload failed",
+		Cloudinary:            h.cld,
+		CloudinaryLogFields:   []interface{}{"user_id", userID},
+	})
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "file is required"})
+		if uploadErr, ok := err.(*mediautil.UploadError); ok {
+			return c.Status(uploadErr.Status).JSON(fiber.Map{"error": uploadErr.Message})
+		}
+		return helper.JSONInternal(c, "failed to save file")
 	}
-	if file.Size > 5*1024*1024 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "file exceeds 5MB"})
-	}
-	ext := strings.ToLower(filepath.Ext(file.Filename))
-	if ext == "" {
-		ext = ".jpg"
-	}
-	fileName := "avatar_" + strconv.FormatInt(userID, 10) + "_" + uuid.NewString() + ext
-	var avatarURL string
-	if h.cld != nil {
-		src, err := file.Open()
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to read upload"})
-		}
-		defer src.Close()
-		result, err := h.cld.Upload.Upload(context.Background(), src, uploader.UploadParams{
-			Folder:       "wemake/avatars",
-			PublicID:     strings.TrimSuffix(fileName, ext),
-			ResourceType: "auto",
-		})
-		if err != nil {
-			logger.Error("cloudinary avatar upload failed", "user_id", userID, "public_id", strings.TrimSuffix(fileName, ext), "err", err)
-			return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": "failed to upload avatar"})
-		}
-		avatarURL = result.SecureURL
-	} else {
-		saveDir := "./uploads"
-		savePath := filepath.Join(saveDir, fileName)
-		if err := os.MkdirAll(saveDir, 0755); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create uploads directory"})
-		}
-		if err := c.SaveFile(file, savePath); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to save file"})
-		}
-		baseURL := h.publicBaseURL
-		if baseURL == "" {
-			baseURL = c.BaseURL()
-		}
-		avatarURL = baseURL + "/uploads/" + fileName
-	}
-	item, err := h.service.UpdateAvatar(userID, avatarURL)
+	item, err := h.service.UpdateAvatar(userID, result.URL)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update avatar"})
+		return helper.JSONInternal(c, "failed to update avatar")
 	}
 	return c.JSON(fiber.Map{"avatar_url": item.AvatarURL})
 }
 
 func (h *ProfileHandler) ChangePassword(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	var req dto.ChangePasswordRequest
 	if err := helper.ParseBody(c, &req, "invalid payload"); err != nil {
@@ -153,42 +123,42 @@ func (h *ProfileHandler) ChangePassword(c *fiber.Ctx) error {
 	}
 	if err := h.service.ChangePassword(userID, req.OldPassword, req.NewPassword, ""); err != nil {
 		if err == profileservice.ErrProfileUnauthorized {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "current password is incorrect"})
+			return helper.UnauthorizedError(c, "current password is incorrect")
 		}
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid password input"})
+		return helper.BadRequestError(c, "invalid password input")
 	}
 	return c.JSON(fiber.Map{"message": "password changed successfully"})
 }
 
 func (h *ProfileHandler) GetSummary(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	role := helper.OptionalRoleFromContext(c)
 	if role == "" {
 		profile, err := h.service.GetProfile(userID)
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to resolve profile"})
+			return helper.JSONInternal(c, "failed to resolve profile")
 		}
 		role = profile.Role
 	}
 	item, err := h.service.GetSummary(userID, role)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch summary"})
+		return helper.JSONInternal(c, "failed to fetch summary")
 	}
 	return c.JSON(item)
 }
 
 func (h *ProfileHandler) ListTransactions(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	page, limit := helper.PageLimit(c, helper.DefaultPageSize)
-	items, total, totalIn, totalOut, err := h.service.ListTransactions(userID, page, limit, c.Query("type"), c.Query("status"))
+	items, total, totalIn, totalOut, err := h.service.ListTransactions(userID, page, limit, helper.QueryString(c, "type"), helper.QueryString(c, "status"))
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch transactions"})
+		return helper.JSONInternal(c, "failed to fetch transactions")
 	}
 	totalPages := int64((int(total) + limit - 1) / limit)
 	return c.JSON(fiber.Map{
@@ -206,48 +176,48 @@ func (h *ProfileHandler) ListTransactions(c *fiber.Ctx) error {
 }
 
 func (h *ProfileHandler) ListMyReviews(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	page, limit := helper.PageLimit(c, helper.DefaultPageSize)
 	items, total, err := h.service.ListMyReviews(userID, page, limit)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch reviews"})
+		return helper.JSONInternal(c, "failed to fetch reviews")
 	}
 	return c.JSON(fiber.Map{"page": page, "limit": limit, "total": total, "data": items})
 }
 
 func (h *ProfileHandler) ListReceivedReviews(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	page, limit := helper.PageLimit(c, helper.DefaultPageSize)
 	role := helper.OptionalRoleFromContext(c)
 	items, total, err := h.service.ListReceivedReviews(userID, role, page, limit)
 	if err != nil {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "factory role required"})
+		return helper.ForbiddenError(c, "factory role required")
 	}
 	return c.JSON(fiber.Map{"page": page, "limit": limit, "total": total, "data": items})
 }
 
 func (h *ProfileHandler) GetNotifPrefs(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	item, err := h.service.GetNotificationPreference(userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch preferences"})
+		return helper.JSONInternal(c, "failed to fetch preferences")
 	}
 	return c.JSON(item)
 }
 
 func (h *ProfileHandler) UpdateNotifPrefs(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	var req domain.NotificationPreference
 	if err := helper.ParseBody(c, &req, "invalid payload"); err != nil {
@@ -255,7 +225,7 @@ func (h *ProfileHandler) UpdateNotifPrefs(c *fiber.Ctx) error {
 	}
 	item, err := h.service.UpdateNotificationPreference(userID, &req)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update preferences"})
+		return helper.JSONInternal(c, "failed to update preferences")
 	}
 	return c.JSON(item)
 }

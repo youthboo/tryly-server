@@ -18,21 +18,21 @@ func NewConversationHandler(service *conversationservice.ConversationService) *C
 }
 
 func (h *ConversationHandler) List(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return helper.Unauthorized(c)
+		return err
 	}
 	items, err := h.service.ListByUserID(userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch conversations"})
+		return helper.JSONInternal(c, "failed to fetch conversations")
 	}
 	return c.JSON(items)
 }
 
 func (h *ConversationHandler) Get(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return helper.Unauthorized(c)
+		return err
 	}
 	convID, err := helper.RequireInt64Param(c, "conv_id")
 	if err != nil {
@@ -46,24 +46,27 @@ func (h *ConversationHandler) Get(c *fiber.Ctx) error {
 }
 
 func (h *ConversationHandler) Create(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return helper.Unauthorized(c)
+		return err
 	}
 	var req domain.Conversation
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
-	if req.CustomerID <= 0 || req.FactoryID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "customer_id and factory_id are required"})
+	v := domain.NewValidationCollector()
+	v.AddIf(req.CustomerID <= 0, "customer_id", "is required")
+	v.AddIf(req.FactoryID <= 0, "factory_id", "is required")
+	if err := helper.ValidateRequest(c, v); err != nil {
+		return err
 	}
 	// Allow both customer (CT) and factory (FT) to initiate a conversation room.
 	// The caller must be one of the two parties — this is the security boundary.
 	if req.CustomerID != userID && req.FactoryID != userID {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
+		return helper.ForbiddenError(c, "forbidden")
 	}
 	if err := h.service.Create(&req); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create conversation"})
+		return helper.JSONInternal(c, "failed to create conversation")
 	}
 	item, err := h.service.GetByID(req.ConvID, userID)
 	if err != nil {
@@ -73,28 +76,28 @@ func (h *ConversationHandler) Create(c *fiber.Ctx) error {
 }
 
 func (h *ConversationHandler) InquireShowcase(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return helper.Unauthorized(c)
+		return err
 	}
 	showcaseID, err := helper.ParsePositiveInt64Param(c, "showcase_id")
 	if err != nil {
 		return helper.BadRequest(c, "invalid showcase_id")
 	}
 	if role := helper.OptionalRoleFromContext(c); role != "" && role != domain.RoleCustomer {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "buyer role required"})
+		return helper.ForbiddenError(c, "buyer role required")
 	}
 	item, err := h.service.CreateFromShowcase(showcaseID, userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create conversation"})
+		return helper.JSONInternal(c, "failed to create conversation")
 	}
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{"conv_id": item.ConvID})
 }
 
 func (h *ConversationHandler) MarkAsRead(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return helper.Unauthorized(c)
+		return err
 	}
 	convID, err := helper.RequireInt64Param(c, "conv_id")
 	if err != nil {
@@ -107,23 +110,25 @@ func (h *ConversationHandler) MarkAsRead(c *fiber.Ctx) error {
 }
 
 func (h *ConversationHandler) ShareRFQ(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return helper.Unauthorized(c)
+		return err
 	}
 	if role := helper.OptionalRoleFromContext(c); role != "" && role != domain.RoleCustomer {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "buyer role required"})
+		return helper.ForbiddenError(c, "buyer role required")
 	}
 	convID, err := helper.RequireInt64Param(c, "conv_id")
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return err
+	}
 	var req dto.ShareRFQRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
-	if req.RFQID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "rfq_id is required"})
+	v := domain.NewValidationCollector()
+	v.AddIf(req.RFQID <= 0, "rfq_id", "is required")
+	if err := helper.ValidateRequest(c, v); err != nil {
+		return err
 	}
 	msg, rfq, err := h.service.ShareRFQ(int64(convID), userID, req.RFQID)
 	if err != nil {

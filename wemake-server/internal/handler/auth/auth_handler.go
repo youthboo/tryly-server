@@ -46,7 +46,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 			return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_ROLE", err.Error()))
 		default:
 			logger.Error("user registration failed", "role", req.Role, "email", req.Email, "err", err)
-			return helper.WriteAPIError(c, helper.InternalServerError("REGISTER_FAILED", "failed to register"))
+			return helper.WriteAPIError(c, helper.InternalServerAPIError("REGISTER_FAILED", "failed to register"))
 		}
 	}
 
@@ -71,7 +71,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		case authservice.ErrUserInactive:
 			return helper.WriteAPIError(c, helper.ForbiddenAPIError("USER_INACTIVE", "account is inactive"))
 		default:
-			return helper.WriteAPIError(c, helper.InternalServerError("LOGIN_FAILED", "failed to login"))
+			return helper.WriteAPIError(c, helper.InternalServerAPIError("LOGIN_FAILED", "failed to login"))
 		}
 	}
 
@@ -88,7 +88,7 @@ func (h *AuthHandler) ForgotPassword(c *fiber.Ctx) error {
 
 	token, err := h.service.ForgotPassword(req.Email)
 	if err != nil {
-		return helper.WriteAPIError(c, helper.InternalServerError("FORGOT_PASSWORD_FAILED", "failed to process forgot password"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("FORGOT_PASSWORD_FAILED", "failed to process forgot password"))
 	}
 
 	data := fiber.Map{}
@@ -112,7 +112,7 @@ func (h *AuthHandler) ResetPassword(c *fiber.Ctx) error {
 		if err == authservice.ErrInvalidResetToken {
 			return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_RESET_TOKEN", "invalid or expired reset token"))
 		}
-		return helper.WriteAPIError(c, helper.InternalServerError("RESET_PASSWORD_FAILED", "failed to reset password"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("RESET_PASSWORD_FAILED", "failed to reset password"))
 	}
 
 	return helper.WriteSuccess(c, "password reset successful", nil)

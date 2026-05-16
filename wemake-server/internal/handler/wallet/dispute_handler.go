@@ -19,9 +19,9 @@ func NewDisputeHandler(svc *walletservice.DisputeService) *DisputeHandler {
 
 // POST /orders/:order_id/disputes
 func (h *DisputeHandler) Create(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	orderID, err := helper.RequireInt64Param(c, "order_id")
 	if err != nil {
@@ -33,7 +33,7 @@ func (h *DisputeHandler) Create(c *fiber.Ctx) error {
 	}
 	item, err := h.service.Create(int64(orderID), userID, req.Description)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create dispute"})
+		return helper.JSONInternal(c, "failed to create dispute")
 	}
 	return c.Status(fiber.StatusCreated).JSON(item)
 }
@@ -55,7 +55,7 @@ func (h *DisputeHandler) GetByOrderID(c *fiber.Ctx) error {
 func (h *DisputeHandler) PatchStatus(c *fiber.Ctx) error {
 	disputeID, err := helper.ParsePositiveInt64Param(c, "dispute_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid dispute_id"})
+		return helper.BadRequestError(c, "invalid dispute_id")
 	}
 	var req dto.PatchDisputeStatusRequest
 	if err := helper.RequireBody(c, &req); err != nil {

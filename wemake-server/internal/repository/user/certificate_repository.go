@@ -85,7 +85,7 @@ func (r *CertificateRepository) PatchByCertID(factoryID, certID int64, documentU
 		        ELSE verify_status
 		    END
 		WHERE factory_id = $4 AND cert_id = $5
-	`, domainutil.NullableString(documentURL), domainutil.NullableString(expireDate), domainutil.NullableString(certNumber), factoryID, certID)
+	`, domainutil.Nullable(documentURL), domainutil.Nullable(expireDate), domainutil.Nullable(certNumber), factoryID, certID)
 	if err != nil {
 		return err
 	}

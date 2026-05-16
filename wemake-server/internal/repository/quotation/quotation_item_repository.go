@@ -38,7 +38,7 @@ func (r *QuotationItemRepository) BulkInsert(tx *sqlx.Tx, qid int64, items []dom
 		return err
 	}
 	for _, item := range items {
-		if _, err := stmt.Exec(qid, item.ItemNo, item.Description, item.Qty, domainutil.NullableString(item.Unit), item.UnitPrice, item.DiscountPct, item.LineTotal, domainutil.NullableString(item.Note)); err != nil {
+		if _, err := stmt.Exec(qid, item.ItemNo, item.Description, item.Qty, domainutil.Nullable(item.Unit), item.UnitPrice, item.DiscountPct, item.LineTotal, domainutil.Nullable(item.Note)); err != nil {
 			stmt.Close()
 			return err
 		}

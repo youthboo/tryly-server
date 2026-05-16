@@ -20,18 +20,19 @@ func NewAdminCustomerHandler(
 
 // GET /api/admin/customers
 func (h *AdminCustomerHandler) ListCustomers(c *fiber.Ctx) error {
-	search := c.Query("search", "")
+	query := helper.QueryParams(c)
+	search := query.String("search")
 	limit, offset := helper.LimitOffset(c, helper.DefaultPageSize)
 
 	var isActive *bool
-	if v := c.Query("is_active"); v != "" {
+	if v := query.String("is_active"); v != "" {
 		b := v == "true" || v == "1"
 		isActive = &b
 	}
 
 	items, total, err := h.customers.ListCustomers(search, isActive, limit, offset)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch customers"})
+		return helper.JSONInternal(c, "failed to fetch customers")
 	}
 	return c.JSON(fiber.Map{
 		"customers": items,
@@ -64,7 +65,7 @@ func (h *AdminCustomerHandler) GetCustomerWallet(c *fiber.Ctx) error {
 
 	wallet, err := h.customers.GetCustomerWallet(userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch wallet"})
+		return helper.JSONInternal(c, "failed to fetch wallet")
 	}
 	return c.JSON(wallet)
 }
@@ -79,7 +80,7 @@ func (h *AdminCustomerHandler) ListCustomerOrders(c *fiber.Ctx) error {
 
 	items, total, err := h.customers.ListCustomerOrders(userID, limit, offset)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch orders"})
+		return helper.JSONInternal(c, "failed to fetch orders")
 	}
 	return c.JSON(fiber.Map{
 		"orders": items,
@@ -91,10 +92,11 @@ func (h *AdminCustomerHandler) ListCustomerOrders(c *fiber.Ctx) error {
 
 // GET /api/admin/dashboard/top-customers
 func (h *AdminCustomerHandler) ListTopCustomers(c *fiber.Ctx) error {
-	limit := helper.ClampInt(c.QueryInt("limit", 5), helper.MinPageSize, helper.MaxPageSize)
+	query := helper.QueryParams(c)
+	limit := helper.ClampInt(query.Int("limit", 5), helper.MinPageSize, helper.MaxPageSize)
 	items, err := h.customers.ListTopCustomers(limit)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch top customers"})
+		return helper.JSONInternal(c, "failed to fetch top customers")
 	}
 	return c.JSON(fiber.Map{"top_customers": items})
 }
@@ -109,7 +111,7 @@ func (h *AdminCustomerHandler) ListFactorySettlements(c *fiber.Ctx) error {
 
 	items, total, err := h.settlements.ListByFactory(factoryID, limit, offset)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch settlements"})
+		return helper.JSONInternal(c, "failed to fetch settlements")
 	}
 	return c.JSON(fiber.Map{
 		"settlements": items,

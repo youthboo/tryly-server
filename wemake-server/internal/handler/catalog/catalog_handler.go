@@ -17,26 +17,24 @@ func NewCatalogHandler(service *catalogservice.CatalogService) *CatalogHandler {
 }
 
 func (h *CatalogHandler) GetCategories(c *fiber.Ctx) error {
-	items, err := h.service.GetCategories(c.Query("scope"))
+	items, err := h.service.GetCategories(helper.QueryString(c, "scope"))
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch categories"})
+		return helper.JSONInternal(c, "failed to fetch categories")
 	}
 	return c.JSON(items)
 }
 
 func (h *CatalogHandler) GetLBICategories(c *fiber.Ctx) error {
-	scope := domainutil.NormalizeStatus(c.Query("scope"))
+	scope := domainutil.NormalizeStatus(helper.QueryString(c, "scope"))
 	if scope == "" {
 		scope = domain.CatalogScopeProduct
 	}
-	if scope != domain.CatalogScopeProduct &&
-		scope != domain.CatalogScopeMaterial &&
-		scope != domain.CatalogScopeAll {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "INVALID_SCOPE"})
+	if !domainutil.StatusIn(scope, domain.CatalogScopeProduct, domain.CatalogScopeMaterial, domain.CatalogScopeAll) {
+		return helper.BadRequestError(c, "INVALID_SCOPE")
 	}
 	items, err := h.service.GetCategories(scope)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch categories"})
+		return helper.JSONInternal(c, "failed to fetch categories")
 	}
 	return c.JSON(fiber.Map{"categories": items})
 }
@@ -44,12 +42,12 @@ func (h *CatalogHandler) GetLBICategories(c *fiber.Ctx) error {
 func (h *CatalogHandler) GetSubCategories(c *fiber.Ctx) error {
 	categoryID, err := helper.ParsePositiveInt64Param(c, "id")
 	if err != nil || categoryID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid category id"})
+		return helper.BadRequestError(c, "invalid category id")
 	}
 
 	items, err := h.service.GetSubCategories(categoryID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch sub-categories"})
+		return helper.JSONInternal(c, "failed to fetch sub-categories")
 	}
 	return c.JSON(items)
 }
@@ -57,7 +55,7 @@ func (h *CatalogHandler) GetSubCategories(c *fiber.Ctx) error {
 func (h *CatalogHandler) GetUnits(c *fiber.Ctx) error {
 	items, err := h.service.GetUnits()
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch units"})
+		return helper.JSONInternal(c, "failed to fetch units")
 	}
 	return c.JSON(items)
 }

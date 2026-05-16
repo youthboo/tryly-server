@@ -48,9 +48,9 @@ func (h *AdminOrderHandler) List(c *fiber.Ctx) error {
 	}
 	items, total, err := h.repo.ListAdmin(filter)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch orders"})
+		return helper.JSONInternal(c, "failed to fetch orders")
 	}
-	return c.JSON(fiber.Map{"data": items, "pagination": domain.Pagination{Page: filter.Page, PageSize: filter.PageSize, Total: total}})
+	return helper.PaginatedResponse(c, items, filter.Page, filter.PageSize, total)
 }
 
 func (h *AdminOrderHandler) GetByID(c *fiber.Ctx) error {
@@ -64,7 +64,7 @@ func (h *AdminOrderHandler) GetByID(c *fiber.Ctx) error {
 	}
 	finance, err := h.repo.GetAdminFinance(orderID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch order finance"})
+		return helper.JSONInternal(c, "failed to fetch order finance")
 	}
 	return c.JSON(domain.AdminOrderDetailResponse{OrderDetailResponse: detail, AdminFinance: *finance})
 }
@@ -79,11 +79,13 @@ func (h *AdminOrderHandler) PatchStatus(c *fiber.Ctx) error {
 		return err
 	}
 	status := domainstatus.NormalizeOrder(req.Status)
-	if !domainstatus.IsValidOrder(status) {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid status"})
+	v := domain.NewValidationCollector()
+	v.AddIf(!domainstatus.IsValidOrder(status), "status", "is invalid")
+	if err := helper.ValidateRequest(c, v); err != nil {
+		return err
 	}
 	if err := h.service.UpdateStatus(orderID, status, nil); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update order status"})
+		return helper.JSONInternal(c, "failed to update order status")
 	}
 	actorID := helper.OptionalActorID(c)
 	notes := helper.DereferenceString(req.Notes, "")
@@ -102,9 +104,9 @@ func (h *AdminOrderHandler) ListWithdrawals(c *fiber.Ctx) error {
 	}
 	items, total, err := h.adminWithdrawal.ListAdmin(query.String("status"), factoryID, page, pageSize)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch withdrawals"})
+		return helper.JSONInternal(c, "failed to fetch withdrawals")
 	}
-	return c.JSON(fiber.Map{"data": items, "pagination": domain.Pagination{Page: page, PageSize: pageSize, Total: total}})
+	return helper.PaginatedResponse(c, items, page, pageSize, total)
 }
 
 func (h *AdminOrderHandler) PatchWithdrawal(c *fiber.Ctx) error {
@@ -117,13 +119,13 @@ func (h *AdminOrderHandler) PatchWithdrawal(c *fiber.Ctx) error {
 		return err
 	}
 	status := domainutil.NormalizeStatus(req.Status)
-	if status != domain.WithdrawalStatusApproved &&
-		status != domain.WithdrawalStatusRejected &&
-		status != domain.WithdrawalStatusComplete {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "status must be AP, RJ, or CP"})
+	v := domain.NewValidationCollector()
+	v.AddIf(!domainutil.StatusIn(status, domain.WithdrawalStatusApproved, domain.WithdrawalStatusRejected, domain.WithdrawalStatusComplete), "status", "must be AP, RJ, or CP")
+	if err := helper.ValidateRequest(c, v); err != nil {
+		return err
 	}
 	if err := h.withdrawal.UpdateStatus(requestID, status, req.Comments); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update withdrawal"})
+		return helper.JSONInternal(c, "failed to update withdrawal")
 	}
 	actorID := helper.OptionalActorID(c)
 	payload, _ := json.Marshal(map[string]interface{}{"status": status, "comments": req.Comments})
@@ -141,9 +143,9 @@ func (h *AdminOrderHandler) ListDisputes(c *fiber.Ctx) error {
 	}
 	items, total, err := h.adminDispute.ListAdmin(query.String("status"), orderID, page, pageSize)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch disputes"})
+		return helper.JSONInternal(c, "failed to fetch disputes")
 	}
-	return c.JSON(fiber.Map{"data": items, "pagination": domain.Pagination{Page: page, PageSize: pageSize, Total: total}})
+	return helper.PaginatedResponse(c, items, page, pageSize, total)
 }
 
 func (h *AdminOrderHandler) PatchDispute(c *fiber.Ctx) error {
@@ -156,11 +158,13 @@ func (h *AdminOrderHandler) PatchDispute(c *fiber.Ctx) error {
 		return err
 	}
 	status := domainutil.NormalizeStatus(req.Status)
-	if status != "RS" && status != "CL" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "status must be RS or CL"})
+	v := domain.NewValidationCollector()
+	v.AddIf(!domainutil.StatusIn(status, "RS", "CL"), "status", "must be RS or CL")
+	if err := helper.ValidateRequest(c, v); err != nil {
+		return err
 	}
 	if err := h.dispute.UpdateStatus(disputeID, status, req.Comments); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update dispute"})
+		return helper.JSONInternal(c, "failed to update dispute")
 	}
 	actorID := helper.OptionalActorID(c)
 	payload, _ := json.Marshal(map[string]interface{}{"status": status, "comments": req.Comments})

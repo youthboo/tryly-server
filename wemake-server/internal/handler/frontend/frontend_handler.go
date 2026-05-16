@@ -18,7 +18,7 @@ func NewFrontendHandler(service *frontendservice.FrontendService) *FrontendHandl
 }
 
 func (h *FrontendHandler) GetBootstrap(c *fiber.Ctx) error {
-	userID := helper.OptionalUserIDFromHeader(c)
+	userID := helper.OptionalActorID(c)
 	logger.Debug("frontend bootstrap requested", "user_id", userID)
 
 	item, err := h.service.GetBootstrap(userID)
@@ -40,9 +40,9 @@ func (h *FrontendHandler) GetBootstrap(c *fiber.Ctx) error {
 }
 
 func (h *FrontendHandler) GetCurrentUser(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := requireFrontendUserID(c)
 	if err != nil {
-		return helper.BadRequest(c, "invalid user context")
+		return err
 	}
 
 	item, err := h.service.GetCurrentUser(userID)
@@ -56,7 +56,7 @@ func (h *FrontendHandler) GetCurrentUser(c *fiber.Ctx) error {
 func (h *FrontendHandler) ListFactories(c *fiber.Ctx) error {
 	items, err := h.service.ListFactories()
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch factories"})
+		return helper.JSONInternal(c, "failed to fetch factories")
 	}
 	return c.JSON(items)
 }
@@ -75,9 +75,9 @@ func (h *FrontendHandler) GetFactoryDetail(c *fiber.Ctx) error {
 }
 
 func (h *FrontendHandler) GetRFQDetail(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := requireFrontendUserID(c)
 	if err != nil {
-		return helper.BadRequest(c, "invalid user context")
+		return err
 	}
 
 	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
@@ -93,9 +93,9 @@ func (h *FrontendHandler) GetRFQDetail(c *fiber.Ctx) error {
 }
 
 func (h *FrontendHandler) GetOrderDetail(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := requireFrontendUserID(c)
 	if err != nil {
-		return helper.BadRequest(c, "invalid user context")
+		return err
 	}
 
 	orderID, err := helper.RequireInt64Param(c, "order_id")
@@ -111,22 +111,22 @@ func (h *FrontendHandler) GetOrderDetail(c *fiber.Ctx) error {
 }
 
 func (h *FrontendHandler) ListThreads(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := requireFrontendUserID(c)
 	if err != nil {
-		return helper.BadRequest(c, "invalid user context")
+		return err
 	}
 
 	items, err := h.service.ListThreads(userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch message threads"})
+		return helper.JSONInternal(c, "failed to fetch message threads")
 	}
 	return c.JSON(items)
 }
 
 func (h *FrontendHandler) GetMockData(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := requireFrontendUserID(c)
 	if err != nil {
-		return helper.BadRequest(c, "invalid user context")
+		return err
 	}
 
 	item, err := h.service.GetMockData(userID)
@@ -137,22 +137,23 @@ func (h *FrontendHandler) GetMockData(c *fiber.Ctx) error {
 }
 
 func (h *FrontendHandler) GetProducts(c *fiber.Ctx) error {
-	limit := c.QueryInt("limit", 8)
-	categoryID := c.Query("category_id", "")
+	query := helper.QueryParams(c)
+	limit := query.Int("limit", 8)
+	categoryID := query.String("category_id")
 
 	items, err := h.service.GetProducts(limit, categoryID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch products"})
+		return helper.JSONInternal(c, "failed to fetch products")
 	}
 	return c.JSON(items)
 }
 
 func (h *FrontendHandler) GetPromotions(c *fiber.Ctx) error {
-	limit := c.QueryInt("limit", 4)
+	limit := helper.QueryParams(c).Int("limit", 4)
 
 	items, err := h.service.GetPromotions(limit)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch promotions"})
+		return helper.JSONInternal(c, "failed to fetch promotions")
 	}
 	return c.JSON(items)
 }
@@ -160,16 +161,24 @@ func (h *FrontendHandler) GetPromotions(c *fiber.Ctx) error {
 func (h *FrontendHandler) GetPromoCodes(c *fiber.Ctx) error {
 	items, err := h.service.GetPromoCodes()
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch promo codes"})
+		return helper.JSONInternal(c, "failed to fetch promo codes")
 	}
 	return c.JSON(items)
 }
 
 func (h *FrontendHandler) GetExplore(c *fiber.Ctx) error {
-	userID := helper.OptionalUserIDFromHeader(c)
+	userID := helper.OptionalActorID(c)
 	item, err := h.service.GetExploreData(userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch explore data"})
+		return helper.JSONInternal(c, "failed to fetch explore data")
 	}
 	return c.JSON(item)
+}
+
+func requireFrontendUserID(c *fiber.Ctx) (int64, error) {
+	userID, err := helper.UserIDFromHeader(c)
+	if err != nil {
+		return 0, helper.BadRequest(c, "invalid user context")
+	}
+	return userID, nil
 }

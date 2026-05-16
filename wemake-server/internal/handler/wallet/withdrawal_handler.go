@@ -45,7 +45,7 @@ func (h *WithdrawalHandler) List(c *fiber.Ctx) error {
 	}
 	items, err := h.service.ListByFactoryID(userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch withdrawal requests"})
+		return helper.InternalServerError(c, "failed to fetch withdrawal requests")
 	}
 	return c.JSON(items)
 }
@@ -54,7 +54,7 @@ func (h *WithdrawalHandler) List(c *fiber.Ctx) error {
 func (h *WithdrawalHandler) PatchStatus(c *fiber.Ctx) error {
 	requestID, err := helper.ParsePositiveInt64Param(c, "request_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request_id"})
+		return helper.BadRequestError(c, "invalid request_id")
 	}
 	var req dto.PatchWithdrawalStatusRequest
 	if err := helper.RequireBody(c, &req); err != nil {

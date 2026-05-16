@@ -239,7 +239,7 @@ var showcaseSectionNotFoundErrorMap = map[error]helper.ErrorResponse{
 
 // parseContentTypeQuery validates the ?type= query param (shared by List handlers).
 func parseContentTypeQuery(c *fiber.Ctx, invalidMsg string) (string, error) {
-	ct := strings.TrimSpace(c.Query("type", ""))
+	ct := helper.QueryString(c, "type")
 	if ct != "" {
 		if _, ok := showcaseTypeQueryAllowed[ct]; !ok {
 			return "", errors.New(invalidMsg)
@@ -251,12 +251,12 @@ func parseContentTypeQuery(c *fiber.Ctx, invalidMsg string) (string, error) {
 func (h *ShowcaseHandler) List(c *fiber.Ctx) error {
 	contentType, err := parseContentTypeQuery(c, errInvalidTypeQuery)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return helper.BadRequestError(c, err.Error())
 	}
-	status := domainutil.NormalizeStatus(c.Query("status", ""))
+	status := domainutil.NormalizeStatus(helper.QueryString(c, "status"))
 	if status != "" {
 		if _, ok := showcaseStatusAllowed[status]; !ok {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidStatus})
+			return helper.BadRequestError(c, errInvalidStatus)
 		}
 	}
 	factoryID, err := helper.QuerySelfOrID(c, "factory_id")
@@ -266,14 +266,14 @@ func (h *ShowcaseHandler) List(c *fiber.Ctx) error {
 	var categoryID *int64
 	categoryID, err = helper.ParseOptionalPositiveInt64Query(c, "category_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid category_id"})
+		return helper.BadRequestError(c, "invalid category_id")
 	}
 	var subCategoryID *int64
 	subCategoryID, err = helper.ParseOptionalPositiveInt64Query(c, "sub_category_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid sub_category_id"})
+		return helper.BadRequestError(c, "invalid sub_category_id")
 	}
-	viewerID, _ := helper.UserIDFromHeader(c)
+	viewerID := helper.OptionalActorID(c)
 	items, err := h.service.ListStructured(domain.ShowcaseListFilter{
 		Type:          contentType,
 		FactoryID:     factoryID,
@@ -292,14 +292,14 @@ func (h *ShowcaseHandler) List(c *fiber.Ctx) error {
 func (h *ShowcaseHandler) GetDetail(c *fiber.Ctx) error {
 	showcaseID, err := helper.ParsePositiveInt64Param(c, "showcase_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
+		return helper.BadRequestError(c, errInvalidShowcaseID)
 	}
 	detail, err := h.service.GetDetail(showcaseID)
 	if err != nil {
 		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to fetch showcase"), showcaseNotFoundErrorMap)
 	}
 	// Non-owner sees only active showcases
-	callerID, _ := helper.UserIDFromHeader(c)
+	callerID := helper.OptionalActorID(c)
 	if detail.Status != "AC" && callerID != detail.FactoryID {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": errShowcaseNotFound})
 	}
@@ -314,9 +314,9 @@ func (h *ShowcaseHandler) ListByFactory(c *fiber.Ctx) error {
 	}
 	contentType, err := parseContentTypeQuery(c, errInvalidTypeFactory)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return helper.BadRequestError(c, err.Error())
 	}
-	callerID, _ := helper.UserIDFromHeader(c)
+	callerID := helper.OptionalActorID(c)
 	items, err := h.service.GetShowcasesByFactory(int64(factoryID), contentType, callerID)
 	if err != nil {
 		logger.Error("showcase list by factory failed", "factory_id", factoryID, "caller_id", callerID, "content_type", contentType, "err", err)
@@ -360,7 +360,7 @@ func (h *ShowcaseHandler) updateStructured(c *fiber.Ctx, replace bool) error {
 	}
 	showcaseID, err := helper.RequirePathID(c, "showcase_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
+		return helper.BadRequestError(c, errInvalidShowcaseID)
 	}
 	var req dto.ShowcaseWriteRequest
 	if err := helper.ParseJSONBody(c, &req, errInvalidPayload); err != nil {
@@ -384,7 +384,7 @@ func (h *ShowcaseHandler) PatchStatus(c *fiber.Ctx) error {
 	}
 	showcaseID, err := helper.RequirePathID(c, "showcase_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
+		return helper.BadRequestError(c, errInvalidShowcaseID)
 	}
 	var req struct {
 		Status string `json:"status" validate:"notblank,statuscode=AC DR HI AR"`
@@ -397,7 +397,7 @@ func (h *ShowcaseHandler) PatchStatus(c *fiber.Ctx) error {
 	}
 	status := domainutil.NormalizeStatus(req.Status)
 	if _, ok := showcaseStatusAllowed[status]; !ok {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidStatus})
+		return helper.BadRequestError(c, errInvalidStatus)
 	}
 	if err := h.service.UpdateStatus(showcaseID, userID, status); err != nil {
 		return writeShowcaseError(c, err, "failed to update showcase status")
@@ -416,7 +416,7 @@ func (h *ShowcaseHandler) Delete(c *fiber.Ctx) error {
 	}
 	showcaseID, err := helper.RequirePathID(c, "showcase_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
+		return helper.BadRequestError(c, errInvalidShowcaseID)
 	}
 	if err := h.service.Delete(showcaseID, userID); err != nil {
 		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to delete showcase"), showcaseNotFoundErrorMap)
@@ -431,7 +431,7 @@ func (h *ShowcaseHandler) GetAnalytics(c *fiber.Ctx) error {
 	}
 	showcaseID, err := helper.RequirePathID(c, "showcase_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
+		return helper.BadRequestError(c, errInvalidShowcaseID)
 	}
 	item, err := h.service.GetAnalytics(showcaseID, userID)
 	if err != nil {
@@ -444,7 +444,7 @@ func (h *ShowcaseHandler) GetAnalytics(c *fiber.Ctx) error {
 func (h *ShowcaseHandler) RecordView(c *fiber.Ctx) error {
 	showcaseID, err := helper.ParsePositiveInt64Param(c, "showcase_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
+		return helper.BadRequestError(c, errInvalidShowcaseID)
 	}
 	_ = h.service.RecordView(showcaseID) // fire-and-forget; don't surface errors to caller
 	return c.JSON(fiber.Map{"message": "view recorded"})
@@ -453,7 +453,7 @@ func (h *ShowcaseHandler) RecordView(c *fiber.Ctx) error {
 func (h *ShowcaseHandler) ListPromoSlides(c *fiber.Ctx) error {
 	items, err := h.service.ListPromoSlides()
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch promo slides"})
+		return helper.JSONInternal(c, "failed to fetch promo slides")
 	}
 	return c.JSON(items)
 }
@@ -466,7 +466,7 @@ func (h *ShowcaseHandler) CreateImage(c *fiber.Ctx) error {
 	}
 	showcaseID, err := helper.RequirePathID(c, "showcase_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
+		return helper.BadRequestError(c, errInvalidShowcaseID)
 	}
 	var req struct {
 		ImageURL  string  `json:"image_url" validate:"notblank"`
@@ -492,9 +492,9 @@ func (h *ShowcaseHandler) CreateImage(c *fiber.Ctx) error {
 func (h *ShowcaseHandler) ListImages(c *fiber.Ctx) error {
 	showcaseID, err := helper.ParsePositiveInt64Param(c, "showcase_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
+		return helper.BadRequestError(c, errInvalidShowcaseID)
 	}
-	callerID, _ := helper.UserIDFromHeader(c)
+	callerID := helper.OptionalActorID(c)
 	images, err := h.service.ListImages(showcaseID, callerID)
 	if err != nil {
 		logger.Error("showcase images fetch failed", "showcase_id", showcaseID, "caller_id", callerID, "err", err)
@@ -511,11 +511,11 @@ func (h *ShowcaseHandler) DeleteImage(c *fiber.Ctx) error {
 	}
 	showcaseID, err := helper.RequirePathID(c, "showcase_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
+		return helper.BadRequestError(c, errInvalidShowcaseID)
 	}
 	imageID, err := helper.ParsePositiveInt64Param(c, "image_id")
 	if err != nil || imageID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid image_id"})
+		return helper.BadRequestError(c, "invalid image_id")
 	}
 	if err := h.service.DeleteImage(showcaseID, imageID, userID); err != nil {
 		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to delete image"), showcaseImageNotFoundErrorMap)
@@ -531,7 +531,7 @@ func (h *ShowcaseHandler) GetSections(c *fiber.Ctx) error {
 	}
 	showcaseID, err := helper.RequirePathID(c, "showcase_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
+		return helper.BadRequestError(c, errInvalidShowcaseID)
 	}
 	sections, err := h.service.GetSections(showcaseID, userID)
 	if err != nil {
@@ -548,7 +548,7 @@ func (h *ShowcaseHandler) BulkReplaceSections(c *fiber.Ctx) error {
 	}
 	showcaseID, err := helper.RequirePathID(c, "showcase_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
+		return helper.BadRequestError(c, errInvalidShowcaseID)
 	}
 	var req struct {
 		Sections []domain.ShowcaseSectionInput `json:"sections"`
@@ -576,7 +576,7 @@ func (h *ShowcaseHandler) GetSpecs(c *fiber.Ctx) error {
 	}
 	showcaseID, err := helper.RequirePathID(c, "showcase_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
+		return helper.BadRequestError(c, errInvalidShowcaseID)
 	}
 	specs, err := h.service.GetSpecs(showcaseID, userID)
 	if err != nil {
@@ -593,7 +593,7 @@ func (h *ShowcaseHandler) BulkReplaceSpecs(c *fiber.Ctx) error {
 	}
 	showcaseID, err := helper.RequirePathID(c, "showcase_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
+		return helper.BadRequestError(c, errInvalidShowcaseID)
 	}
 	var req struct {
 		Specs []domain.ShowcaseSpecInput `json:"specs"`
@@ -623,11 +623,11 @@ func (h *ShowcaseHandler) PatchImage(c *fiber.Ctx) error {
 	}
 	showcaseID, err := helper.RequirePathID(c, "showcase_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
+		return helper.BadRequestError(c, errInvalidShowcaseID)
 	}
 	imageID, err := helper.ParsePositiveInt64Param(c, "image_id")
 	if err != nil || imageID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid image_id"})
+		return helper.BadRequestError(c, "invalid image_id")
 	}
 	var req struct {
 		SortOrder *int    `json:"sort_order"`
@@ -651,11 +651,11 @@ func (h *ShowcaseHandler) DeleteSection(c *fiber.Ctx) error {
 	}
 	showcaseID, err := helper.RequirePathID(c, "showcase_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
+		return helper.BadRequestError(c, errInvalidShowcaseID)
 	}
 	sectionID, err := helper.ParsePositiveInt64Param(c, "section_id")
 	if err != nil || sectionID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid section_id"})
+		return helper.BadRequestError(c, "invalid section_id")
 	}
 	if err := h.service.DeleteSection(showcaseID, sectionID, userID); err != nil {
 		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to delete section"), showcaseSectionNotFoundErrorMap)

@@ -196,15 +196,42 @@ func ErrorMap(message string) fiber.Map {
 }
 
 func Unauthorized(c *fiber.Ctx) error {
-	return JSONError(c, fiber.StatusUnauthorized, "unauthorized")
+	return UnauthorizedError(c, "unauthorized")
 }
 
 func BadRequest(c *fiber.Ctx, message string) error {
-	return JSONError(c, fiber.StatusBadRequest, message)
+	return BadRequestError(c, message)
 }
 
 func JSONInternal(c *fiber.Ctx, message string) error {
+	return InternalServerError(c, message)
+}
+
+func BadRequestError(c *fiber.Ctx, message string) error {
+	return JSONError(c, fiber.StatusBadRequest, message)
+}
+
+func InternalServerError(c *fiber.Ctx, message string) error {
 	return JSONError(c, fiber.StatusInternalServerError, message)
+}
+
+func UnauthorizedError(c *fiber.Ctx, message string) error {
+	return JSONError(c, fiber.StatusUnauthorized, message)
+}
+
+func ForbiddenError(c *fiber.Ctx, message string) error {
+	return JSONError(c, fiber.StatusForbidden, message)
+}
+
+func PaginatedResponse(c *fiber.Ctx, data interface{}, page, pageSize, total int) error {
+	return c.JSON(fiber.Map{
+		"data": data,
+		"pagination": domain.Pagination{
+			Page:     page,
+			PageSize: pageSize,
+			Total:    total,
+		},
+	})
 }
 
 func RequireBody(c *fiber.Ctx, out interface{}) error {
@@ -257,6 +284,17 @@ func ParseOptionalPositiveInt64Query(c *fiber.Ctx, name string) (*int64, error) 
 		return nil, fiber.NewError(fiber.StatusBadRequest, "invalid "+name)
 	}
 	return &value, nil
+}
+
+func OptionalAPIPositiveInt64Query(c *fiber.Ctx, name string, invalidQueryError *APIError) (*int64, error) {
+	value, err := ParseOptionalPositiveInt64Query(c, name)
+	if err != nil {
+		if invalidQueryError == nil {
+			invalidQueryError = BadRequestAPIError("INVALID_QUERY_PARAM", "invalid "+name)
+		}
+		return nil, WriteAPIError(c, invalidQueryError)
+	}
+	return value, nil
 }
 
 func QueryString(c *fiber.Ctx, name string) string {
@@ -519,11 +557,25 @@ func (p *QueryParser) Err() error {
 	return p.err
 }
 
+func (p *QueryParser) Page() int {
+	if p == nil || p.c == nil {
+		return DefaultPage
+	}
+	return MaxIntQuery(p.c.QueryInt("page", DefaultPage), DefaultPage)
+}
+
 func (p *QueryParser) String(name string) string {
 	if p == nil || p.c == nil {
 		return ""
 	}
 	return QueryString(p.c, name)
+}
+
+func (p *QueryParser) Int(name string, fallback int) int {
+	if p == nil || p.c == nil {
+		return fallback
+	}
+	return p.c.QueryInt(name, fallback)
 }
 
 func (p *QueryParser) OptionalPositiveInt64(name string) *int64 {
@@ -536,6 +588,10 @@ func (p *QueryParser) OptionalPositiveInt64(name string) *int64 {
 		return nil
 	}
 	return value
+}
+
+func (p *QueryParser) Int64(name string) *int64 {
+	return p.OptionalPositiveInt64(name)
 }
 
 func (p *QueryParser) RequiredPositiveInt64(name string) int64 {
@@ -574,6 +630,13 @@ func (p *QueryParser) PageSize(defaultSize int) (int, int) {
 		return DefaultPage, NormalizePageSizeWithDefault(0, defaultSize)
 	}
 	return MaxIntQuery(p.c.QueryInt("page", DefaultPage), DefaultPage), NormalizePageSizeWithDefault(p.c.QueryInt("page_size", defaultSize), defaultSize)
+}
+
+func (p *QueryParser) PageSizeValue(defaultSize int) int {
+	if p == nil || p.c == nil {
+		return NormalizePageSizeWithDefault(0, defaultSize)
+	}
+	return NormalizePageSizeWithDefault(p.c.QueryInt("page_size", defaultSize), defaultSize)
 }
 
 // RequireInt64Param อ่าน path parameter เป็น int64 (ต้องมีค่า > 0)
@@ -659,7 +722,7 @@ func UnauthorizedAPIError(code string, message string) *APIError {
 	return NewAPIError(fiber.StatusUnauthorized, code, message)
 }
 
-func InternalServerError(code string, message string) *APIError {
+func InternalServerAPIError(code string, message string) *APIError {
 	return NewAPIError(fiber.StatusInternalServerError, code, message)
 }
 

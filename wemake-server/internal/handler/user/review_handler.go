@@ -24,7 +24,7 @@ func (h *ReviewHandler) ListByFactory(c *fiber.Ctx) error {
 	}
 	items, err := h.service.ListByFactoryID(int64(factoryID))
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to sort reviews"})
+		return helper.JSONInternal(c, "failed to sort reviews")
 	}
 	return c.JSON(items)
 }
@@ -36,7 +36,7 @@ func (h *ReviewHandler) GetSummaryByFactory(c *fiber.Ctx) error {
 	}
 	item, err := h.service.GetSummaryByFactoryID(int64(factoryID))
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to summarize reviews"})
+		return helper.JSONInternal(c, "failed to summarize reviews")
 	}
 	return c.JSON(item)
 }
@@ -46,9 +46,9 @@ func (h *ReviewHandler) Create(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 
 	var req domain.FactoryReview
@@ -60,17 +60,17 @@ func (h *ReviewHandler) Create(c *fiber.Ctx) error {
 
 	if err := h.service.Create(&req); err != nil {
 		if err == userservice.ErrReviewImagesInvalid {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+			return helper.BadRequestError(c, err.Error())
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create review"})
+		return helper.JSONInternal(c, "failed to create review")
 	}
 	return c.Status(fiber.StatusCreated).JSON(req)
 }
 
 func (h *ReviewHandler) UpdateByUser(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	reviewID, err := helper.RequireInt64Param(c, "review_id")
 	if err != nil {
@@ -87,20 +87,20 @@ func (h *ReviewHandler) UpdateByUser(c *fiber.Ctx) error {
 	item, err := h.service.UpdateByUser(int64(reviewID), userID, req.Rating, req.Comment, req.ImageURLs)
 	if err != nil {
 		if err == userservice.ErrReviewImagesInvalid {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+			return helper.BadRequestError(c, err.Error())
 		}
 		if err == sql.ErrNoRows {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "review cannot be edited"})
+			return helper.BadRequestError(c, "review cannot be edited")
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update review"})
+		return helper.JSONInternal(c, "failed to update review")
 	}
 	return c.JSON(item)
 }
 
 func (h *ReviewHandler) DeleteByUser(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	reviewID, err := helper.RequireInt64Param(c, "review_id")
 	if err != nil {
@@ -108,9 +108,9 @@ func (h *ReviewHandler) DeleteByUser(c *fiber.Ctx) error {
 	}
 	if err := h.service.DeleteByUser(int64(reviewID), userID); err != nil {
 		if err == sql.ErrNoRows {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "review cannot be deleted"})
+			return helper.BadRequestError(c, "review cannot be deleted")
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to delete review"})
+		return helper.JSONInternal(c, "failed to delete review")
 	}
 	return c.JSON(fiber.Map{"message": "review deleted"})
 }

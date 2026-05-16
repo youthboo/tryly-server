@@ -2,6 +2,7 @@ package factory
 
 import (
 	"github.com/yourusername/wemake/internal/dbutil"
+	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/dto"
 	handlerregistry "github.com/yourusername/wemake/internal/handler/errorregistry"
 	"github.com/yourusername/wemake/internal/helper"
@@ -54,7 +55,7 @@ func (h *FactoryHandler) GetMe(c *fiber.Ctx) error {
 		if dbutil.IsNotFoundError(err) {
 			return helper.WriteAPIError(c, helper.NotFoundAPIError("FACTORY_NOT_FOUND", "factory profile not found"))
 		}
-		return helper.WriteAPIError(c, helper.InternalServerError("FETCH_FACTORY_FAILED", "failed to fetch factory"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("FETCH_FACTORY_FAILED", "failed to fetch factory"))
 	}
 	return helper.WriteListResponse(c, []interface{}{item}, 1)
 }
@@ -62,7 +63,7 @@ func (h *FactoryHandler) GetMe(c *fiber.Ctx) error {
 func (h *FactoryHandler) List(c *fiber.Ctx) error {
 	items, err := h.service.ListPublic()
 	if err != nil {
-		return helper.WriteAPIError(c, helper.InternalServerError("FETCH_FACTORIES_FAILED", "failed to fetch factories"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("FETCH_FACTORIES_FAILED", "failed to fetch factories"))
 	}
 	return helper.WriteListResponse(c, items, len(items))
 }
@@ -77,7 +78,7 @@ func (h *FactoryHandler) GetByID(c *fiber.Ctx) error {
 		if dbutil.IsNotFoundError(err) {
 			return helper.WriteAPIError(c, helper.NotFoundAPIError("FACTORY_NOT_FOUND", "factory not found"))
 		}
-		return helper.WriteAPIError(c, helper.InternalServerError("FETCH_FACTORY_FAILED", "failed to fetch factory"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("FETCH_FACTORY_FAILED", "failed to fetch factory"))
 	}
 	return c.JSON(item)
 }
@@ -127,7 +128,9 @@ func (h *FactoryHandler) PatchProfile(c *fiber.Ctx) error {
 		}
 	}
 	if req.FactoryTypeID != nil {
-		if *req.FactoryTypeID <= 0 {
+		v := domain.NewValidationCollector()
+		v.AddIf(*req.FactoryTypeID <= 0, "factory_type_id", "must be positive")
+		if v.HasErrors() {
 			return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_FACTORY_TYPE_ID", "factory_type_id must be positive"))
 		}
 		fields["factory_type_id"] = *req.FactoryTypeID
@@ -142,7 +145,7 @@ func (h *FactoryHandler) PatchProfile(c *fiber.Ctx) error {
 
 	item, err := h.service.GetPublicDetail(int64(factoryID))
 	if err != nil {
-		return helper.WriteAPIError(c, helper.InternalServerError("FETCH_LATEST_FAILED", "factory updated but failed to fetch latest data"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("FETCH_LATEST_FAILED", "factory updated but failed to fetch latest data"))
 	}
 	return c.JSON(item)
 }
@@ -154,14 +157,14 @@ func (h *FactoryHandler) ListCategories(c *fiber.Ctx) error {
 	}
 	ok, err := h.service.FactoryExistsActive(int64(factoryID))
 	if err != nil {
-		return helper.WriteAPIError(c, helper.InternalServerError("VERIFY_FACTORY_FAILED", "failed to verify factory"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("VERIFY_FACTORY_FAILED", "failed to verify factory"))
 	}
 	if !ok {
 		return helper.WriteAPIError(c, helper.NotFoundAPIError("FACTORY_NOT_FOUND", "factory not found"))
 	}
 	items, err := h.service.ListFactoryCategories(int64(factoryID))
 	if err != nil {
-		return helper.WriteAPIError(c, helper.InternalServerError("FETCH_CATEGORIES_FAILED", "failed to fetch categories"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("FETCH_CATEGORIES_FAILED", "failed to fetch categories"))
 	}
 	return helper.WriteListResponse(c, items, len(items))
 }
@@ -239,7 +242,7 @@ func (h *FactoryHandler) RemoveCategory(c *fiber.Ctx) error {
 		if dbutil.IsNotFoundError(err) {
 			return helper.WriteAPIError(c, helper.NotFoundAPIError("MAPPING_NOT_FOUND", "mapping not found"))
 		}
-		return helper.WriteAPIError(c, helper.InternalServerError("REMOVE_CATEGORY_FAILED", "failed to remove category"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("REMOVE_CATEGORY_FAILED", "failed to remove category"))
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -267,7 +270,7 @@ func (h *FactoryHandler) ReplaceCategories(c *fiber.Ctx) error {
 	}
 	items, err := h.service.ListFactoryCategories(int64(factoryID))
 	if err != nil {
-		return helper.WriteAPIError(c, helper.InternalServerError("FETCH_LATEST_FAILED", "categories updated but failed to fetch latest data"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("FETCH_LATEST_FAILED", "categories updated but failed to fetch latest data"))
 	}
 	return c.JSON(fiber.Map{
 		"factory_id": factoryID,
@@ -282,14 +285,14 @@ func (h *FactoryHandler) ListSubCategories(c *fiber.Ctx) error {
 	}
 	ok, err := h.service.FactoryExistsActive(int64(factoryID))
 	if err != nil {
-		return helper.WriteAPIError(c, helper.InternalServerError("VERIFY_FACTORY_FAILED", "failed to verify factory"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("VERIFY_FACTORY_FAILED", "failed to verify factory"))
 	}
 	if !ok {
 		return helper.WriteAPIError(c, helper.NotFoundAPIError("FACTORY_NOT_FOUND", "factory not found"))
 	}
 	items, err := h.service.ListFactorySubCategories(int64(factoryID))
 	if err != nil {
-		return helper.WriteAPIError(c, helper.InternalServerError("FETCH_SUB_CATEGORIES_FAILED", "failed to fetch sub-categories"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("FETCH_SUB_CATEGORIES_FAILED", "failed to fetch sub-categories"))
 	}
 	return helper.WriteListResponse(c, items, len(items))
 }
@@ -340,7 +343,7 @@ func (h *FactoryHandler) RemoveSubCategory(c *fiber.Ctx) error {
 		if dbutil.IsNotFoundError(err) {
 			return helper.WriteAPIError(c, helper.NotFoundAPIError("MAPPING_NOT_FOUND", "mapping not found"))
 		}
-		return helper.WriteAPIError(c, helper.InternalServerError("REMOVE_SUB_CATEGORY_FAILED", "failed to remove sub-category"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("REMOVE_SUB_CATEGORY_FAILED", "failed to remove sub-category"))
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -374,7 +377,7 @@ func (h *FactoryHandler) ReplaceSubCategories(c *fiber.Ctx) error {
 	}
 	items, err := h.service.ListFactorySubCategories(int64(factoryID))
 	if err != nil {
-		return helper.WriteAPIError(c, helper.InternalServerError("FETCH_LATEST_FAILED", "sub-categories updated but failed to fetch latest data"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("FETCH_LATEST_FAILED", "sub-categories updated but failed to fetch latest data"))
 	}
 	return c.JSON(fiber.Map{
 		"factory_id":     factoryID,
@@ -390,7 +393,7 @@ func (h *FactoryHandler) GetAnalytics(c *fiber.Ctx) error {
 	}
 	item, err := h.service.GetAnalytics(userID)
 	if err != nil {
-		return helper.WriteAPIError(c, helper.InternalServerError("FETCH_ANALYTICS_FAILED", "failed to fetch analytics"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("FETCH_ANALYTICS_FAILED", "failed to fetch analytics"))
 	}
 	return c.JSON(item)
 }
@@ -402,7 +405,7 @@ func (h *FactoryHandler) GetDashboard(c *fiber.Ctx) error {
 	}
 	item, err := h.service.GetDashboard(userID)
 	if err != nil {
-		return helper.WriteAPIError(c, helper.InternalServerError("FETCH_DASHBOARD_FAILED", "failed to fetch dashboard"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("FETCH_DASHBOARD_FAILED", "failed to fetch dashboard"))
 	}
 	return c.JSON(item)
 }

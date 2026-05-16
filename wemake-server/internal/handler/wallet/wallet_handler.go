@@ -33,20 +33,17 @@ func (h *WalletHandler) ListMyTransactions(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	var orderID *int64
-	if raw := c.Query("order_id"); raw != "" {
-		val, parseErr := helper.ParsePositiveInt64Value(raw, "order_id")
-		if parseErr != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
-		}
-		orderID = &val
+	query := helper.QueryParams(c)
+	orderID := query.OptionalPositiveInt64("order_id")
+	if err := query.Err(); err != nil {
+		return err
 	}
 	var txType *string
-	if raw := c.Query("type"); raw != "" {
+	if raw := query.String("type"); raw != "" {
 		txType = &raw
 	}
 	var status *string
-	if raw := c.Query("status"); raw != "" {
+	if raw := query.String("status"); raw != "" {
 		status = &raw
 	}
 	items, err := h.service.ListTransactionsByUserID(userID, orderID, txType, status)

@@ -30,7 +30,7 @@ func (h *CertificateHandler) ListByFactory(c *fiber.Ctx) error {
 	}
 	items, err := h.service.ListByFactoryID(int64(factoryID))
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch certificates"})
+		return helper.JSONInternal(c, "failed to fetch certificates")
 	}
 	return c.JSON(items)
 }
@@ -40,14 +40,14 @@ func (h *CertificateHandler) Create(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 
 	// Assuming a factory user can only upload their own certificates
 	if int64(factoryID) != userID {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
+		return helper.ForbiddenError(c, "forbidden")
 	}
 
 	var req domain.FactoryCertificate
@@ -57,15 +57,15 @@ func (h *CertificateHandler) Create(c *fiber.Ctx) error {
 	req.FactoryID = int64(factoryID)
 
 	if err := h.service.Create(&req); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to upload certificate"})
+		return helper.JSONInternal(c, "failed to upload certificate")
 	}
 	return c.Status(fiber.StatusCreated).JSON(req)
 }
 
 func (h *CertificateHandler) Delete(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return helper.Unauthorized(c)
+		return err
 	}
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
 	if err != nil || int64(factoryID) != userID {
@@ -88,9 +88,9 @@ func (h *CertificateHandler) Delete(c *fiber.Ctx) error {
 }
 
 func (h *CertificateHandler) DeleteByCertID(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return helper.Unauthorized(c)
+		return err
 	}
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
 	if err != nil || int64(factoryID) != userID {
@@ -107,9 +107,9 @@ func (h *CertificateHandler) DeleteByCertID(c *fiber.Ctx) error {
 }
 
 func (h *CertificateHandler) PatchByCertID(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return helper.Unauthorized(c)
+		return err
 	}
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
 	if err != nil || int64(factoryID) != userID {
@@ -123,8 +123,10 @@ func (h *CertificateHandler) PatchByCertID(c *fiber.Ctx) error {
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
-	if req.DocumentURL == nil && req.ExpireDate == nil && req.CertNumber == nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "at least one field is required"})
+	v := domain.NewValidationCollector()
+	v.AddIf(req.DocumentURL == nil && req.ExpireDate == nil && req.CertNumber == nil, "fields", "at least one field is required")
+	if err := helper.ValidateRequest(c, v); err != nil {
+		return err
 	}
 	if err := h.service.PatchByCertID(int64(factoryID), certID, req.DocumentURL, req.ExpireDate, req.CertNumber); err != nil {
 		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to update certificate"), certificateNotFoundErrorMap)

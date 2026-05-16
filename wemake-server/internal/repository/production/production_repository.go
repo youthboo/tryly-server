@@ -299,7 +299,7 @@ func (r *ProductionRepository) UpsertTx(tx *sqlx.Tx, item *domain.ProductionUpda
 		item.Status,
 		item.Description,
 		item.ImageURLs,
-		domainutil.NullableTime(item.CompletedAt),
+		domainutil.Nullable(item.CompletedAt),
 		item.RejectedReason,
 		item.UpdatedByUserID,
 	).Scan(&item.UpdateID, &item.CreatedAt, &item.LastUpdatedAt)

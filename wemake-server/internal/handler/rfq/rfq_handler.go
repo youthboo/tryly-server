@@ -104,7 +104,7 @@ func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
 	if req.RequiredDeliveryDate != nil && strings.TrimSpace(*req.RequiredDeliveryDate) != "" {
 		d, err := helper.ParseDate(*req.RequiredDeliveryDate, "required_delivery_date")
 		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "required_delivery_date must be YYYY-MM-DD"})
+			return helper.BadRequestError(c, "required_delivery_date must be YYYY-MM-DD")
 		}
 		rfq.RequiredDeliveryDate = &d
 	}
@@ -172,7 +172,7 @@ func (h *RFQHandler) PatchRFQ(c *fiber.Ctx) error {
 	if req.RequiredDeliveryDate != nil && strings.TrimSpace(*req.RequiredDeliveryDate) != "" {
 		d, err := helper.ParseDate(*req.RequiredDeliveryDate, "required_delivery_date")
 		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "required_delivery_date must be YYYY-MM-DD"})
+			return helper.BadRequestError(c, "required_delivery_date must be YYYY-MM-DD")
 		}
 		rfq.RequiredDeliveryDate = &d
 	}
@@ -188,15 +188,16 @@ func (h *RFQHandler) ListRFQs(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	status := c.Query("status")
+	query := helper.QueryParams(c)
+	status := query.String("status")
 	rfqs, err := h.service.ListByUserID(userID, status)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch rfqs"})
+		return helper.JSONInternal(c, "failed to fetch rfqs")
 	}
-	kind := domainutil.NormalizeStatus(c.Query("kind"))
+	kind := domainutil.NormalizeStatus(query.String("kind"))
 	if kind != "" {
 		if kind != domain.RequestKindProduction && kind != domain.RequestKindProductSample && kind != domain.RequestKindMaterialSample {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "INVALID_KIND"})
+			return helper.BadRequestError(c, "INVALID_KIND")
 		}
 		filtered := make([]domain.RFQ, 0, len(rfqs))
 		for _, item := range rfqs {
@@ -210,25 +211,18 @@ func (h *RFQHandler) ListRFQs(c *fiber.Ctx) error {
 }
 
 func (h *RFQHandler) PreviewFactories(c *fiber.Ctx) error {
-	kind := strings.TrimSpace(c.Query("kind"))
+	query := helper.QueryParams(c)
+	kind := query.String("kind")
 	if kind == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "INVALID_KIND"})
+		return helper.BadRequestError(c, "INVALID_KIND")
 	}
-	rawCategory := strings.TrimSpace(c.Query("category_id"))
-	if rawCategory == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "MISSING_CATEGORY"})
+	categoryID := query.RequiredPositiveInt64("category_id")
+	if query.Err() != nil {
+		return helper.BadRequestError(c, "MISSING_CATEGORY")
 	}
-	categoryID, err := helper.ParsePositiveInt64Value(rawCategory, "category_id")
-	if err != nil || categoryID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "MISSING_CATEGORY"})
-	}
-	var subCategoryID *int64
-	if raw := strings.TrimSpace(c.Query("sub_category_id")); raw != "" {
-		parsed, parseErr := helper.ParsePositiveInt64Value(raw, "sub_category_id")
-		if parseErr != nil || parsed <= 0 {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid sub_category_id"})
-		}
-		subCategoryID = &parsed
+	subCategoryID := query.OptionalPositiveInt64("sub_category_id")
+	if err := query.Err(); err != nil {
+		return err
 	}
 	result, err := h.service.PreviewFactories(kind, categoryID, subCategoryID)
 	if err != nil {
@@ -242,9 +236,10 @@ func (h *RFQHandler) ListMatching(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	status := c.Query("status")
-	showDismissed := strings.EqualFold(strings.TrimSpace(c.Query("show_dismissed")), "true")
-	items, err := h.service.ListMatchingForFactory(userID, status, c.Query("kind"), showDismissed)
+	query := helper.QueryParams(c)
+	status := query.String("status")
+	showDismissed := strings.EqualFold(query.String("show_dismissed"), "true")
+	items, err := h.service.ListMatchingForFactory(userID, status, query.String("kind"), showDismissed)
 	if err != nil {
 		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to fetch matching rfqs"), map[error]helper.ErrorResponse{
 			rfqservice.ErrRFQKindInvalid: helper.ErrorMessage(fiber.StatusBadRequest, "INVALID_KIND"),
@@ -321,7 +316,7 @@ func (h *RFQHandler) CancelRFQ(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.Cancel(userID, int64(rfqID)); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to cancel rfq"})
+		return helper.InternalServerError(c, "failed to cancel rfq")
 	}
 	return c.JSON(fiber.Map{"message": "rfq canceled"})
 }
@@ -339,7 +334,7 @@ func (h *RFQHandler) CloseRFQ(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.Close(userID, int64(rfqID)); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to close rfq"})
+		return helper.InternalServerError(c, "failed to close rfq")
 	}
 	return c.JSON(fiber.Map{"message": "rfq closed"})
 }

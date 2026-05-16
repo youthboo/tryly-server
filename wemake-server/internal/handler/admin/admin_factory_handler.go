@@ -36,9 +36,9 @@ func (h *AdminFactoryHandler) List(c *fiber.Ctx) error {
 	}
 	items, total, err := h.repo.ListAdmin(filter)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch factories"})
+		return helper.InternalServerError(c, "failed to fetch factories")
 	}
-	return c.JSON(fiber.Map{"data": items, "pagination": domain.Pagination{Page: filter.Page, PageSize: filter.PageSize, Total: total}})
+	return helper.PaginatedResponse(c, items, filter.Page, filter.PageSize, total)
 }
 
 func (h *AdminFactoryHandler) GetByID(c *fiber.Ctx) error {
@@ -72,7 +72,7 @@ func (h *AdminFactoryHandler) Unsuspend(c *fiber.Ctx) error {
 func (h *AdminFactoryHandler) PatchVerification(c *fiber.Ctx) error {
 	factoryID, actorID, err := parseFactoryActor(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return helper.BadRequestError(c, err.Error())
 	}
 	var req dto.PatchFactoryVerificationRequest
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -82,7 +82,7 @@ func (h *AdminFactoryHandler) PatchVerification(c *fiber.Ctx) error {
 	isVerified := req.TaxIDVerified != nil && *req.TaxIDVerified
 	note := helper.DereferenceString(req.Notes, "")
 	if err := h.service.ToggleVerification(factoryID, actorID, isVerified, note, &ip); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return helper.BadRequestError(c, err.Error())
 	}
 	item, _ := h.service.HydrateAdminDetail(factoryID)
 	return c.JSON(fiber.Map{
@@ -129,7 +129,7 @@ func (h *AdminFactoryHandler) AssignFactoryConfig(c *fiber.Ctx) error {
 		case errors.Is(err, adminservice.ErrFactoryConfigMissing):
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "platform config not found"})
 		default:
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to assign factory config"})
+			return helper.InternalServerError(c, "failed to assign factory config")
 		}
 	}
 	return c.JSON(item)
@@ -138,7 +138,7 @@ func (h *AdminFactoryHandler) AssignFactoryConfig(c *fiber.Ctx) error {
 func (h *AdminFactoryHandler) mutateFactoryState(c *fiber.Ctx, fn func(int64, int64, string, *string) error) error {
 	factoryID, actorID, err := parseFactoryActor(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return helper.BadRequestError(c, err.Error())
 	}
 	var req dto.ApproveFactoryRequest
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -147,7 +147,7 @@ func (h *AdminFactoryHandler) mutateFactoryState(c *fiber.Ctx, fn func(int64, in
 	ip := c.IP()
 	note := helper.DereferenceString(req.Notes, "")
 	if err := fn(factoryID, actorID, note, &ip); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return helper.BadRequestError(c, err.Error())
 	}
 	item, _ := h.service.HydrateAdminDetail(factoryID)
 	return c.JSON(fiber.Map{"factory_id": factoryID, "approval_status": item.ApprovalStatus, "is_verified": item.IsVerified, "verified_at": item.VerifiedAt, "verified_by": item.VerifiedBy})
@@ -156,7 +156,7 @@ func (h *AdminFactoryHandler) mutateFactoryState(c *fiber.Ctx, fn func(int64, in
 func (h *AdminFactoryHandler) mutateFactoryReasonState(c *fiber.Ctx, fn func(int64, int64, string, *string) error) error {
 	factoryID, actorID, err := parseFactoryActor(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return helper.BadRequestError(c, err.Error())
 	}
 	var req dto.RejectFactoryRequest
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -164,7 +164,7 @@ func (h *AdminFactoryHandler) mutateFactoryReasonState(c *fiber.Ctx, fn func(int
 	}
 	ip := c.IP()
 	if err := fn(factoryID, actorID, req.Reason, &ip); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return helper.BadRequestError(c, err.Error())
 	}
 	item, _ := h.service.HydrateAdminDetail(factoryID)
 	return c.JSON(fiber.Map{"factory_id": factoryID, "approval_status": item.ApprovalStatus, "is_verified": item.IsVerified, "rejection_reason": item.RejectionReason})

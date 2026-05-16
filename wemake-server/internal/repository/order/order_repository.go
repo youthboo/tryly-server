@@ -103,7 +103,7 @@ func (r *OrderRepository) Create(order *domain.Order) error {
 		order.TotalAmount,
 		order.DepositAmount,
 		order.Status,
-		domainutil.NullableTime(order.EstimatedDelivery),
+		domainutil.Nullable(order.EstimatedDelivery),
 		order.CreatedAt,
 		order.UpdatedAt,
 	).Scan(&order.OrderID)
@@ -124,7 +124,7 @@ func (r *OrderRepository) CreateTx(tx *sqlx.Tx, order *domain.Order) error {
 		order.TotalAmount,
 		order.DepositAmount,
 		order.Status,
-		domainutil.NullableTime(order.EstimatedDelivery),
+		domainutil.Nullable(order.EstimatedDelivery),
 		order.CreatedAt,
 		order.UpdatedAt,
 	).Scan(&order.OrderID)

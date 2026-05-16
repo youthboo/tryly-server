@@ -17,39 +17,43 @@ func NewAdminDashboardHandler(service *adminservice.AdminDashboardService) *Admi
 }
 
 func (h *AdminDashboardHandler) GetSummary(c *fiber.Ctx) error {
-	period := c.Query("period", "month")
-	from, to, err := parseAdminPeriod(period, c.Query("date_from"), c.Query("date_to"))
+	period := helper.QueryString(c, "period")
+	if period == "" {
+		period = "month"
+	}
+	from, to, err := parseAdminPeriod(period, helper.QueryString(c, "date_from"), helper.QueryString(c, "date_to"))
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return helper.BadRequestError(c, err.Error())
 	}
 	item, err := h.service.GetSummary(from, to, period)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch dashboard summary"})
+		return helper.JSONInternal(c, "failed to fetch dashboard summary")
 	}
 	return c.JSON(item)
 }
 
 func (h *AdminDashboardHandler) GetRevenueChart(c *fiber.Ctx) error {
-	granularity := normalizeDashboardGranularity(c.Query("granularity", "day"))
-	from, to, err := parseAdminRange(c.Query("date_from"), c.Query("date_to"))
+	granularity := normalizeDashboardGranularity(helper.QueryString(c, "granularity"))
+	from, to, err := parseAdminRange(helper.QueryString(c, "date_from"), helper.QueryString(c, "date_to"))
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return helper.BadRequestError(c, err.Error())
 	}
 	items, err := h.service.GetRevenueChart(from, to, granularity)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch revenue chart"})
+		return helper.JSONInternal(c, "failed to fetch revenue chart")
 	}
 	return c.JSON(fiber.Map{"granularity": granularity, "data": items})
 }
 
 func (h *AdminDashboardHandler) GetTopFactories(c *fiber.Ctx) error {
-	from, to, err := parseAdminRange(c.Query("date_from"), c.Query("date_to"))
+	query := helper.QueryParams(c)
+	from, to, err := parseAdminRange(helper.QueryString(c, "date_from"), helper.QueryString(c, "date_to"))
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return helper.BadRequestError(c, err.Error())
 	}
-	items, err := h.service.GetTopFactories(from, to, c.QueryInt("limit", 10))
+	items, err := h.service.GetTopFactories(from, to, query.Int("limit", 10))
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch top factories"})
+		return helper.JSONInternal(c, "failed to fetch top factories")
 	}
 	return c.JSON(fiber.Map{"data": items})
 }

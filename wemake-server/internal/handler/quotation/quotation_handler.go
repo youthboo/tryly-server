@@ -43,7 +43,7 @@ func (h *QuotationHandler) CreateQuotation(c *fiber.Ctx) error {
 		return err
 	}
 	if req.FactoryID != userID {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "factory_id must match authenticated user"})
+		return helper.ForbiddenError(c, "factory_id must match authenticated user")
 	}
 
 	// tooling_mold_cost takes precedence over legacy mold_cost
@@ -84,7 +84,7 @@ func (h *QuotationHandler) ListQuotationsByRFQ(c *fiber.Ctx) error {
 	}
 	items, err := h.service.ListByRFQID(int64(rfqID))
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch quotations"})
+		return helper.InternalServerError(c, "failed to fetch quotations")
 	}
 	rfqMeta := fiber.Map{"rfq_id": int64(rfqID)}
 	if len(items) > 0 {
@@ -103,10 +103,10 @@ func (h *QuotationHandler) ListMine(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	status := c.Query("status")
+	status := helper.QueryString(c, "status")
 	items, err := h.service.ListMine(userID, status)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch quotations"})
+		return helper.InternalServerError(c, "failed to fetch quotations")
 	}
 	return c.JSON(items)
 }
@@ -120,9 +120,9 @@ func (h *QuotationHandler) ListCollection(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	items, err := h.service.ListMine(factoryID, c.Query("status"))
+	items, err := h.service.ListMine(factoryID, helper.QueryString(c, "status"))
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch quotations"})
+		return helper.InternalServerError(c, "failed to fetch quotations")
 	}
 	return c.JSON(items)
 }
@@ -137,7 +137,7 @@ func (h *QuotationHandler) GetQuotation(c *fiber.Ctx) error {
 		if dbutil.IsNotFoundError(err) {
 			return helper.WriteAPIError(c, helper.NotFoundAPIError("QUOTATION_NOT_FOUND", "quotation not found"))
 		}
-		return helper.WriteAPIError(c, helper.InternalServerError("FETCH_FAILED", "failed to fetch quotation"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("FETCH_FAILED", "failed to fetch quotation"))
 	}
 	return c.JSON(item)
 }
@@ -156,14 +156,14 @@ func (h *QuotationHandler) ListHistory(c *fiber.Ctx) error {
 		if dbutil.IsNotFoundError(err) {
 			return helper.WriteAPIError(c, helper.NotFoundAPIError("QUOTATION_NOT_FOUND", "quotation not found"))
 		}
-		return helper.WriteAPIError(c, helper.InternalServerError("AUTH_FAILED", "failed to authorize"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("AUTH_FAILED", "failed to authorize"))
 	}
 	if !ok {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "not authorized"})
+		return helper.ForbiddenError(c, "not authorized")
 	}
 	items, err := h.service.ListHistory(int64(quotationID))
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch history"})
+		return helper.InternalServerError(c, "failed to fetch history")
 	}
 	return c.JSON(items)
 }
@@ -179,7 +179,7 @@ func (h *QuotationHandler) Preview(c *fiber.Ctx) error {
 	}
 	item, err := h.service.Preview(req.Items, req.DiscountAmount, req.ShippingCost, req.PackagingCost, req.ToolingMoldCost, &userID)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return helper.BadRequestError(c, err.Error())
 	}
 	return c.JSON(item)
 }
@@ -212,14 +212,14 @@ func (h *QuotationHandler) CreateDetailed(c *fiber.Ctx) error {
 	if req.ProductionStartDate != nil && strings.TrimSpace(*req.ProductionStartDate) != "" {
 		d, err := helper.ParseDate(*req.ProductionStartDate, "production_start_date")
 		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "production_start_date must be YYYY-MM-DD"})
+			return helper.BadRequestError(c, "production_start_date must be YYYY-MM-DD")
 		}
 		item.ProductionStartDate = &d
 	}
 	if req.DeliveryDate != nil && strings.TrimSpace(*req.DeliveryDate) != "" {
 		d, err := helper.ParseDate(*req.DeliveryDate, "delivery_date")
 		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "delivery_date must be YYYY-MM-DD"})
+			return helper.BadRequestError(c, "delivery_date must be YYYY-MM-DD")
 		}
 		item.DeliveryDate = &d
 	}
@@ -257,7 +257,7 @@ func (h *QuotationHandler) CreateRevision(c *fiber.Ctx) error {
 	}
 	helper.AssignIfNotNil(&item.LeadTimeDays, req.LeadTimeDays)
 	if err := h.service.CreateRevision(int64(parentID), userID, item); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return helper.BadRequestError(c, err.Error())
 	}
 	return c.Status(fiber.StatusCreated).JSON(item)
 }
@@ -273,7 +273,7 @@ func (h *QuotationHandler) Accept(c *fiber.Ctx) error {
 	}
 	order, err := h.service.Accept(int64(quotationID), userID)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return helper.BadRequestError(c, err.Error())
 	}
 	return c.JSON(order)
 }
@@ -288,7 +288,7 @@ func (h *QuotationHandler) Reject(c *fiber.Ctx) error {
 		return err
 	}
 	if err := h.service.Reject(int64(quotationID), userID); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return helper.BadRequestError(c, err.Error())
 	}
 	return c.JSON(fiber.Map{"message": "quotation rejected"})
 }
@@ -357,14 +357,13 @@ func (h *QuotationHandler) PatchQuotationStatus(c *fiber.Ctx) error {
 		return err
 	}
 	status := domainutil.NormalizeStatus(req.Status)
-	if status != domain.QuotationStatusAccepted &&
-		status != domain.QuotationStatusRejected &&
-		status != domain.QuotationStatusPrepared &&
-		status != domain.QuotationStatusExpired {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "status must be PD, AC, RJ or EX"})
+	v := domain.NewValidationCollector()
+	v.AddIf(!domainutil.StatusIn(status, domain.QuotationStatusAccepted, domain.QuotationStatusRejected, domain.QuotationStatusPrepared, domain.QuotationStatusExpired), "status", "must be PD, AC, RJ or EX")
+	if err := helper.ValidateRequest(c, v); err != nil {
+		return err
 	}
 	if err := h.service.UpdateStatus(int64(quotationID), status, editor); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update quotation status"})
+		return helper.InternalServerError(c, "failed to update quotation status")
 	}
 	return c.JSON(fiber.Map{"message": "quotation status updated"})
 }

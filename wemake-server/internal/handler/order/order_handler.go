@@ -80,16 +80,13 @@ func (h *OrderHandler) ListOrders(c *fiber.Ctx) error {
 			return err
 		}
 	}
-	status := strings.TrimSpace(c.Query("status"))
-	var rfqID *int64
-	if raw := strings.TrimSpace(c.Query("rfq_id")); raw != "" {
-		parsed, parseErr := helper.ParsePositiveInt64Value(raw, "rfq_id")
-		if parseErr != nil || parsed <= 0 {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
-		}
-		rfqID = &parsed
+	query := helper.QueryParams(c)
+	status := query.String("status")
+	rfqID := query.OptionalPositiveInt64("rfq_id")
+	if err := query.Err(); err != nil {
+		return err
 	}
-	items, err := h.service.List(userID, u.Role, status, rfqID, c.Query("request_kind"))
+	items, err := h.service.List(userID, u.Role, status, rfqID, query.String("request_kind"))
 	if err != nil {
 		return helper.JSONInternal(c, "failed to fetch orders")
 	}
@@ -132,10 +129,9 @@ func (h *OrderHandler) ListActivity(c *fiber.Ctx) error {
 }
 
 func (h *OrderHandler) PatchOrderStatus(c *fiber.Ctx) error {
-	uid, authErr := helper.UserIDFromHeader(c)
 	var actor *int64
-	if authErr == nil {
-		actor = &uid
+	if actorID := helper.OptionalActorID(c); actorID > 0 {
+		actor = &actorID
 	}
 	orderID, err := helper.RequirePathID(c, "order_id")
 	if err != nil {
@@ -148,11 +144,13 @@ func (h *OrderHandler) PatchOrderStatus(c *fiber.Ctx) error {
 		return err
 	}
 	status := domainstatus.NormalizeOrder(req.Status)
-	if !domainstatus.IsValidOrder(status) {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "status must be PP, PR, WF, QC, SH, DL, AC, CP, or CC"})
+	v := domain.NewValidationCollector()
+	v.AddIf(!domainstatus.IsValidOrder(status), "status", "must be PP, PR, WF, QC, SH, DL, AC, CP, or CC")
+	if err := helper.ValidateRequest(c, v); err != nil {
+		return err
 	}
 	if err := h.service.UpdateStatus(int64(orderID), status, actor); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update order status"})
+		return helper.InternalServerError(c, "failed to update order status")
 	}
 	return c.JSON(fiber.Map{"message": "order status updated"})
 }
@@ -230,7 +228,7 @@ func (h *OrderHandler) VerifyPayment(c *fiber.Ctx) error {
 	}
 	txID := strings.TrimSpace(c.Params("tx_id"))
 	if txID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid tx_id"})
+		return helper.BadRequestError(c, "invalid tx_id")
 	}
 	item, err := h.service.VerifyPayment(int64(orderID), userID, u.Role, txID)
 	if err != nil {
@@ -260,7 +258,7 @@ func (h *OrderHandler) ConfirmReceipt(c *fiber.Ctx) error {
 	if req.ReceivedAt != nil && strings.TrimSpace(*req.ReceivedAt) != "" {
 		t, parseErr := helper.ParseOptionalRFC3339Value(req.ReceivedAt, "received_at")
 		if parseErr != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "received_at must be RFC3339 datetime"})
+			return helper.BadRequestError(c, "received_at must be RFC3339 datetime")
 		}
 		receivedAt = t
 	}

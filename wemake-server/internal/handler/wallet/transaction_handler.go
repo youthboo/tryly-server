@@ -5,11 +5,11 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 	walletservice "github.com/yourusername/wemake/internal/service/wallet"
-	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type TransactionHandler struct {
@@ -34,38 +34,30 @@ func (h *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 		Status:   "ST",
 	}
 	if err := h.service.Create(item); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create transaction"})
+		return helper.JSONInternal(c, "failed to create transaction")
 	}
 	return c.Status(fiber.StatusCreated).JSON(item)
 }
 
 func (h *TransactionHandler) ListTransactions(c *fiber.Ctx) error {
+	query := helper.QueryParams(c)
 	filters := walletrepo.TransactionFilters{}
 
-	if raw := c.Query("wallet_id"); raw != "" {
-		val, err := helper.ParsePositiveInt64Value(raw, "wallet_id")
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid wallet_id"})
-		}
-		filters.WalletID = &val
+	filters.WalletID = query.OptionalPositiveInt64("wallet_id")
+	filters.OrderID = query.OptionalPositiveInt64("order_id")
+	if err := query.Err(); err != nil {
+		return err
 	}
-	if raw := c.Query("order_id"); raw != "" {
-		val, err := helper.ParsePositiveInt64Value(raw, "order_id")
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
-		}
-		filters.OrderID = &val
-	}
-	if raw := c.Query("type"); raw != "" {
+	if raw := query.String("type"); raw != "" {
 		filters.Type = &raw
 	}
-	if raw := c.Query("status"); raw != "" {
+	if raw := query.String("status"); raw != "" {
 		filters.Status = &raw
 	}
 
 	items, err := h.service.List(filters)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch transactions"})
+		return helper.JSONInternal(c, "failed to fetch transactions")
 	}
 	return c.JSON(items)
 }
@@ -73,7 +65,7 @@ func (h *TransactionHandler) ListTransactions(c *fiber.Ctx) error {
 func (h *TransactionHandler) PatchTransactionStatus(c *fiber.Ctx) error {
 	txID := c.Params("tx_id")
 	if strings.TrimSpace(txID) == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid tx_id"})
+		return helper.BadRequestError(c, "invalid tx_id")
 	}
 
 	var req dto.PatchTransactionStatusRequest
@@ -82,12 +74,14 @@ func (h *TransactionHandler) PatchTransactionStatus(c *fiber.Ctx) error {
 	}
 
 	status := domainutil.NormalizeStatus(req.Status)
-	if status != "ST" && status != "PT" && status != "RJ" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "status must be ST, PT or RJ"})
+	v := domain.NewValidationCollector()
+	v.AddIf(!domainutil.StatusIn(status, "ST", "PT", "RJ"), "status", "must be ST, PT or RJ")
+	if err := helper.ValidateRequest(c, v); err != nil {
+		return err
 	}
 
 	if err := h.service.PatchStatus(txID, status); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update transaction status"})
+		return helper.JSONInternal(c, "failed to update transaction status")
 	}
 	return c.JSON(fiber.Map{"message": "transaction status updated"})
 }

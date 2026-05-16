@@ -23,7 +23,7 @@ func (h *NotificationHandler) List(c *fiber.Ctx) error {
 	unreadOnly := c.QueryBool("unread", false)
 	items, total, unreadCount, err := h.service.ListPaginated(userID, page, limit, unreadOnly)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch notifications"})
+		return helper.JSONInternal(c, "failed to fetch notifications")
 	}
 	return c.JSON(fiber.Map{
 		"page":         page,
@@ -44,7 +44,7 @@ func (h *NotificationHandler) MarkAsRead(c *fiber.Ctx) error {
 		return err
 	}
 	if err := h.service.MarkAsRead(int64(notiID), userID); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update notification"})
+		return helper.JSONInternal(c, "failed to update notification")
 	}
 	return c.JSON(fiber.Map{"success": true})
 }
@@ -56,7 +56,7 @@ func (h *NotificationHandler) GetUnreadCount(c *fiber.Ctx) error {
 	}
 	count, err := h.service.GetUnreadCount(userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch unread count"})
+		return helper.JSONInternal(c, "failed to fetch unread count")
 	}
 	return c.JSON(fiber.Map{"count": count})
 }
@@ -68,7 +68,7 @@ func (h *NotificationHandler) MarkAllRead(c *fiber.Ctx) error {
 	}
 	updated, err := h.service.MarkAllRead(userID)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update notifications"})
+		return helper.JSONInternal(c, "failed to update notifications")
 	}
 	return c.JSON(fiber.Map{"updated": updated})
 }
@@ -80,10 +80,10 @@ func (h *NotificationHandler) SoftDelete(c *fiber.Ctx) error {
 	}
 	notiID, err := helper.ParsePositiveInt64Param(c, "noti_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid noti_id"})
+		return helper.BadRequestError(c, "invalid noti_id")
 	}
 	if err := h.service.SoftDelete(notiID, userID); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to delete notification"})
+		return helper.JSONInternal(c, "failed to delete notification")
 	}
 	return c.JSON(fiber.Map{"message": "notification deleted"})
 }

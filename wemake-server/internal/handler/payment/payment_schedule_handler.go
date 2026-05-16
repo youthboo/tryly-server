@@ -27,7 +27,7 @@ func (h *PaymentScheduleHandler) List(c *fiber.Ctx) error {
 	}
 	items, err := h.service.ListByOrderID(int64(orderID))
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch payment schedules"})
+		return helper.InternalServerError(c, "failed to fetch payment schedules")
 	}
 	return c.JSON(items)
 }
@@ -42,8 +42,12 @@ func (h *PaymentScheduleHandler) Create(c *fiber.Ctx) error {
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
-	if req.InstallmentNo <= 0 || strings.TrimSpace(req.DueDate) == "" || req.Amount <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "installment_no, due_date, and amount are required"})
+	v := domain.NewValidationCollector()
+	v.AddIf(req.InstallmentNo <= 0, "installment_no", "is required")
+	v.AddIf(strings.TrimSpace(req.DueDate) == "", "due_date", "is required")
+	v.AddIf(req.Amount <= 0, "amount", "must be positive")
+	if err := helper.ValidateRequest(c, v); err != nil {
+		return err
 	}
 	dueDate, err := helper.ParseRequiredDateValue(req.DueDate, "due_date")
 	if err != nil {
@@ -56,7 +60,7 @@ func (h *PaymentScheduleHandler) Create(c *fiber.Ctx) error {
 		Amount:        helper.MoneyDecimal(req.Amount),
 	}
 	if err := h.service.CreateSchedule(item); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create payment schedule"})
+		return helper.InternalServerError(c, "failed to create payment schedule")
 	}
 	return c.Status(fiber.StatusCreated).JSON(item)
 }

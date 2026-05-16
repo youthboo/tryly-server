@@ -94,7 +94,7 @@ func (r *ProfileRepository) UpdateCustomerProfile(userID int64, user *domain.Use
 			UPDATE customers
 			SET first_name = $1, last_name = $2, address_line1 = $3, sub_district = $4, district = $5, province = $6, postal_code = $7
 			WHERE user_id = $8
-		`, customer.FirstName, customer.LastName, domainutil.NullableString(customer.AddressLine1), domainutil.NullableString(customer.SubDistrict), domainutil.NullableString(customer.District), domainutil.NullableString(customer.Province), domainutil.NullableString(customer.PostalCode), userID); err != nil {
+		`, customer.FirstName, customer.LastName, domainutil.Nullable(customer.AddressLine1), domainutil.Nullable(customer.SubDistrict), domainutil.Nullable(customer.District), domainutil.Nullable(customer.Province), domainutil.Nullable(customer.PostalCode), userID); err != nil {
 			return err
 		}
 		return nil
@@ -113,7 +113,7 @@ func (r *ProfileRepository) UpdateFactoryProfile(userID int64, user *domain.User
 			UPDATE factory_profiles
 			SET description = $1, min_order = $2, lead_time_desc = $3
 			WHERE user_id = $4
-		`, domainutil.NullableString(factory.Description), domainutil.NullableInt64(factory.MinOrder), domainutil.NullableString(factory.LeadTimeDesc), userID); err != nil {
+		`, domainutil.Nullable(factory.Description), domainutil.Nullable(factory.MinOrder), domainutil.Nullable(factory.LeadTimeDesc), userID); err != nil {
 			return err
 		}
 		return nil

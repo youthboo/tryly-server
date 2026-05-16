@@ -1,11 +1,13 @@
 package helper
 
 import (
+	"errors"
 	"reflect"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
 )
 
@@ -58,4 +60,29 @@ func ValidateStruct(c *fiber.Ctx, out interface{}, messages map[string]string) e
 		return JSONError(c, fiber.StatusBadRequest, message)
 	}
 	return nil
+}
+
+func WriteValidationError(c *fiber.Ctx, err error) error {
+	if err == nil {
+		return nil
+	}
+	var validationErr domain.ValidationError
+	if errors.As(err, &validationErr) {
+		details := validationErr.Details
+		if len(details) == 1 {
+			return BadRequestError(c, details[0].Field+" "+details[0].Message)
+		}
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   validationErr.Error(),
+			"details": details,
+		})
+	}
+	return BadRequestError(c, err.Error())
+}
+
+func ValidateRequest(c *fiber.Ctx, collector *domain.ValidationCollector) error {
+	if collector == nil {
+		return nil
+	}
+	return WriteValidationError(c, collector.Err())
 }

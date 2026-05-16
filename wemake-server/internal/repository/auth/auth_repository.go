@@ -126,7 +126,7 @@ func (r *AuthRepository) CreateAdminUser(user *domain.User, profile *domain.Admi
 				INSERT INTO admin_profiles (user_id, display_name, department, created_by)
 				VALUES ($1, $2, $3, $4)
 				RETURNING created_at
-			`, profile.UserID, profile.DisplayName, domainutil.NullableString(profile.Department), domainutil.NullableInt64(profile.CreatedBy)).Scan(&profile.CreatedAt); err != nil {
+			`, profile.UserID, profile.DisplayName, domainutil.Nullable(profile.Department), domainutil.Nullable(profile.CreatedBy)).Scan(&profile.CreatedAt); err != nil {
 				return err
 			}
 		}

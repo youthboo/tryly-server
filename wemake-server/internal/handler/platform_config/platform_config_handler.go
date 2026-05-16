@@ -26,7 +26,7 @@ func NewPlatformConfigHandler(service *platformservice.PlatformConfigService, au
 func (h *PlatformConfigHandler) GetActive(c *fiber.Ctx) error {
 	item, err := h.service.GetActive()
 	if err != nil {
-		return helper.WriteAPIError(c, helper.InternalServerError("FETCH_CONFIG_FAILED", "failed to fetch platform config"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("FETCH_CONFIG_FAILED", "failed to fetch platform config"))
 	}
 	return c.JSON(item)
 }
@@ -34,7 +34,7 @@ func (h *PlatformConfigHandler) GetActive(c *fiber.Ctx) error {
 func (h *PlatformConfigHandler) ListHistory(c *fiber.Ctx) error {
 	items, err := h.service.ListHistory()
 	if err != nil {
-		return helper.WriteAPIError(c, helper.InternalServerError("FETCH_HISTORY_FAILED", "failed to fetch platform config history"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("FETCH_HISTORY_FAILED", "failed to fetch platform config history"))
 	}
 	return helper.WriteListResponse(c, items, len(items))
 }
@@ -42,15 +42,15 @@ func (h *PlatformConfigHandler) ListHistory(c *fiber.Ctx) error {
 func (h *PlatformConfigHandler) ListAll(c *fiber.Ctx) error {
 	items, err := h.service.ListAll()
 	if err != nil {
-		return helper.WriteAPIError(c, helper.InternalServerError("FETCH_CONFIGS_FAILED", "failed to fetch platform configs"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("FETCH_CONFIGS_FAILED", "failed to fetch platform configs"))
 	}
 	return helper.WriteListResponse(c, items, len(items))
 }
 
 func (h *PlatformConfigHandler) Create(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := requirePlatformConfigActorID(c)
 	if err != nil {
-		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
+		return err
 	}
 	var req dto.CreateConfigVersionRequest
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -75,16 +75,16 @@ func (h *PlatformConfigHandler) Create(c *fiber.Ctx) error {
 		CreatedBy:             &userID,
 	}
 	if err := h.service.CreateVersion(cfg); err != nil {
-		return helper.WriteAPIError(c, helper.InternalServerError("CREATE_VERSION_FAILED", "failed to create platform config version"))
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("CREATE_VERSION_FAILED", "failed to create platform config version"))
 	}
 	c.Status(fiber.StatusCreated)
 	return c.JSON(cfg)
 }
 
 func (h *PlatformConfigHandler) CreateConfig(c *fiber.Ctx) error {
-	actorID, err := helper.UserIDFromHeader(c)
+	actorID, err := requirePlatformConfigActorID(c)
 	if err != nil {
-		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
+		return err
 	}
 	var req domain.CreatePlatformConfigRequest
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -104,9 +104,9 @@ func (h *PlatformConfigHandler) UpdateConfig(c *fiber.Ctx) error {
 	if err != nil || configID <= 0 {
 		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_CONFIG_ID", "invalid config_id"))
 	}
-	actorID, err := helper.UserIDFromHeader(c)
+	actorID, err := requirePlatformConfigActorID(c)
 	if err != nil {
-		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
+		return err
 	}
 	var req domain.UpdatePlatformConfigRequest
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -125,9 +125,9 @@ func (h *PlatformConfigHandler) DeleteConfig(c *fiber.Ctx) error {
 	if err != nil || configID <= 0 {
 		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_CONFIG_ID", "invalid config_id"))
 	}
-	actorID, err := helper.UserIDFromHeader(c)
+	actorID, err := requirePlatformConfigActorID(c)
 	if err != nil {
-		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
+		return err
 	}
 	ip := c.IP()
 	err = h.service.DeleteConfig(configID, actorID, &ip)
@@ -140,4 +140,8 @@ func (h *PlatformConfigHandler) DeleteConfig(c *fiber.Ctx) error {
 		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to delete platform config"), handlerregistry.DeleteConfigErrorMap())
 	}
 	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func requirePlatformConfigActorID(c *fiber.Ctx) (int64, error) {
+	return helper.RequireAPIUserID(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
 }
