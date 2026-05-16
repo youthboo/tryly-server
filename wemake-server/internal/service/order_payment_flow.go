@@ -1,0 +1,403 @@
+package service
+
+import (
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/repository"
+)
+
+type ConfirmReceiptInput struct {
+	Note       string
+	ReceivedAt *time.Time
+}
+
+type ConfirmReceiptSettlement struct {
+	FactoryUserID int64   `json:"factory_user_id"`
+	WalletID      int64   `json:"wallet_id"`
+	MovedAmount   float64 `json:"moved_amount"`
+	PendingBefore float64 `json:"pending_before"`
+	PendingAfter  float64 `json:"pending_after"`
+	GoodBefore    float64 `json:"good_before"`
+	GoodAfter     float64 `json:"good_after"`
+}
+
+type ConfirmReceiptResult struct {
+	Success         bool                     `json:"success"`
+	OrderID         int64                    `json:"order_id"`
+	StatusBefore    string                   `json:"status_before"`
+	StatusAfter     string                   `json:"status_after"`
+	CompletedStepID int64                    `json:"completed_step_id"`
+	Settlement      ConfirmReceiptSettlement `json:"settlement"`
+	CompletedAt     time.Time                `json:"completed_at"`
+	AlreadyComplete bool                     `json:"already_completed,omitempty"`
+}
+
+func (s *OrderService) CreatePayment(orderID, userID int64, role, paymentType string, amount float64) (*domain.Transaction, error) {
+	if role != domain.RoleCustomer {
+		return nil, sql.ErrNoRows
+	}
+	order, err := s.repo.GetByParticipant(orderID, userID, role)
+	if err != nil {
+		return nil, err
+	}
+
+	paymentType = strings.TrimSpace(strings.ToUpper(paymentType))
+	if paymentType == "DP" {
+		if err := s.ensureDepositPayable(order); err != nil {
+			return nil, err
+		}
+	}
+	expectedAmount, err := expectedPaymentAmount(order, paymentType)
+	if err != nil {
+		return nil, err
+	}
+	if amount <= 0 || amount != expectedAmount {
+		return nil, ErrPaymentAmountMismatch
+	}
+
+	existing, err := s.txLedger.List(repository.TransactionFilters{
+		OrderID: &orderID,
+		Type:    &paymentType,
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range existing {
+		if paymentType == "DP" && row.Status == "PT" {
+			return nil, ErrDepositAlreadyPaid
+		}
+		if row.Status != "RJ" {
+			return nil, ErrPaymentAlreadyExists
+		}
+	}
+
+	tx, err := s.db.Beginx()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	walletID, err := s.wallets.EnsureWallet(tx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	orderIDPtr := order.OrderID
+	item := &domain.Transaction{
+		TxID:       "tx-" + uuid.NewString(),
+		WalletID:   walletID,
+		OrderID:    &orderIDPtr,
+		Type:       paymentType,
+		Amount:     amount,
+		Status:     "ST",
+		CreatedAt:  now,
+		UpdatedAt:  now,
+		UploadedAt: now,
+	}
+	if err := s.txLedger.CreateTx(tx, item); err != nil {
+		return nil, err
+	}
+	if err := s.repo.InsertActivityTx(tx, orderID, &userID, "PAYMENT_CREATED", map[string]interface{}{
+		"tx_id": item.TxID, "type": paymentType, "amount": amount, "status": item.Status,
+	}); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return item, nil
+}
+
+func (s *OrderService) VerifyPayment(orderID, userID int64, role, txID string) (*domain.Transaction, error) {
+	order, err := s.repo.GetByParticipant(orderID, userID, role)
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := s.db.Beginx()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	paymentTx, err := s.txLedger.GetByIDForUpdate(tx, strings.TrimSpace(txID))
+	if err != nil {
+		return nil, err
+	}
+	if paymentTx.OrderID == nil || *paymentTx.OrderID != orderID {
+		return nil, sql.ErrNoRows
+	}
+	if paymentTx.Type != "DP" && paymentTx.Type != "FP" {
+		return nil, ErrPaymentTypeInvalid
+	}
+	if paymentTx.Type == "DP" {
+		if err := s.ensureDepositPayable(order); err != nil {
+			return nil, err
+		}
+	}
+	if paymentTx.Status != "ST" {
+		if paymentTx.Type == "DP" && paymentTx.Status == "PT" {
+			return nil, ErrDepositAlreadyPaid
+		}
+		return nil, ErrPaymentStateInvalid
+	}
+
+	expectedAmount, err := expectedPaymentAmount(order, paymentTx.Type)
+	if err != nil {
+		return nil, err
+	}
+	if paymentTx.Amount != expectedAmount {
+		return nil, ErrPaymentAmountMismatch
+	}
+
+	if _, err := s.wallets.EnsureWallet(tx, order.UserID); err != nil {
+		return nil, err
+	}
+	if _, err := s.wallets.EnsureWallet(tx, order.FactoryID); err != nil {
+		return nil, err
+	}
+
+	customerWallet, err := s.wallets.GetByUserIDForUpdate(tx, order.UserID)
+	if err != nil {
+		return nil, err
+	}
+	ok, err := s.wallets.DebitGoodFund(tx, customerWallet.WalletID, paymentTx.Amount)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, ErrInsufficientGoodFund
+	}
+
+	factoryWallet, err := s.wallets.GetByUserIDForUpdate(tx, order.FactoryID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.wallets.CreditGoodFund(tx, factoryWallet.WalletID, paymentTx.Amount); err != nil {
+		return nil, err
+	}
+
+	if err := s.txLedger.PatchStatusTx(tx, paymentTx.TxID, "PT"); err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	orderIDPtr := order.OrderID
+	receiveTx := &domain.Transaction{
+		TxID:       "tx-" + uuid.NewString(),
+		WalletID:   factoryWallet.WalletID,
+		OrderID:    &orderIDPtr,
+		Type:       "SC",
+		Amount:     paymentTx.Amount,
+		Status:     "PT",
+		CreatedAt:  now,
+		UpdatedAt:  now,
+		UploadedAt: now,
+	}
+	if err := s.txLedger.CreateTx(tx, receiveTx); err != nil {
+		return nil, err
+	}
+
+	if paymentTx.Type == "DP" && (normalizeOrderStatus(order.Status) == "PP" || normalizeOrderStatus(order.Status) == "PE") {
+		if err := s.repo.UpdateStatusTx(tx, orderID, "PD"); err != nil {
+			return nil, err
+		}
+		order.Status = "PD"
+
+		// Recalculate estimated_delivery starting from payment date (now), not order creation date.
+		// "นับจากหลังจากที่ลูกค้าจ่ายเงิน" — lead_time + shipping days counted from payment confirmation.
+		shippingDays := getShippingDays(s.db)
+		type quoteDelivery struct {
+			LeadTimeDays int64      `db:"lead_time_days"`
+			DeliveryDate *time.Time `db:"delivery_date"`
+		}
+		var qd quoteDelivery
+		if err2 := tx.Get(&qd, `SELECT lead_time_days, NULL::date AS delivery_date FROM quotations WHERE quote_id = $1`, order.QuotationID); err2 == nil {
+			est := calculateEstimatedDelivery(now, qd.LeadTimeDays, shippingDays, qd.DeliveryDate)
+			if _, err2 := tx.Exec(`UPDATE orders SET estimated_delivery = $1 WHERE order_id = $2`, est, orderID); err2 != nil {
+				return nil, err2
+			}
+		}
+
+		if s.schedules != nil {
+			if err := s.schedules.PatchStatusByOrderAndInstallmentTx(tx, orderID, 1, "PD"); err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return nil, err
+			}
+		}
+		if err := insertDomainEventTx(tx, "order.deposit_paid", map[string]interface{}{
+			"order_id": orderID,
+			"tx_id":    paymentTx.TxID,
+			"amount":   paymentTx.Amount,
+		}); err != nil {
+			return nil, err
+		}
+		if err := insertDomainEventTx(tx, "cache.invalidate", map[string]interface{}{
+			"paths": []string{
+				fmt.Sprintf("/orders/%d", orderID),
+				fmt.Sprintf("/orders/%d/production-updates", orderID),
+			},
+		}); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := s.repo.InsertActivityTx(tx, orderID, &userID, "PAYMENT_VERIFIED", map[string]interface{}{
+		"tx_id": paymentTx.TxID, "type": paymentTx.Type, "amount": paymentTx.Amount, "status": "PT", "order_status": order.Status,
+	}); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	paymentTx.Status = "PT"
+	createNotificationSafe(s.notifications, &domain.Notification{
+		UserID:  order.FactoryID,
+		Type:    "PAYMENT_RECEIVED",
+		Title:   "รับชำระเงินแล้ว",
+		Message: fmt.Sprintf("ได้รับการชำระเงิน ฿%.2f สำหรับ Order #%d", paymentTx.Amount, order.OrderID),
+		LinkTo:  orderLink(order.OrderID),
+		Data: notificationData(map[string]interface{}{
+			"order_id": order.OrderID,
+			"amount":   paymentTx.Amount,
+			"url":      orderLink(order.OrderID),
+		}),
+		ReferenceID: &order.OrderID,
+		CreatedAt:   now,
+	})
+	return paymentTx, nil
+}
+
+func (s *OrderService) ConfirmReceipt(orderID, userID int64, role string, input ConfirmReceiptInput) (*ConfirmReceiptResult, error) {
+	if role != domain.RoleCustomer {
+		return nil, domain.ErrForbidden
+	}
+	return s.confirmReceiptTx(orderID, &userID, strings.TrimSpace(input.Note), input.ReceivedAt, "CUSTOMER_CONFIRMED_RECEIPT", true)
+}
+
+func (s *OrderService) confirmReceiptTx(orderID int64, actorUserID *int64, note string, receivedAt *time.Time, activityCode string, idempotent bool) (*ConfirmReceiptResult, error) {
+	tx, err := s.db.Beginx()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	order, err := s.repo.GetByIDForUpdateTx(tx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if actorUserID != nil && order.UserID != *actorUserID {
+		return nil, domain.ErrForbidden
+	}
+
+	statusBefore := normalizeOrderStatus(order.Status)
+	if statusBefore == "CP" {
+		if !idempotent {
+			return nil, ErrConfirmReceiptNotAllowed
+		}
+		now := time.Now()
+		if receivedAt != nil {
+			now = *receivedAt
+		}
+		return &ConfirmReceiptResult{
+			Success:         true,
+			OrderID:         order.OrderID,
+			StatusBefore:    "CP",
+			StatusAfter:     "CP",
+			CompletedStepID: 6,
+			CompletedAt:     now,
+			AlreadyComplete: true,
+		}, nil
+	}
+	if statusBefore == "CN" || statusBefore == "CC" {
+		return nil, ErrConfirmReceiptNotAllowed
+	}
+	if statusBefore != "SH" {
+		return nil, ErrConfirmReceiptInvalidStatus
+	}
+
+	completedAt := time.Now().UTC()
+	if receivedAt != nil {
+		completedAt = receivedAt.UTC()
+	}
+
+	if err := s.repo.UpsertCompletedStepTx(tx, orderID, actorUserID, note, completedAt); err != nil {
+		return nil, err
+	}
+	if err := s.repo.MarkCompletedTx(tx, orderID, completedAt); err != nil {
+		return nil, err
+	}
+
+	if _, err := s.wallets.EnsureWallet(tx, order.FactoryID); err != nil {
+		return nil, err
+	}
+	factoryWallet, err := s.wallets.GetByUserIDForUpdate(tx, order.FactoryID)
+	if err != nil {
+		return nil, err
+	}
+	movedAmount := roundCurrency(order.TotalAmount)
+	if movedAmount < 0 {
+		movedAmount = 0
+	}
+	if err := s.wallets.MovePendingToGoodTx(tx, factoryWallet.WalletID, movedAmount); err != nil {
+		return nil, err
+	}
+	settlement := ConfirmReceiptSettlement{
+		FactoryUserID: order.FactoryID,
+		WalletID:      factoryWallet.WalletID,
+		MovedAmount:   movedAmount,
+		PendingBefore: factoryWallet.PendingFund,
+		PendingAfter:  roundCurrency(factoryWallet.PendingFund - movedAmount),
+		GoodBefore:    factoryWallet.GoodFund,
+		GoodAfter:     roundCurrency(factoryWallet.GoodFund + movedAmount),
+	}
+
+	// Settle the factory's pending SC receivables for this order: PT -> ST.
+	if err := s.txLedger.SettleFactoryReceivables(tx, order.OrderID); err != nil {
+		return nil, err
+	}
+	if err := s.repo.InsertActivityTx(tx, orderID, actorUserID, activityCode, map[string]interface{}{
+		"status_before": statusBefore,
+		"status_after":  "CP",
+		"completed_at":  completedAt,
+		"settlement":    settlement,
+		"note":          note,
+	}); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	for _, recipient := range []int64{order.UserID, order.FactoryID} {
+		createNotificationSafe(s.notifications, &domain.Notification{
+			UserID:  recipient,
+			Type:    "ORDER_COMPLETED",
+			Title:   "คำสั่งซื้อเสร็จสมบูรณ์",
+			Message: fmt.Sprintf("Order #%d เสร็จสมบูรณ์", orderID),
+			LinkTo:  orderLink(orderID),
+			Data: notificationData(map[string]interface{}{
+				"order_id": orderID,
+				"url":      orderLink(orderID),
+			}),
+			ReferenceID: &orderID,
+			CreatedAt:   completedAt,
+		})
+	}
+	return &ConfirmReceiptResult{
+		Success:         true,
+		OrderID:         orderID,
+		StatusBefore:    statusBefore,
+		StatusAfter:     "CP",
+		CompletedStepID: 6,
+		Settlement:      settlement,
+		CompletedAt:     completedAt,
+	}, nil
+}

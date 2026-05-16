@@ -1,0 +1,115 @@
+package service
+
+import (
+	"database/sql"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/yourusername/wemake/internal/domain"
+)
+
+func (s *OrderService) UpdateStatus(orderID int64, status string, actorUserID *int64) error {
+	if err := s.repo.UpdateStatus(orderID, strings.TrimSpace(strings.ToUpper(status))); err != nil {
+		return err
+	}
+	return s.repo.InsertActivity(orderID, actorUserID, "ORDER_STATUS", map[string]interface{}{
+		"status": strings.TrimSpace(strings.ToUpper(status)),
+	})
+}
+
+func (s *OrderService) Cancel(orderID, userID int64, role string) error {
+	order, err := s.repo.GetByParticipant(orderID, userID, role)
+	if err != nil {
+		return err
+	}
+	cancellableStatuses := map[string]struct{}{"PE": {}, "PP": {}, "PR": {}, "WF": {}}
+	if _, ok := cancellableStatuses[order.Status]; !ok {
+		return ErrOrderCannotBeCancelled
+	}
+	if err := s.repo.UpdateStatus(orderID, "CC"); err != nil {
+		return err
+	}
+	if err := s.repo.InsertActivity(orderID, &userID, "ORDER_CANCELLED", map[string]interface{}{
+		"status":          "CC",
+		"previous_status": order.Status,
+	}); err != nil {
+		return err
+	}
+	now := time.Now()
+	for _, recipient := range []int64{order.UserID, order.FactoryID} {
+		createNotificationSafe(s.notifications, &domain.Notification{
+			UserID:  recipient,
+			Type:    "ORDER_CANCELLED",
+			Title:   "คำสั่งซื้อถูกยกเลิก",
+			Message: fmt.Sprintf("Order #%d ถูกยกเลิก", orderID),
+			LinkTo:  orderLink(orderID),
+			Data: notificationData(map[string]interface{}{
+				"order_id": orderID,
+				"url":      orderLink(orderID),
+			}),
+			ReferenceID: &orderID,
+			CreatedAt:   now,
+		})
+	}
+	return nil
+}
+
+func (s *OrderService) MarkShipped(orderID, factoryID int64, trackingNo, courier string) error {
+	trackingNo = strings.TrimSpace(trackingNo)
+	courier = strings.TrimSpace(courier)
+	if trackingNo == "" || courier == "" {
+		return ErrShipOrderInvalid
+	}
+	order, err := s.repo.GetByParticipant(orderID, factoryID, domain.RoleFactory)
+	if err != nil {
+		return err
+	}
+	if order.Status != "PR" && order.Status != "QC" && order.Status != "SH" {
+		return sql.ErrNoRows
+	}
+	if err := s.repo.MarkShipped(orderID, factoryID, trackingNo, courier); err != nil {
+		return err
+	}
+	uid := factoryID
+	if err := s.repo.InsertActivity(orderID, &uid, "ORDER_SHIPPED", map[string]interface{}{
+		"status":      "SH",
+		"tracking_no": trackingNo,
+		"courier":     courier,
+	}); err != nil {
+		return err
+	}
+	createNotificationSafe(s.notifications, &domain.Notification{
+		UserID:  order.UserID,
+		Type:    "ORDER_SHIPPED",
+		Title:   "สินค้ากำลังจัดส่ง",
+		Message: fmt.Sprintf("Tracking: %s", trackingNo),
+		LinkTo:  orderLink(orderID),
+		Data: notificationData(map[string]interface{}{
+			"order_id":    orderID,
+			"tracking_no": trackingNo,
+			"courier":     courier,
+			"url":         orderLink(orderID),
+		}),
+		ReferenceID: &orderID,
+		CreatedAt:   time.Now(),
+	})
+	return nil
+}
+
+func (s *OrderService) AutoCloseShippedOrders() (int, error) {
+	cutoff := time.Now().AddDate(0, 0, -20)
+	candidates, err := s.repo.ListAutoCloseCandidates(cutoff)
+	if err != nil {
+		return 0, err
+	}
+	closed := 0
+	for _, orderID := range candidates {
+		if _, err := s.confirmReceiptTx(orderID, nil, "auto close after 20 days", nil, "AUTO_CLOSE_20_DAYS", true); err != nil {
+			// Keep processing next orders; this job should be best-effort.
+			continue
+		}
+		closed++
+	}
+	return closed, nil
+}
