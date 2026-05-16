@@ -118,6 +118,15 @@ CREATE TABLE IF NOT EXISTS lbi_categories (
     CONSTRAINT lbi_categories_pkey PRIMARY KEY (category_id)
 );
 
+CREATE TABLE IF NOT EXISTS lbi_sub_categories (
+    sub_category_id BIGSERIAL NOT NULL,
+    category_id BIGINT NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    status BPCHAR(1) DEFAULT '1' NOT NULL,
+    sort_order INTEGER DEFAULT 0 NOT NULL,
+    CONSTRAINT lbi_sub_categories_pkey PRIMARY KEY (sub_category_id)
+);
+
 CREATE TABLE IF NOT EXISTS conversations (
     conv_id BIGSERIAL NOT NULL,
     customer_id INTEGER NOT NULL,
@@ -234,6 +243,16 @@ CREATE TABLE IF NOT EXISTS lbi_districts (
     name_en VARCHAR(150) NOT NULL,
     status CHAR(1) DEFAULT '1' NOT NULL,
     CONSTRAINT lbi_districts_pkey PRIMARY KEY (row_id)
+);
+
+CREATE TABLE IF NOT EXISTS lbi_sub_districts (
+    row_id BIGSERIAL NOT NULL,
+    district_id BIGINT NOT NULL,
+    name_th VARCHAR(150) NOT NULL,
+    name_en VARCHAR(150) NOT NULL,
+    zip_code VARCHAR(10) NOT NULL,
+    status BPCHAR(1) DEFAULT '1' NOT NULL,
+    CONSTRAINT lbi_sub_districts_pkey PRIMARY KEY (row_id)
 );
 
 CREATE TABLE IF NOT EXISTS lbi_factory_types (
@@ -570,6 +589,14 @@ ALTER TABLE lbi_districts
     ADD CONSTRAINT fk_lbi_districts_province_id_lbi_provinces_row_id
     FOREIGN KEY (province_id) REFERENCES lbi_provinces(row_id);
 
+ALTER TABLE lbi_sub_categories
+    ADD CONSTRAINT fk_lbi_sub_categories_category_id_lbi_categories_category_id
+    FOREIGN KEY (category_id) REFERENCES lbi_categories(category_id);
+
+ALTER TABLE lbi_sub_districts
+    ADD CONSTRAINT fk_lbi_sub_districts_district_id_lbi_districts_row_id
+    FOREIGN KEY (district_id) REFERENCES lbi_districts(row_id);
+
 ALTER TABLE map_factory_categories
     ADD CONSTRAINT fk_map_factory_categories_factory_id_users_user_id
     FOREIGN KEY (factory_id) REFERENCES users(user_id);
@@ -702,6 +729,8 @@ CREATE INDEX IF NOT EXISTS idx_factory_profiles_verified_by ON factory_profiles(
 CREATE INDEX IF NOT EXISTS idx_factory_reviews_order_id ON factory_reviews(order_id);
 CREATE INDEX IF NOT EXISTS idx_factory_reviews_factory_reply_by ON factory_reviews(factory_reply_by);
 CREATE INDEX IF NOT EXISTS idx_lbi_districts_province_id ON lbi_districts(province_id);
+CREATE INDEX IF NOT EXISTS idx_lbi_sub_categories_category_id ON lbi_sub_categories(category_id);
+CREATE INDEX IF NOT EXISTS idx_lbi_sub_districts_district_id ON lbi_sub_districts(district_id);
 CREATE INDEX IF NOT EXISTS idx_map_factory_categories_factory_id ON map_factory_categories(factory_id);
 CREATE INDEX IF NOT EXISTS idx_map_factory_categories_category_id ON map_factory_categories(category_id);
 CREATE INDEX IF NOT EXISTS idx_map_factory_certificates_cert_id ON map_factory_certificates(cert_id);
