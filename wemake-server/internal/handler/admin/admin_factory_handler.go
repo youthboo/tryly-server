@@ -2,12 +2,12 @@ package admin
 
 import (
 	"errors"
-	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/dto"
+	"github.com/yourusername/wemake/internal/helper"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 	adminservice "github.com/yourusername/wemake/internal/service/admin"
 )
@@ -22,13 +22,15 @@ func NewAdminFactoryHandler(repo *adminrepo.AdminFactoryRepository, service *adm
 }
 
 func (h *AdminFactoryHandler) List(c *fiber.Ctx) error {
+	query := helper.QueryParams(c)
+	page, pageSize := query.PageSize(helper.DefaultPageSize)
 	filter := domain.AdminFactoryFilter{
-		ApprovalStatus: strings.TrimSpace(c.Query("approval_status")),
-		Search:         strings.TrimSpace(c.Query("search")),
-		Page:           c.QueryInt("page", helper.DefaultPage),
-		PageSize:       c.QueryInt("page_size", helper.DefaultPageSize),
+		ApprovalStatus: query.String("approval_status"),
+		Search:         query.String("search"),
+		Page:           page,
+		PageSize:       pageSize,
 	}
-	if v := strings.TrimSpace(c.Query("is_verified")); v != "" {
+	if v := query.String("is_verified"); v != "" {
 		isVerified := strings.EqualFold(v, "true") || v == "1"
 		filter.IsVerified = &isVerified
 	}
@@ -36,7 +38,7 @@ func (h *AdminFactoryHandler) List(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch factories"})
 	}
-	return c.JSON(fiber.Map{"data": items, "pagination": domain.Pagination{Page: helper.MaxInt(filter.Page, 1), PageSize: helper.NormalizePageSize(filter.PageSize), Total: total}})
+	return c.JSON(fiber.Map{"data": items, "pagination": domain.Pagination{Page: filter.Page, PageSize: filter.PageSize, Total: total}})
 }
 
 func (h *AdminFactoryHandler) GetByID(c *fiber.Ctx) error {
@@ -78,10 +80,7 @@ func (h *AdminFactoryHandler) PatchVerification(c *fiber.Ctx) error {
 	}
 	ip := c.IP()
 	isVerified := req.TaxIDVerified != nil && *req.TaxIDVerified
-	note := ""
-	if req.Notes != nil {
-		note = *req.Notes
-	}
+	note := helper.DereferenceString(req.Notes, "")
 	if err := h.service.ToggleVerification(factoryID, actorID, isVerified, note, &ip); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -146,10 +145,7 @@ func (h *AdminFactoryHandler) mutateFactoryState(c *fiber.Ctx, fn func(int64, in
 		return err
 	}
 	ip := c.IP()
-	note := ""
-	if req.Notes != nil {
-		note = *req.Notes
-	}
+	note := helper.DereferenceString(req.Notes, "")
 	if err := fn(factoryID, actorID, note, &ip); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -179,9 +175,9 @@ func parseFactoryActor(c *fiber.Ctx) (int64, int64, error) {
 	if err != nil || factoryID <= 0 {
 		return 0, 0, fiber.NewError(fiber.StatusBadRequest, "invalid factory_id")
 	}
-	actorID, err := helper.UserIDFromHeader(c)
+	actorID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return 0, 0, fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
+		return 0, 0, err
 	}
 	return factoryID, actorID, nil
 }

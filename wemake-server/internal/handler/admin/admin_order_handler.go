@@ -85,11 +85,8 @@ func (h *AdminOrderHandler) PatchStatus(c *fiber.Ctx) error {
 	if err := h.service.UpdateStatus(orderID, status, nil); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update order status"})
 	}
-	actorID, _ := helper.UserIDFromHeader(c)
-	notes := ""
-	if req.Notes != nil {
-		notes = *req.Notes
-	}
+	actorID := helper.OptionalActorID(c)
+	notes := helper.DereferenceString(req.Notes, "")
 	payload, _ := json.Marshal(map[string]interface{}{"status": status, "notes": notes})
 	ip := c.IP()
 	_ = h.audit.Insert(&domain.AdminAuditLog{ActorID: actorID, Action: "ORDER_STATUS_CHANGE", TargetType: "order", TargetID: strconv.FormatInt(orderID, 10), Payload: payload, IPAddress: &ip})
@@ -128,7 +125,7 @@ func (h *AdminOrderHandler) PatchWithdrawal(c *fiber.Ctx) error {
 	if err := h.withdrawal.UpdateStatus(requestID, status, req.Comments); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update withdrawal"})
 	}
-	actorID, _ := helper.UserIDFromHeader(c)
+	actorID := helper.OptionalActorID(c)
 	payload, _ := json.Marshal(map[string]interface{}{"status": status, "comments": req.Comments})
 	ip := c.IP()
 	_ = h.audit.Insert(&domain.AdminAuditLog{ActorID: actorID, Action: "WITHDRAWAL_STATUS_CHANGE", TargetType: "withdrawal", TargetID: strconv.FormatInt(requestID, 10), Payload: payload, IPAddress: &ip})
@@ -165,7 +162,7 @@ func (h *AdminOrderHandler) PatchDispute(c *fiber.Ctx) error {
 	if err := h.dispute.UpdateStatus(disputeID, status, req.Comments); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update dispute"})
 	}
-	actorID, _ := helper.UserIDFromHeader(c)
+	actorID := helper.OptionalActorID(c)
 	payload, _ := json.Marshal(map[string]interface{}{"status": status, "comments": req.Comments})
 	ip := c.IP()
 	_ = h.audit.Insert(&domain.AdminAuditLog{ActorID: actorID, Action: "DISPUTE_STATUS_CHANGE", TargetType: "dispute", TargetID: strconv.FormatInt(disputeID, 10), Payload: payload, IPAddress: &ip})

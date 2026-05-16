@@ -15,9 +15,9 @@ func NewNotificationHandler(service *notificationservice.NotificationService) *N
 }
 
 func (h *NotificationHandler) List(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	page, limit := helper.PageLimit(c, helper.DefaultPageSize)
 	unreadOnly := c.QueryBool("unread", false)
@@ -35,9 +35,9 @@ func (h *NotificationHandler) List(c *fiber.Ctx) error {
 }
 
 func (h *NotificationHandler) MarkAsRead(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	notiID, err := helper.RequireInt64Param(c, "noti_id")
 	if err != nil {
@@ -50,9 +50,9 @@ func (h *NotificationHandler) MarkAsRead(c *fiber.Ctx) error {
 }
 
 func (h *NotificationHandler) GetUnreadCount(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	count, err := h.service.GetUnreadCount(userID)
 	if err != nil {
@@ -62,9 +62,9 @@ func (h *NotificationHandler) GetUnreadCount(c *fiber.Ctx) error {
 }
 
 func (h *NotificationHandler) MarkAllRead(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	updated, err := h.service.MarkAllRead(userID)
 	if err != nil {
@@ -74,9 +74,9 @@ func (h *NotificationHandler) MarkAllRead(c *fiber.Ctx) error {
 }
 
 func (h *NotificationHandler) SoftDelete(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	notiID, err := helper.ParsePositiveInt64Param(c, "noti_id")
 	if err != nil {

@@ -75,6 +75,10 @@ func OptionalUserIDFromHeader(c *fiber.Ctx) int64 {
 	return userID
 }
 
+func OptionalActorID(c *fiber.Ctx) int64 {
+	return OptionalUserIDFromHeader(c)
+}
+
 func OptionalRoleFromContext(c *fiber.Ctx) string {
 	if localValue := c.Locals("role"); localValue != nil {
 		if value, ok := localValue.(string); ok {
@@ -119,6 +123,46 @@ func RequireFactoryUser(c *fiber.Ctx, loader UserLoader) (int64, *domain.User, e
 	}
 	if err := RequireFactoryRole(user); err != nil {
 		return 0, nil, JSONError(c, fiber.StatusForbidden, "factory role required")
+	}
+	return userID, user, nil
+}
+
+func RequireAPIUserID(c *fiber.Ctx, invalidUserError *APIError) (int64, error) {
+	userID, err := UserIDFromHeader(c)
+	if err != nil {
+		if invalidUserError == nil {
+			invalidUserError = BadRequestAPIError("INVALID_USER_CONTEXT", "invalid user context")
+		}
+		return 0, WriteAPIError(c, invalidUserError)
+	}
+	return userID, nil
+}
+
+func RequireAPIUser(c *fiber.Ctx, loader UserLoader, invalidUserError *APIError, notFoundError *APIError) (int64, *domain.User, error) {
+	userID, err := RequireAPIUserID(c, invalidUserError)
+	if err != nil {
+		return 0, nil, err
+	}
+	user, err := loader.GetUserByID(userID)
+	if err != nil {
+		if notFoundError == nil {
+			notFoundError = UnauthorizedAPIError("USER_NOT_FOUND", "user not found")
+		}
+		return 0, nil, WriteAPIError(c, notFoundError)
+	}
+	return userID, user, nil
+}
+
+func RequireAPIFactoryUser(c *fiber.Ctx, loader UserLoader, invalidUserError *APIError, notFoundError *APIError, forbiddenError *APIError) (int64, *domain.User, error) {
+	userID, user, err := RequireAPIUser(c, loader, invalidUserError, notFoundError)
+	if err != nil {
+		return 0, nil, err
+	}
+	if err := RequireFactoryRole(user); err != nil {
+		if forbiddenError == nil {
+			forbiddenError = ForbiddenAPIError("FACTORY_ROLE_REQUIRED", "factory role required")
+		}
+		return 0, nil, WriteAPIError(c, forbiddenError)
 	}
 	return userID, user, nil
 }

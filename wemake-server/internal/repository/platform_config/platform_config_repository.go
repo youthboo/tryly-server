@@ -65,12 +65,12 @@ func (r *PlatformConfigRepository) Create(tx *sqlx.Tx, cfg *domain.PlatformConfi
 		) VALUES ($1,$2,$3,$4,$5,$6)
 		RETURNING config_id, created_at
 	`,
-		domainutil.NullableString(cfg.Label),
+		domainutil.Nullable(cfg.Label),
 		cfg.DefaultCommissionRate,
 		cfg.VatRate,
 		cfg.EffectiveFrom,
-		domainutil.NullableTime(cfg.EffectiveTo),
-		domainutil.NullableInt64(cfg.CreatedBy),
+		domainutil.Nullable(cfg.EffectiveTo),
+		domainutil.Nullable(cfg.CreatedBy),
 	).Scan(&cfg.ConfigID, &cfg.CreatedAt)
 }
 
@@ -83,11 +83,11 @@ func (r *PlatformConfigRepository) CreatePackage(tx *sqlx.Tx, cfg *domain.Platfo
 		          NULL::numeric AS promo_commission_rate, NULL::timestamp AS promo_start_at, NULL::timestamp AS promo_end_at,
 		          NULL::text AS promo_label, vat_rate, 'THB'::text AS currency_code, effective_from, effective_to, created_by, created_at
 	`,
-		domainutil.NullableString(cfg.Label),
+		domainutil.Nullable(cfg.Label),
 		cfg.DefaultCommissionRate,
 		cfg.VatRate,
-		domainutil.NullableTime(cfg.EffectiveTo),
-		domainutil.NullableInt64(cfg.CreatedBy),
+		domainutil.Nullable(cfg.EffectiveTo),
+		domainutil.Nullable(cfg.CreatedBy),
 	)
 }
 
@@ -141,7 +141,7 @@ func (r *PlatformConfigRepository) UpdateConfig(tx *sqlx.Tx, id int64, cfg *doma
 		RETURNING config_id, label, default_commission_rate,
 		          NULL::numeric AS promo_commission_rate, NULL::timestamp AS promo_start_at, NULL::timestamp AS promo_end_at,
 		          NULL::text AS promo_label, vat_rate, 'THB'::text AS currency_code, effective_from, effective_to, created_by, created_at
-	`, domainutil.NullableString(cfg.Label), cfg.DefaultCommissionRate, cfg.VatRate, id)
+	`, domainutil.Nullable(cfg.Label), cfg.DefaultCommissionRate, cfg.VatRate, id)
 }
 
 func (r *PlatformConfigRepository) CountFactoriesUsingConfig(configID int64) (int, error) {

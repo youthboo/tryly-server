@@ -19,9 +19,9 @@ func NewBOQHandler(service *boqservice.BOQService) *BOQHandler {
 }
 
 func (h *BOQHandler) Create(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	convID, err := helper.ParsePositiveInt64Param(c, "conv_id")
 	if err != nil || convID <= 0 {
@@ -40,9 +40,9 @@ func (h *BOQHandler) Create(c *fiber.Ctx) error {
 }
 
 func (h *BOQHandler) Get(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	rfqID, err := helper.ParsePositiveInt64Param(c, "rfq_id")
 	if err != nil || rfqID <= 0 {
@@ -56,9 +56,9 @@ func (h *BOQHandler) Get(c *fiber.Ctx) error {
 }
 
 func (h *BOQHandler) Update(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	rfqID, err := helper.ParsePositiveInt64Param(c, "rfq_id")
 	if err != nil || rfqID <= 0 {
@@ -77,9 +77,9 @@ func (h *BOQHandler) Update(c *fiber.Ctx) error {
 }
 
 func (h *BOQHandler) Accept(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	rfqID, err := helper.ParsePositiveInt64Param(c, "rfq_id")
 	if err != nil || rfqID <= 0 {
@@ -100,9 +100,9 @@ func (h *BOQHandler) Accept(c *fiber.Ctx) error {
 }
 
 func (h *BOQHandler) Decline(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	rfqID, err := helper.ParsePositiveInt64Param(c, "rfq_id")
 	if err != nil || rfqID <= 0 {
@@ -122,9 +122,9 @@ func (h *BOQHandler) Decline(c *fiber.Ctx) error {
 }
 
 func (h *BOQHandler) ListMine(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	items, err := h.service.ListMine(userID, c.Query("status"))
 	if err != nil {

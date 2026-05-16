@@ -24,7 +24,7 @@ func (r *AdminAuditRepository) Insert(log *domain.AdminAuditLog) error {
 		INSERT INTO admin_audit_log (actor_id, action, target_type, target_id, payload, ip_address)
 		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING log_id, created_at
-	`, log.ActorID, log.Action, log.TargetType, log.TargetID, log.Payload, domainutil.NullableString(log.IPAddress)).Scan(&log.LogID, &log.CreatedAt)
+	`, log.ActorID, log.Action, log.TargetType, log.TargetID, log.Payload, domainutil.Nullable(log.IPAddress)).Scan(&log.LogID, &log.CreatedAt)
 }
 
 func (r *AdminAuditRepository) List(filter domain.AdminAuditFilter) ([]domain.AdminAuditLog, int, error) {

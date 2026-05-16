@@ -20,9 +20,9 @@ func NewAdminUserHandler(authService *authservice.AuthService, authRepo *authrep
 }
 
 func (h *AdminUserHandler) Create(c *fiber.Ctx) error {
-	actorID, err := helper.UserIDFromHeader(c)
+	actorID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	actor, err := h.authService.GetUserByID(actorID)
 	if err != nil {

@@ -2,14 +2,13 @@ package admin
 
 import (
 	"encoding/json"
-	"github.com/yourusername/wemake/internal/helper"
 	"strconv"
-	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/dto"
+	"github.com/yourusername/wemake/internal/helper"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 )
 
@@ -23,37 +22,26 @@ func NewAdminRFQHandler(repo *adminrepo.AdminRFQRepository, audit *adminrepo.Adm
 }
 
 func (h *AdminRFQHandler) List(c *fiber.Ctx) error {
+	query := helper.QueryParams(c)
+	page, pageSize := query.PageSize(helper.DefaultPageSize)
 	filter := domain.AdminRFQFilter{
-		Status:   strings.TrimSpace(c.Query("status")),
-		Search:   strings.TrimSpace(c.Query("search")),
-		Page:     c.QueryInt("page", helper.DefaultPage),
-		PageSize: c.QueryInt("page_size", helper.DefaultPageSize),
+		Status:     query.String("status"),
+		Search:     query.String("search"),
+		Page:       page,
+		PageSize:   pageSize,
+		UserID:     query.OptionalPositiveInt64("user_id"),
+		CategoryID: query.OptionalPositiveInt64("category_id"),
+		DateFrom:   query.OptionalDate("date_from"),
+		DateTo:     query.OptionalDate("date_to"),
 	}
-	userID, err := helper.ParseOptionalPositiveInt64Query(c, "user_id")
-	if err != nil {
-		return helper.BadRequest(c, "invalid user_id")
+	if err := query.Err(); err != nil {
+		return err
 	}
-	filter.UserID = userID
-	categoryID, err := helper.ParseOptionalPositiveInt64Query(c, "category_id")
-	if err != nil {
-		return helper.BadRequest(c, "invalid category_id")
-	}
-	filter.CategoryID = categoryID
-	dateFrom, err := helper.ParseOptionalDateQuery(c, "date_from")
-	if err != nil {
-		return helper.BadRequest(c, "date_from must be YYYY-MM-DD")
-	}
-	filter.DateFrom = dateFrom
-	dateTo, err := helper.ParseOptionalDateQuery(c, "date_to")
-	if err != nil {
-		return helper.BadRequest(c, "date_to must be YYYY-MM-DD")
-	}
-	filter.DateTo = dateTo
 	items, total, err := h.repo.ListAdmin(filter)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch rfqs"})
 	}
-	return c.JSON(fiber.Map{"data": items, "pagination": domain.Pagination{Page: helper.MaxInt(filter.Page, 1), PageSize: helper.NormalizePageSize(filter.PageSize), Total: total}})
+	return c.JSON(fiber.Map{"data": items, "pagination": domain.Pagination{Page: filter.Page, PageSize: filter.PageSize, Total: total}})
 }
 
 func (h *AdminRFQHandler) GetByID(c *fiber.Ctx) error {
@@ -84,11 +72,8 @@ func (h *AdminRFQHandler) PatchStatus(c *fiber.Ctx) error {
 	if err := h.repo.UpdateStatusAdmin(rfqID, status); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update rfq status"})
 	}
-	actorID, _ := helper.UserIDFromHeader(c)
-	notes := ""
-	if req.Notes != nil {
-		notes = *req.Notes
-	}
+	actorID := helper.OptionalActorID(c)
+	notes := helper.DereferenceString(req.Notes, "")
 	payload, _ := json.Marshal(map[string]interface{}{"status": status, "notes": notes})
 	ip := c.IP()
 	_ = h.audit.Insert(&domain.AdminAuditLog{ActorID: actorID, Action: "RFQ_STATUS_CHANGE", TargetType: "rfq", TargetID: strconv.FormatInt(rfqID, 10), Payload: payload, IPAddress: &ip})

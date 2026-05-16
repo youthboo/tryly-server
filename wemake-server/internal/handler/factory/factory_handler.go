@@ -22,17 +22,32 @@ func NewFactoryHandler(service *factoryservice.FactoryService, authService *auth
 	return &FactoryHandler{service: service, auth: authService}
 }
 
+func (h *FactoryHandler) requireFactoryContext(c *fiber.Ctx) (int64, error) {
+	userID, _, err := helper.RequireAPIFactoryUser(
+		c,
+		h.auth,
+		helper.BadRequestAPIError("INVALID_USER_CONTEXT", "invalid user context"),
+		helper.UnauthorizedAPIError("USER_NOT_FOUND", "user not found"),
+		helper.ForbiddenAPIError("FACTORY_ROLE_REQUIRED", "factory role required"),
+	)
+	return userID, err
+}
+
+func (h *FactoryHandler) requireOwnerFactory(c *fiber.Ctx, factoryID int64) (int64, error) {
+	userID, err := helper.RequireAPIUserID(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
+	if err != nil {
+		return 0, err
+	}
+	if factoryID != userID {
+		return 0, helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
+	}
+	return userID, nil
+}
+
 func (h *FactoryHandler) GetMe(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := h.requireFactoryContext(c)
 	if err != nil {
-		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_USER_CONTEXT", "invalid user context"))
-	}
-	u, err := h.auth.GetUserByID(userID)
-	if err != nil {
-		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("USER_NOT_FOUND", "user not found"))
-	}
-	if err := helper.RequireFactoryRole(u); err != nil {
-		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FACTORY_ROLE_REQUIRED", "factory role required"))
+		return err
 	}
 	item, err := h.service.GetPublicDetail(userID)
 	if err != nil {
@@ -68,16 +83,12 @@ func (h *FactoryHandler) GetByID(c *fiber.Ctx) error {
 }
 
 func (h *FactoryHandler) PatchProfile(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
-	if err != nil {
-		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
-	}
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
 	if err != nil {
 		return err
 	}
-	if int64(factoryID) != userID {
-		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
+	if _, err := h.requireOwnerFactory(c, factoryID); err != nil {
+		return err
 	}
 
 	var req dto.PatchFactoryProfileRequest
@@ -87,20 +98,20 @@ func (h *FactoryHandler) PatchProfile(c *fiber.Ctx) error {
 
 	fields := map[string]interface{}{}
 	if req.FactoryName != nil {
-		name := helper.NormalizeString(*req.FactoryName)
+		name := helper.DereferenceString(req.FactoryName, "")
 		if name == "" {
 			return helper.WriteAPIError(c, helper.BadRequestAPIError("EMPTY_FACTORY_NAME", "factory_name cannot be empty"))
 		}
 		fields["factory_name"] = name
 	}
 	if req.TaxID != nil {
-		fields["tax_id"] = helper.NormalizeString(*req.TaxID)
+		fields["tax_id"] = helper.DereferenceString(req.TaxID, "")
 	}
 	if req.Description != nil {
-		fields["description"] = helper.NormalizeString(*req.Description)
+		fields["description"] = helper.DereferenceString(req.Description, "")
 	}
 	if req.ImageURL != nil {
-		imageURL := helper.NormalizeString(*req.ImageURL)
+		imageURL := helper.DereferenceString(req.ImageURL, "")
 		if imageURL == "" {
 			fields["image_url"] = nil
 		} else {
@@ -108,7 +119,7 @@ func (h *FactoryHandler) PatchProfile(c *fiber.Ctx) error {
 		}
 	}
 	if req.BackgroundImageURL != nil {
-		backgroundImageURL := helper.NormalizeString(*req.BackgroundImageURL)
+		backgroundImageURL := helper.DereferenceString(req.BackgroundImageURL, "")
 		if backgroundImageURL == "" {
 			fields["background_image_url"] = nil
 		} else {
@@ -187,16 +198,12 @@ func validatePositiveUniqueIDs(ids []int64) ([]int64, bool) {
 }
 
 func (h *FactoryHandler) AddCategory(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
-	if err != nil {
-		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
-	}
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
 	if err != nil {
 		return err
 	}
-	if int64(factoryID) != userID {
-		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
+	if _, err := h.requireOwnerFactory(c, factoryID); err != nil {
+		return err
 	}
 	var body addFactoryCategoryBody
 	if err := helper.ParseAndValidateBody(c, &body, map[string]string{
@@ -216,16 +223,12 @@ func (h *FactoryHandler) AddCategory(c *fiber.Ctx) error {
 }
 
 func (h *FactoryHandler) RemoveCategory(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
-	if err != nil {
-		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
-	}
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
 	if err != nil {
 		return err
 	}
-	if int64(factoryID) != userID {
-		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
+	if _, err := h.requireOwnerFactory(c, factoryID); err != nil {
+		return err
 	}
 	categoryID, err := helper.ParsePositiveInt64Param(c, "category_id")
 	if err != nil || categoryID <= 0 {
@@ -242,16 +245,12 @@ func (h *FactoryHandler) RemoveCategory(c *fiber.Ctx) error {
 }
 
 func (h *FactoryHandler) ReplaceCategories(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
-	if err != nil {
-		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
-	}
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
 	if err != nil {
 		return err
 	}
-	if int64(factoryID) != userID {
-		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
+	if _, err := h.requireOwnerFactory(c, factoryID); err != nil {
+		return err
 	}
 	var body replaceFactoryCategoriesBody
 	if err := helper.ParseAndValidateBodyWithMessage(c, &body, map[string]string{
@@ -300,16 +299,12 @@ type addFactorySubCategoryBody struct {
 }
 
 func (h *FactoryHandler) AddSubCategory(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
-	if err != nil {
-		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
-	}
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
 	if err != nil {
 		return err
 	}
-	if int64(factoryID) != userID {
-		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
+	if _, err := h.requireOwnerFactory(c, factoryID); err != nil {
+		return err
 	}
 	var body addFactorySubCategoryBody
 	if err := helper.ParseAndValidateBody(c, &body, map[string]string{
@@ -329,16 +324,12 @@ func (h *FactoryHandler) AddSubCategory(c *fiber.Ctx) error {
 }
 
 func (h *FactoryHandler) RemoveSubCategory(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
-	if err != nil {
-		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
-	}
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
 	if err != nil {
 		return err
 	}
-	if int64(factoryID) != userID {
-		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
+	if _, err := h.requireOwnerFactory(c, factoryID); err != nil {
+		return err
 	}
 	subID, err := helper.ParsePositiveInt64Param(c, "sub_category_id")
 	if err != nil || subID <= 0 {
@@ -355,16 +346,12 @@ func (h *FactoryHandler) RemoveSubCategory(c *fiber.Ctx) error {
 }
 
 func (h *FactoryHandler) ReplaceSubCategories(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
-	if err != nil {
-		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
-	}
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
 	if err != nil {
 		return err
 	}
-	if int64(factoryID) != userID {
-		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
+	if _, err := h.requireOwnerFactory(c, factoryID); err != nil {
+		return err
 	}
 	var body replaceFactorySubCategoriesBody
 	if err := helper.ParseAndValidateBodyWithMessage(c, &body, map[string]string{
@@ -397,16 +384,9 @@ func (h *FactoryHandler) ReplaceSubCategories(c *fiber.Ctx) error {
 
 // GET /factories/me/analytics
 func (h *FactoryHandler) GetAnalytics(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := h.requireFactoryContext(c)
 	if err != nil {
-		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_USER_CONTEXT", "invalid user context"))
-	}
-	u, err := h.auth.GetUserByID(userID)
-	if err != nil {
-		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("USER_NOT_FOUND", "user not found"))
-	}
-	if err := helper.RequireFactoryRole(u); err != nil {
-		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FACTORY_ROLE_REQUIRED", "factory role required"))
+		return err
 	}
 	item, err := h.service.GetAnalytics(userID)
 	if err != nil {
@@ -416,16 +396,9 @@ func (h *FactoryHandler) GetAnalytics(c *fiber.Ctx) error {
 }
 
 func (h *FactoryHandler) GetDashboard(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := h.requireFactoryContext(c)
 	if err != nil {
-		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_USER_CONTEXT", "invalid user context"))
-	}
-	u, err := h.auth.GetUserByID(userID)
-	if err != nil {
-		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("USER_NOT_FOUND", "user not found"))
-	}
-	if err := helper.RequireFactoryRole(u); err != nil {
-		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FACTORY_ROLE_REQUIRED", "factory role required"))
+		return err
 	}
 	item, err := h.service.GetDashboard(userID)
 	if err != nil {

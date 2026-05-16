@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/lib/pq"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/dto"
@@ -57,9 +58,9 @@ var rfqNotFoundCodeErrorMap = map[error]helper.ErrorResponse{
 }
 
 func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return err
 	}
 
 	var req dto.CreateRFQRequest
@@ -116,9 +117,9 @@ func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
 }
 
 func (h *RFQHandler) PatchRFQ(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return err
 	}
 	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
 	if err != nil {
@@ -128,12 +129,9 @@ func (h *RFQHandler) PatchRFQ(c *fiber.Ctx) error {
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
-	details := ""
-	if req.Details != nil {
-		details = strings.TrimSpace(*req.Details)
-	}
+	details := helper.DereferenceString(req.Details, "")
 	if details == "" && req.Description != nil {
-		details = strings.TrimSpace(*req.Description)
+		details = helper.DereferenceString(req.Description, "")
 	}
 	rfq := &domain.RFQ{
 		Details: details,
@@ -169,7 +167,7 @@ func (h *RFQHandler) PatchRFQ(c *fiber.Ctx) error {
 		rfq.InspectionType = req.InspectionType
 	}
 	if req.ReferenceImages != nil {
-		rfq.ReferenceImages = req.ReferenceImages
+		rfq.ReferenceImages = pq.StringArray(req.ReferenceImages)
 	}
 	if req.RequiredDeliveryDate != nil && strings.TrimSpace(*req.RequiredDeliveryDate) != "" {
 		d, err := helper.ParseDate(*req.RequiredDeliveryDate, "required_delivery_date")
@@ -186,9 +184,9 @@ func (h *RFQHandler) PatchRFQ(c *fiber.Ctx) error {
 }
 
 func (h *RFQHandler) ListRFQs(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return err
 	}
 	status := c.Query("status")
 	rfqs, err := h.service.ListByUserID(userID, status)
@@ -240,16 +238,9 @@ func (h *RFQHandler) PreviewFactories(c *fiber.Ctx) error {
 }
 
 func (h *RFQHandler) ListMatching(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, _, err := helper.RequireFactoryUser(c, h.auth)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
-	}
-	u, err := h.auth.GetUserByID(userID)
-	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
-	}
-	if err := helper.RequireFactoryRole(u); err != nil {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "factory role required"})
+		return err
 	}
 	status := c.Query("status")
 	showDismissed := strings.EqualFold(strings.TrimSpace(c.Query("show_dismissed")), "true")
@@ -263,16 +254,9 @@ func (h *RFQHandler) ListMatching(c *fiber.Ctx) error {
 }
 
 func (h *RFQHandler) DismissRFQ(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, _, err := helper.RequireFactoryUser(c, h.auth)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
-	}
-	u, err := h.auth.GetUserByID(userID)
-	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
-	}
-	if err := helper.RequireFactoryRole(u); err != nil {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "FORBIDDEN"})
+		return err
 	}
 	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
 	if err != nil {
@@ -294,16 +278,9 @@ func (h *RFQHandler) DismissRFQ(c *fiber.Ctx) error {
 }
 
 func (h *RFQHandler) UndismissRFQ(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, _, err := helper.RequireFactoryUser(c, h.auth)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
-	}
-	u, err := h.auth.GetUserByID(userID)
-	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
-	}
-	if err := helper.RequireFactoryRole(u); err != nil {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "FORBIDDEN"})
+		return err
 	}
 	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
 	if err != nil {
@@ -316,13 +293,9 @@ func (h *RFQHandler) UndismissRFQ(c *fiber.Ctx) error {
 }
 
 func (h *RFQHandler) GetRFQ(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, u, err := helper.RequireUser(c, h.auth)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
-	}
-	u, err := h.auth.GetUserByID(userID)
-	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
+		return err
 	}
 	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
 	if err != nil {
@@ -338,9 +311,9 @@ func (h *RFQHandler) GetRFQ(c *fiber.Ctx) error {
 }
 
 func (h *RFQHandler) CancelRFQ(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return err
 	}
 	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
 	if err != nil {
@@ -356,9 +329,9 @@ func (h *RFQHandler) CancelRFQ(c *fiber.Ctx) error {
 // CloseRFQ lets the customer manually close (stop accepting new quotes) an open RFQ.
 // PATCH /rfqs/:rfq_id/close
 func (h *RFQHandler) CloseRFQ(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return err
 	}
 	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
 	if err != nil {

@@ -17,9 +17,9 @@ func NewWalletHandler(service *walletservice.WalletService) *WalletHandler {
 }
 
 func (h *WalletHandler) GetMyWallet(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return err
 	}
 	wallet, err := h.service.GetByUserID(userID)
 	if err != nil {
@@ -29,9 +29,9 @@ func (h *WalletHandler) GetMyWallet(c *fiber.Ctx) error {
 }
 
 func (h *WalletHandler) ListMyTransactions(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return err
 	}
 	var orderID *int64
 	if raw := c.Query("order_id"); raw != "" {

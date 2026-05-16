@@ -91,3 +91,78 @@ func NormalizeName(s string) string {
 func IsEmptyString(s string) bool {
 	return strings.TrimSpace(s) == ""
 }
+
+func DereferenceString(ptr *string, defaultVal string) string {
+	if ptr == nil {
+		return defaultVal
+	}
+	return strings.TrimSpace(*ptr)
+}
+
+func DereferenceInt64(ptr *int64, defaultVal int64) int64 {
+	if ptr == nil {
+		return defaultVal
+	}
+	return *ptr
+}
+
+func DereferenceInt(ptr *int, defaultVal int) int {
+	if ptr == nil {
+		return defaultVal
+	}
+	return *ptr
+}
+
+func AssignIfNotNil[T any](target *T, ptr *T) {
+	if ptr != nil {
+		*target = *ptr
+	}
+}
+
+func AssignStringIfNotNil(target *string, ptr *string) {
+	if ptr != nil {
+		trimmed := strings.TrimSpace(*ptr)
+		*target = trimmed
+	}
+}
+
+func MergePointerString(target **string, ptr *string) {
+	if ptr != nil {
+		trimmed := strings.TrimSpace(*ptr)
+		*target = &trimmed
+	}
+}
+
+func MergePointerValue[T any](target **T, ptr *T) {
+	if ptr != nil {
+		*target = ptr
+	}
+}
+
+func ValidatePointerInt64(ptr *int64, fieldName string) error {
+	if ptr == nil || *ptr <= 0 {
+		return fmt.Errorf("%s is required and must be positive", fieldName)
+	}
+	return nil
+}
+
+func ValidatePointerInt(ptr *int, fieldName string) error {
+	if ptr == nil || *ptr <= 0 {
+		return fmt.Errorf("%s is required and must be positive", fieldName)
+	}
+	return nil
+}
+
+func ValidatePointerString(ptr *string, fieldName string) error {
+	if ptr == nil || strings.TrimSpace(*ptr) == "" {
+		return fmt.Errorf("%s is required", fieldName)
+	}
+	return nil
+}
+
+func ValidatePointerBool(ptr *bool, fieldName string) error {
+	if ptr == nil {
+		return fmt.Errorf("%s is required", fieldName)
+	}
+	return nil
+}

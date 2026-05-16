@@ -50,9 +50,7 @@ func (h *QuotationTemplateHandler) Create(c *fiber.Ctx) error {
 		TemplateName: req.Name,
 		Note:         req.Description,
 	}
-	if req.IsActive != nil {
-		tmpl.IsActive = *req.IsActive
-	}
+	helper.AssignIfNotNil(&tmpl.IsActive, req.IsActive)
 	if err := h.service.Create(tmpl); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create quotation template"})
 	}

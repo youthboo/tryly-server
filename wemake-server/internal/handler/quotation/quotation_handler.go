@@ -24,9 +24,9 @@ func NewQuotationHandler(quotationService *quotationservice.QuotationService, au
 }
 
 func (h *QuotationHandler) CreateQuotation(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return err
 	}
 
 	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
@@ -99,16 +99,9 @@ func (h *QuotationHandler) ListQuotationsByRFQ(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) ListMine(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
-	}
-	u, err := h.auth.GetUserByID(userID)
-	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
-	}
-	if err := helper.RequireFactoryRole(u); err != nil {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "factory role required"})
+		return err
 	}
 	status := c.Query("status")
 	items, err := h.service.ListMine(userID, status)
@@ -119,12 +112,9 @@ func (h *QuotationHandler) ListMine(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) ListCollection(c *fiber.Ctx) error {
-	userID, u, err := helper.RequireUser(c, h.auth)
+	userID, err := helper.RequireUserID(c)
 	if err != nil {
 		return err
-	}
-	if err := helper.RequireFactoryRole(u); err != nil {
-		return helper.JSONError(c, fiber.StatusForbidden, "factory role required")
 	}
 	factoryID, err := helper.RequireQueryMatchingSelfOrID(c, "factory_id", userID, "factory_id query is required", "factory_id must match authenticated factory")
 	if err != nil {
@@ -153,13 +143,9 @@ func (h *QuotationHandler) GetQuotation(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) ListHistory(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, u, err := helper.RequireUser(c, h.auth)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
-	}
-	u, err := h.auth.GetUserByID(userID)
-	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
+		return err
 	}
 	quotationID, err := helper.RequireInt64Param(c, "quotation_id")
 	if err != nil {
@@ -183,9 +169,9 @@ func (h *QuotationHandler) ListHistory(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) Preview(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return err
 	}
 	var req dto.PreviewQuotationRequest
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -199,9 +185,9 @@ func (h *QuotationHandler) Preview(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) CreateDetailed(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return err
 	}
 	var req dto.CreateDetailedQuotationRequest
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -222,9 +208,7 @@ func (h *QuotationHandler) CreateDetailed(c *fiber.Ctx) error {
 		WarrantyPeriodMonths: req.WarrantyPeriodMonths,
 		FactoryHighlight:     req.FactoryHighlight,
 	}
-	if req.LeadTimeDays != nil {
-		item.LeadTimeDays = *req.LeadTimeDays
-	}
+	helper.AssignIfNotNil(&item.LeadTimeDays, req.LeadTimeDays)
 	if req.ProductionStartDate != nil && strings.TrimSpace(*req.ProductionStartDate) != "" {
 		d, err := helper.ParseDate(*req.ProductionStartDate, "production_start_date")
 		if err != nil {
@@ -250,9 +234,9 @@ func (h *QuotationHandler) CreateRevision(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return err
 	}
 	var req dto.CreateRevisionQuotationRequest
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -271,9 +255,7 @@ func (h *QuotationHandler) CreateRevision(c *fiber.Ctx) error {
 		ValidityDays:         req.ValidityDays,
 		WarrantyPeriodMonths: req.WarrantyPeriodMonths,
 	}
-	if req.LeadTimeDays != nil {
-		item.LeadTimeDays = *req.LeadTimeDays
-	}
+	helper.AssignIfNotNil(&item.LeadTimeDays, req.LeadTimeDays)
 	if err := h.service.CreateRevision(int64(parentID), userID, item); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -281,9 +263,9 @@ func (h *QuotationHandler) CreateRevision(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) Accept(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return err
 	}
 	quotationID, err := helper.RequireInt64Param(c, "quotation_id")
 	if err != nil {
@@ -297,9 +279,9 @@ func (h *QuotationHandler) Accept(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) Reject(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return err
 	}
 	quotationID, err := helper.RequireInt64Param(c, "quotation_id")
 	if err != nil {
@@ -312,9 +294,9 @@ func (h *QuotationHandler) Reject(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) PatchQuotation(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
+		return err
 	}
 	quotationID, err := helper.RequireInt64Param(c, "quotation_id")
 	if err != nil {
@@ -360,9 +342,8 @@ func (h *QuotationHandler) PatchQuotation(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) PatchQuotationStatus(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
 	var editor *int64
-	if err == nil {
+	if userID := helper.OptionalActorID(c); userID > 0 {
 		editor = &userID
 	}
 	quotationID, err := helper.RequireInt64Param(c, "quotation_id")

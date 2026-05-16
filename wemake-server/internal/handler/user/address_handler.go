@@ -106,7 +106,7 @@ func (h *AddressHandler) PatchAddress(c *fiber.Ctx) error {
 		fields["address_type"] = addressType
 	}
 	if req.AddressDetail != nil {
-		fields["address_detail"] = strings.TrimSpace(*req.AddressDetail)
+		fields["address_detail"] = helper.DereferenceString(req.AddressDetail, "")
 	}
 	if req.SubDistrictID != nil {
 		fields["sub_district_id"] = *req.SubDistrictID
@@ -118,7 +118,7 @@ func (h *AddressHandler) PatchAddress(c *fiber.Ctx) error {
 		fields["province_id"] = *req.ProvinceID
 	}
 	if req.ZipCode != nil {
-		fields["zip_code"] = strings.TrimSpace(*req.ZipCode)
+		fields["zip_code"] = helper.DereferenceString(req.ZipCode, "")
 	}
 	if req.IsDefault != nil {
 		fields["is_default"] = *req.IsDefault

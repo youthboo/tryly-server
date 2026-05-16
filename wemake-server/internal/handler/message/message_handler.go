@@ -20,32 +20,24 @@ func NewMessageHandler(service *messageservice.MessageService) *MessageHandler {
 }
 
 func (h *MessageHandler) CreateMessage(c *fiber.Ctx) error {
-	senderID, err := helper.UserIDFromHeader(c)
+	senderID, err := helper.RequireUserID(c)
 	if err != nil {
-		return helper.BadRequest(c, "invalid X-User-ID header")
+		return err
 	}
 	var req dto.CreateMessageRequest
 	if err := helper.ParseJSONBody(c, &req, "invalid request payload"); err != nil {
 		return err
 	}
-	if req.ReceiverID == nil || *req.ReceiverID <= 0 || req.Content == nil || strings.TrimSpace(*req.Content) == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "receiver_id and content are required"})
+	if err := helper.ValidatePointerInt64(req.ReceiverID, "receiver_id"); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	if err := helper.ValidatePointerString(req.Content, "content"); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	var referenceType string
-	if req.ReferenceType != nil {
-		referenceType = strings.TrimSpace(*req.ReferenceType)
-	}
-
-	var attachmentURL string
-	if req.AttachmentURL != nil {
-		attachmentURL = strings.TrimSpace(*req.AttachmentURL)
-	}
-
-	var messageType string
-	if req.MessageType != nil {
-		messageType = strings.TrimSpace(*req.MessageType)
-	}
+	referenceType := helper.DereferenceString(req.ReferenceType, "")
+	attachmentURL := helper.DereferenceString(req.AttachmentURL, "")
+	messageType := helper.DereferenceString(req.MessageType, "")
 
 	item := &domain.Message{
 		ReferenceType: referenceType,
@@ -66,9 +58,9 @@ func (h *MessageHandler) CreateMessage(c *fiber.Ctx) error {
 }
 
 func (h *MessageHandler) ListMessages(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireUserID(c)
 	if err != nil {
-		return helper.BadRequest(c, "invalid X-User-ID header")
+		return err
 	}
 
 	convID := c.QueryInt("conv_id", 0)
@@ -97,9 +89,9 @@ func (h *MessageHandler) ListMessages(c *fiber.Ctx) error {
 }
 
 func (h *MessageHandler) ListThreads(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireUserID(c)
 	if err != nil {
-		return helper.BadRequest(c, "invalid X-User-ID header")
+		return err
 	}
 	items, err := h.service.ListThreads(userID)
 	if err != nil {

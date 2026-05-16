@@ -19,26 +19,17 @@ func NewWithdrawalHandler(svc *walletservice.WithdrawalService) *WithdrawalHandl
 
 // POST /wallets/withdraw
 func (h *WithdrawalHandler) Create(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	var req dto.WithdrawalRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
-	bankAccountNo := ""
-	if req.AccountNumber != nil {
-		bankAccountNo = *req.AccountNumber
-	}
-	bankName := ""
-	if req.BankName != nil {
-		bankName = *req.BankName
-	}
-	accountName := ""
-	if req.AccountHolderName != nil {
-		accountName = *req.AccountHolderName
-	}
+	bankAccountNo := helper.DereferenceString(req.AccountNumber, "")
+	bankName := helper.DereferenceString(req.BankName, "")
+	accountName := helper.DereferenceString(req.AccountHolderName, "")
 	item, err := h.service.Create(userID, req.Amount, bankAccountNo, bankName, accountName)
 	if err != nil {
 		return helper.MapServiceError(c, err, withdrawalCreateFallback, withdrawalCreateResponses)
@@ -48,9 +39,9 @@ func (h *WithdrawalHandler) Create(c *fiber.Ctx) error {
 
 // GET /wallets/withdraw
 func (h *WithdrawalHandler) List(c *fiber.Ctx) error {
-	userID, err := helper.UserIDFromHeader(c)
+	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
+		return err
 	}
 	items, err := h.service.ListByFactoryID(userID)
 	if err != nil {

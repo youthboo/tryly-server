@@ -64,14 +64,8 @@ func (h *ProductionHandler) CreateUpdate(c *fiber.Ctx) error {
 	if err := helper.ParseBody(c, &req, "invalid request payload"); err != nil {
 		return productionError(c, fiber.StatusBadRequest, "INVALID_PAYLOAD", "invalid request payload", nil)
 	}
-	description := ""
-	if req.Notes != nil {
-		description = *req.Notes
-	}
-	progressPercent := 0
-	if req.ProgressPercent != nil {
-		progressPercent = *req.ProgressPercent
-	}
+	description := helper.DereferenceString(req.Notes, "")
+	progressPercent := helper.DereferenceInt(req.ProgressPercent, 0)
 	result, err := h.service.Upsert(int64(orderID), userID, productionservice.ProductionWriteInput{
 		StepID:                 req.StepID,
 		Status:                 req.Status,
