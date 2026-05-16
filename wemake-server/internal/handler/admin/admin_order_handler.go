@@ -1,4 +1,4 @@
-package handler
+package admin
 
 import (
 	"encoding/json"
@@ -9,19 +9,22 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/repository"
+	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 	"github.com/yourusername/wemake/internal/service"
 )
 
 type AdminOrderHandler struct {
-	repo       *repository.OrderRepository
-	service    *service.OrderService
-	withdrawal *repository.WithdrawalRepository
-	dispute    *repository.DisputeRepository
-	audit      *repository.AdminAuditRepository
+	repo            *adminrepo.AdminOrderRepository
+	service         *service.OrderService
+	withdrawal      *repository.WithdrawalRepository
+	adminWithdrawal *adminrepo.AdminWithdrawalRepository
+	dispute         *repository.DisputeRepository
+	adminDispute    *adminrepo.AdminDisputeRepository
+	audit           *adminrepo.AdminAuditRepository
 }
 
-func NewAdminOrderHandler(repo *repository.OrderRepository, service *service.OrderService, withdrawal *repository.WithdrawalRepository, dispute *repository.DisputeRepository, audit *repository.AdminAuditRepository) *AdminOrderHandler {
-	return &AdminOrderHandler{repo: repo, service: service, withdrawal: withdrawal, dispute: dispute, audit: audit}
+func NewAdminOrderHandler(repo *adminrepo.AdminOrderRepository, service *service.OrderService, withdrawal *repository.WithdrawalRepository, adminWithdrawal *adminrepo.AdminWithdrawalRepository, dispute *repository.DisputeRepository, adminDispute *adminrepo.AdminDisputeRepository, audit *adminrepo.AdminAuditRepository) *AdminOrderHandler {
+	return &AdminOrderHandler{repo: repo, service: service, withdrawal: withdrawal, adminWithdrawal: adminWithdrawal, dispute: dispute, adminDispute: adminDispute, audit: audit}
 }
 
 func (h *AdminOrderHandler) List(c *fiber.Ctx) error {
@@ -106,7 +109,7 @@ func (h *AdminOrderHandler) ListWithdrawals(c *fiber.Ctx) error {
 	if err != nil {
 		return jsonError(c, fiber.StatusBadRequest, "invalid factory_id")
 	}
-	items, total, err := h.withdrawal.ListAdmin(strings.TrimSpace(c.Query("status")), factoryID, c.QueryInt("page", 1), c.QueryInt("page_size", 20))
+	items, total, err := h.adminWithdrawal.ListAdmin(strings.TrimSpace(c.Query("status")), factoryID, c.QueryInt("page", 1), c.QueryInt("page_size", 20))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch withdrawals"})
 	}
@@ -144,7 +147,7 @@ func (h *AdminOrderHandler) ListDisputes(c *fiber.Ctx) error {
 	if err != nil {
 		return jsonError(c, fiber.StatusBadRequest, "invalid order_id")
 	}
-	items, total, err := h.dispute.ListAdmin(strings.TrimSpace(c.Query("status")), orderID, c.QueryInt("page", 1), c.QueryInt("page_size", 20))
+	items, total, err := h.adminDispute.ListAdmin(strings.TrimSpace(c.Query("status")), orderID, c.QueryInt("page", 1), c.QueryInt("page_size", 20))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch disputes"})
 	}

@@ -1,4 +1,4 @@
-package handler
+package admin
 
 import (
 	"encoding/json"
@@ -7,15 +7,15 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
+	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 )
 
 type AdminRFQHandler struct {
-	repo  *repository.RFQRepository
-	audit *repository.AdminAuditRepository
+	repo  *adminrepo.AdminRFQRepository
+	audit *adminrepo.AdminAuditRepository
 }
 
-func NewAdminRFQHandler(repo *repository.RFQRepository, audit *repository.AdminAuditRepository) *AdminRFQHandler {
+func NewAdminRFQHandler(repo *adminrepo.AdminRFQRepository, audit *adminrepo.AdminAuditRepository) *AdminRFQHandler {
 	return &AdminRFQHandler{repo: repo, audit: audit}
 }
 

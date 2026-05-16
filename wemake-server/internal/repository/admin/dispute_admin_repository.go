@@ -1,12 +1,21 @@
-package repository
+package admin
 
 import (
 	"fmt"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 )
 
-func (r *DisputeRepository) ListAdmin(status string, orderID *int64, page, pageSize int) ([]domain.AdminDisputeListItem, int, error) {
+type AdminDisputeRepository struct {
+	db *sqlx.DB
+}
+
+func NewAdminDisputeRepository(db *sqlx.DB) *AdminDisputeRepository {
+	return &AdminDisputeRepository{db: db}
+}
+
+func (r *AdminDisputeRepository) ListAdmin(status string, orderID *int64, page, pageSize int) ([]domain.AdminDisputeListItem, int, error) {
 	page, pageSize = normalizePage(page, pageSize)
 	where := "1=1"
 	args := []interface{}{}

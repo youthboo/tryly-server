@@ -1,14 +1,23 @@
-package repository
+package admin
 
 import (
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 )
 
-func (r *OrderRepository) ListAdmin(filter domain.AdminOrderFilter) ([]domain.AdminOrderListItem, int, error) {
+type AdminOrderRepository struct {
+	db *sqlx.DB
+}
+
+func NewAdminOrderRepository(db *sqlx.DB) *AdminOrderRepository {
+	return &AdminOrderRepository{db: db}
+}
+
+func (r *AdminOrderRepository) ListAdmin(filter domain.AdminOrderFilter) ([]domain.AdminOrderListItem, int, error) {
 	page, pageSize := normalizePage(filter.Page, filter.PageSize)
 	where := []string{"1=1"}
 	args := []interface{}{}
@@ -78,7 +87,7 @@ func (r *OrderRepository) ListAdmin(filter domain.AdminOrderFilter) ([]domain.Ad
 	return items, total, nil
 }
 
-func (r *OrderRepository) GetAdminFinance(orderID int64) (*domain.AdminOrderFinance, error) {
+func (r *AdminOrderRepository) GetAdminFinance(orderID int64) (*domain.AdminOrderFinance, error) {
 	var item domain.AdminOrderFinance
 	if err := r.db.Get(&item, `
 		SELECT

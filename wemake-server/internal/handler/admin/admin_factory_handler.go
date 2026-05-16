@@ -1,4 +1,4 @@
-package handler
+package admin
 
 import (
 	"errors"
@@ -6,16 +6,16 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
-	"github.com/yourusername/wemake/internal/service"
+	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
+	adminservice "github.com/yourusername/wemake/internal/service/admin"
 )
 
 type AdminFactoryHandler struct {
-	repo    *repository.FactoryRepository
-	service *service.AdminFactoryService
+	repo    *adminrepo.AdminFactoryRepository
+	service *adminservice.AdminFactoryService
 }
 
-func NewAdminFactoryHandler(repo *repository.FactoryRepository, service *service.AdminFactoryService) *AdminFactoryHandler {
+func NewAdminFactoryHandler(repo *adminrepo.AdminFactoryRepository, service *adminservice.AdminFactoryService) *AdminFactoryHandler {
 	return &AdminFactoryHandler{repo: repo, service: service}
 }
 
@@ -98,7 +98,7 @@ func (h *AdminFactoryHandler) GetFactoryConfig(c *fiber.Ctx) error {
 	}
 	item, err := h.service.GetFactoryConfig(factoryID)
 	if err != nil {
-		return writeServiceError(c, err, "failed to fetch factory config", notFoundCase(service.ErrFactoryNotFound, "factory not found"))
+		return writeServiceError(c, err, "failed to fetch factory config", notFoundCase(adminservice.ErrFactoryNotFound, "factory not found"))
 	}
 	return c.JSON(item)
 }
@@ -121,9 +121,9 @@ func (h *AdminFactoryHandler) AssignFactoryConfig(c *fiber.Ctx) error {
 	item, err := h.service.AssignFactoryConfig(factoryID, actorID, req, &ip)
 	if err != nil {
 		switch {
-		case errors.Is(err, service.ErrFactoryNotFound):
+		case errors.Is(err, adminservice.ErrFactoryNotFound):
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "factory not found"})
-		case errors.Is(err, service.ErrFactoryConfigMissing):
+		case errors.Is(err, adminservice.ErrFactoryConfigMissing):
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "platform config not found"})
 		default:
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to assign factory config"})

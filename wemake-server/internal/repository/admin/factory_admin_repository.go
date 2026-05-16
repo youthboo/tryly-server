@@ -1,15 +1,26 @@
-package repository
+package admin
 
 import (
 	"database/sql"
 	"fmt"
 	"strings"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
+	"github.com/yourusername/wemake/internal/repository"
 )
 
-func (r *FactoryRepository) ListAdmin(filter domain.AdminFactoryFilter) ([]domain.AdminFactoryListItem, int, error) {
+type AdminFactoryRepository struct {
+	db        *sqlx.DB
+	factories *repository.FactoryRepository
+}
+
+func NewAdminFactoryRepository(db *sqlx.DB, factories *repository.FactoryRepository) *AdminFactoryRepository {
+	return &AdminFactoryRepository{db: db, factories: factories}
+}
+
+func (r *AdminFactoryRepository) ListAdmin(filter domain.AdminFactoryFilter) ([]domain.AdminFactoryListItem, int, error) {
 	page, pageSize := normalizePage(filter.Page, filter.PageSize)
 	where := []string{"u.role = 'FT'"}
 	args := []interface{}{}
@@ -67,7 +78,7 @@ func (r *FactoryRepository) ListAdmin(filter domain.AdminFactoryFilter) ([]domai
 	return items, total, nil
 }
 
-func (r *FactoryRepository) GetAdminDetail(factoryID int64) (*domain.AdminFactoryDetail, error) {
+func (r *AdminFactoryRepository) GetAdminDetail(factoryID int64) (*domain.AdminFactoryDetail, error) {
 	var item domain.AdminFactoryDetail
 	if err := r.db.Get(&item, `
 		SELECT
@@ -98,8 +109,8 @@ func (r *FactoryRepository) GetAdminDetail(factoryID int64) (*domain.AdminFactor
 	`, factoryID); err != nil {
 		return nil, err
 	}
-	item.Categories, _ = r.selectFactoryCategories(factoryID)
-	item.SubCategories, _ = r.selectFactorySubCategories(factoryID)
+	item.Categories, _ = r.factories.ListFactoryCategories(factoryID)
+	item.SubCategories, _ = r.factories.ListFactorySubCategories(factoryID)
 	item.Certificates, _ = r.selectFactoryCertificates(factoryID)
 	_ = r.db.Get(&item.Stats, `
 		SELECT
@@ -110,7 +121,7 @@ func (r *FactoryRepository) GetAdminDetail(factoryID int64) (*domain.AdminFactor
 	return &item, nil
 }
 
-func (r *FactoryRepository) UpdateApprovalStatus(factoryID int64, status string, verifiedBy *int64, reason *string, noteSetsVerified bool) error {
+func (r *AdminFactoryRepository) UpdateApprovalStatus(factoryID int64, status string, verifiedBy *int64, reason *string, noteSetsVerified bool) error {
 	query := `
 		UPDATE factory_profiles
 		SET approval_status = $1,
@@ -131,7 +142,7 @@ func (r *FactoryRepository) UpdateApprovalStatus(factoryID int64, status string,
 	return nil
 }
 
-func (r *FactoryRepository) GetApprovalStatus(factoryID int64) (string, error) {
+func (r *AdminFactoryRepository) GetApprovalStatus(factoryID int64) (string, error) {
 	var status string
 	err := r.db.Get(&status, `
 		SELECT COALESCE(approval_status, 'PE')
@@ -139,4 +150,19 @@ func (r *FactoryRepository) GetApprovalStatus(factoryID int64) (string, error) {
 		WHERE user_id = $1
 	`, factoryID)
 	return status, err
+}
+
+func (r *AdminFactoryRepository) selectFactoryCertificates(factoryID int64) ([]domain.FactoryProfileCertificate, error) {
+	var items []domain.FactoryProfileCertificate
+	q := `
+		SELECT lc.cert_id, lc.cert_name, mfc.verify_status
+		FROM map_factory_certificates mfc
+		INNER JOIN lbi_certificates lc ON mfc.cert_id = lc.cert_id
+		WHERE mfc.factory_id = $1
+		ORDER BY lc.cert_id
+	`
+	if err := r.db.Select(&items, q, factoryID); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

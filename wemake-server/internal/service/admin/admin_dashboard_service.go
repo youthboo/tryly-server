@@ -1,17 +1,17 @@
-package service
+package admin
 
 import (
 	"time"
 
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
+	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 )
 
 type AdminDashboardService struct {
-	repo *repository.AdminDashboardRepository
+	repo *adminrepo.AdminDashboardRepository
 }
 
-func NewAdminDashboardService(repo *repository.AdminDashboardRepository) *AdminDashboardService {
+func NewAdminDashboardService(repo *adminrepo.AdminDashboardRepository) *AdminDashboardService {
 	return &AdminDashboardService{repo: repo}
 }
 

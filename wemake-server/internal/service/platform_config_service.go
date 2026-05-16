@@ -11,6 +11,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/repository"
+	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 )
 
 var (
@@ -23,10 +24,10 @@ var (
 type PlatformConfigService struct {
 	db    *sqlx.DB
 	repo  *repository.PlatformConfigRepository
-	audit *repository.AdminAuditRepository
+	audit *adminrepo.AdminAuditRepository
 }
 
-func NewPlatformConfigService(db *sqlx.DB, repo *repository.PlatformConfigRepository, audit *repository.AdminAuditRepository) *PlatformConfigService {
+func NewPlatformConfigService(db *sqlx.DB, repo *repository.PlatformConfigRepository, audit *adminrepo.AdminAuditRepository) *PlatformConfigService {
 	return &PlatformConfigService{db: db, repo: repo, audit: audit}
 }
 

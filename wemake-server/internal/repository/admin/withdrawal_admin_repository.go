@@ -1,12 +1,21 @@
-package repository
+package admin
 
 import (
 	"fmt"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 )
 
-func (r *WithdrawalRepository) ListAdmin(status string, factoryID *int64, page, pageSize int) ([]domain.AdminWithdrawalListItem, int, error) {
+type AdminWithdrawalRepository struct {
+	db *sqlx.DB
+}
+
+func NewAdminWithdrawalRepository(db *sqlx.DB) *AdminWithdrawalRepository {
+	return &AdminWithdrawalRepository{db: db}
+}
+
+func (r *AdminWithdrawalRepository) ListAdmin(status string, factoryID *int64, page, pageSize int) ([]domain.AdminWithdrawalListItem, int, error) {
 	page, pageSize = normalizePage(page, pageSize)
 	where := "1=1"
 	args := []interface{}{}

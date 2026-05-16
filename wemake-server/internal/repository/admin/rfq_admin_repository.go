@@ -1,4 +1,4 @@
-package repository
+package admin
 
 import (
 	"database/sql"
@@ -6,10 +6,21 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/repository"
 )
 
-func (r *RFQRepository) ListAdmin(filter domain.AdminRFQFilter) ([]domain.AdminRFQListItem, int, error) {
+type AdminRFQRepository struct {
+	db   *sqlx.DB
+	rfqs *repository.RFQRepository
+}
+
+func NewAdminRFQRepository(db *sqlx.DB, rfqs *repository.RFQRepository) *AdminRFQRepository {
+	return &AdminRFQRepository{db: db, rfqs: rfqs}
+}
+
+func (r *AdminRFQRepository) ListAdmin(filter domain.AdminRFQFilter) ([]domain.AdminRFQListItem, int, error) {
 	page, pageSize := normalizePage(filter.Page, filter.PageSize)
 	where := []string{"1=1"}
 	args := []interface{}{}
@@ -72,13 +83,13 @@ func (r *RFQRepository) ListAdmin(filter domain.AdminRFQFilter) ([]domain.AdminR
 	return items, total, nil
 }
 
-func (r *RFQRepository) UpdateStatusAdmin(rfqID int64, status string) error {
+func (r *AdminRFQRepository) UpdateStatusAdmin(rfqID int64, status string) error {
 	_, err := r.db.Exec(`UPDATE rfqs SET status = $1, updated_at = NOW() WHERE rfq_id = $2`, status, rfqID)
 	return err
 }
 
-func (r *RFQRepository) GetAdminDetail(rfqID int64) (*domain.AdminRFQDetail, error) {
-	rfq, err := r.GetByIDAny(rfqID)
+func (r *AdminRFQRepository) GetAdminDetail(rfqID int64) (*domain.AdminRFQDetail, error) {
+	rfq, err := r.rfqs.GetByIDAny(rfqID)
 	if err != nil {
 		return nil, err
 	}

@@ -1,4 +1,4 @@
-package service
+package admin
 
 import (
 	"encoding/json"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/repository"
+	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 )
 
 var (
@@ -19,13 +20,13 @@ var (
 )
 
 type AdminFactoryService struct {
-	factories  *repository.FactoryRepository
-	audit      *repository.AdminAuditRepository
+	factories  *adminrepo.AdminFactoryRepository
+	audit      *adminrepo.AdminAuditRepository
 	commission *repository.CommissionRepository
 	configs    *repository.PlatformConfigRepository
 }
 
-func NewAdminFactoryService(factories *repository.FactoryRepository, audit *repository.AdminAuditRepository, commission *repository.CommissionRepository, configs *repository.PlatformConfigRepository) *AdminFactoryService {
+func NewAdminFactoryService(factories *adminrepo.AdminFactoryRepository, audit *adminrepo.AdminAuditRepository, commission *repository.CommissionRepository, configs *repository.PlatformConfigRepository) *AdminFactoryService {
 	return &AdminFactoryService{factories: factories, audit: audit, commission: commission, configs: configs}
 }
 

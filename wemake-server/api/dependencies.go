@@ -4,10 +4,13 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/config"
 	"github.com/yourusername/wemake/internal/handler"
+	adminhandler "github.com/yourusername/wemake/internal/handler/admin"
 	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/media"
 	"github.com/yourusername/wemake/internal/repository"
+	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 	"github.com/yourusername/wemake/internal/service"
+	adminservice "github.com/yourusername/wemake/internal/service/admin"
 )
 
 type routeHandlers struct {
@@ -43,13 +46,13 @@ type routeHandlers struct {
 	quotationTemplate *handler.QuotationTemplateHandler
 	paymentSchedule   *handler.PaymentScheduleHandler
 	platformConfig    *handler.PlatformConfigHandler
-	adminFactory      *handler.AdminFactoryHandler
-	adminDashboard    *handler.AdminDashboardHandler
-	adminRFQ          *handler.AdminRFQHandler
-	adminOrder        *handler.AdminOrderHandler
-	adminConfig       *handler.AdminConfigHandler
-	adminUser         *handler.AdminUserHandler
-	adminCustomer     *handler.AdminCustomerHandler
+	adminFactory      *adminhandler.AdminFactoryHandler
+	adminDashboard    *adminhandler.AdminDashboardHandler
+	adminRFQ          *adminhandler.AdminRFQHandler
+	adminOrder        *adminhandler.AdminOrderHandler
+	adminConfig       *adminhandler.AdminConfigHandler
+	adminUser         *adminhandler.AdminUserHandler
+	adminCustomer     *adminhandler.AdminCustomerHandler
 }
 
 func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
@@ -83,10 +86,15 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 	platformConfigRepo := repository.NewPlatformConfigRepository(db)
 	quotationItemRepo := repository.NewQuotationItemRepository(db)
 	commissionRepo := repository.NewCommissionRepository(db)
-	adminAuditRepo := repository.NewAdminAuditRepository(db)
-	adminDashboardRepo := repository.NewAdminDashboardRepository(db)
-	customerAdminRepo := repository.NewCustomerAdminRepository(db)
-	settlementAdminRepo := repository.NewSettlementAdminRepository(db)
+	adminAuditRepo := adminrepo.NewAdminAuditRepository(db)
+	adminDashboardRepo := adminrepo.NewAdminDashboardRepository(db)
+	adminFactoryRepo := adminrepo.NewAdminFactoryRepository(db, factoryRepo)
+	adminOrderRepo := adminrepo.NewAdminOrderRepository(db)
+	adminRFQRepo := adminrepo.NewAdminRFQRepository(db, rfqRepo)
+	adminWithdrawalRepo := adminrepo.NewAdminWithdrawalRepository(db)
+	adminDisputeRepo := adminrepo.NewAdminDisputeRepository(db)
+	customerAdminRepo := adminrepo.NewCustomerAdminRepository(db)
+	settlementAdminRepo := adminrepo.NewSettlementAdminRepository(db)
 
 	authService := service.NewAuthService(authRepo, cfg.JWTSecret)
 	catalogService := service.NewCatalogService(catalogRepo)
@@ -118,8 +126,8 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 	disputeService := service.NewDisputeService(disputeRepo)
 	quotationTemplateService := service.NewQuotationTemplateService(quotationTemplateRepo)
 	paymentScheduleService := service.NewPaymentScheduleService(paymentScheduleRepo)
-	adminFactoryService := service.NewAdminFactoryService(factoryRepo, adminAuditRepo, commissionRepo, platformConfigRepo)
-	adminDashboardService := service.NewAdminDashboardService(adminDashboardRepo)
+	adminFactoryService := adminservice.NewAdminFactoryService(adminFactoryRepo, adminAuditRepo, commissionRepo, platformConfigRepo)
+	adminDashboardService := adminservice.NewAdminDashboardService(adminDashboardRepo)
 
 	cld, err := media.NewCloudinaryClient(cfg)
 	if err != nil {
@@ -159,12 +167,12 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 		quotationTemplate: handler.NewQuotationTemplateHandler(quotationTemplateService),
 		paymentSchedule:   handler.NewPaymentScheduleHandler(paymentScheduleService),
 		platformConfig:    handler.NewPlatformConfigHandler(platformConfigService, authService),
-		adminFactory:      handler.NewAdminFactoryHandler(factoryRepo, adminFactoryService),
-		adminDashboard:    handler.NewAdminDashboardHandler(adminDashboardService),
-		adminRFQ:          handler.NewAdminRFQHandler(rfqRepo, adminAuditRepo),
-		adminOrder:        handler.NewAdminOrderHandler(orderRepo, orderService, withdrawalRepo, disputeRepo, adminAuditRepo),
-		adminConfig:       handler.NewAdminConfigHandler(commissionRepo, adminAuditRepo),
-		adminUser:         handler.NewAdminUserHandler(authService, authRepo),
-		adminCustomer:     handler.NewAdminCustomerHandler(customerAdminRepo, settlementAdminRepo),
+		adminFactory:      adminhandler.NewAdminFactoryHandler(adminFactoryRepo, adminFactoryService),
+		adminDashboard:    adminhandler.NewAdminDashboardHandler(adminDashboardService),
+		adminRFQ:          adminhandler.NewAdminRFQHandler(adminRFQRepo, adminAuditRepo),
+		adminOrder:        adminhandler.NewAdminOrderHandler(adminOrderRepo, orderService, withdrawalRepo, adminWithdrawalRepo, disputeRepo, adminDisputeRepo, adminAuditRepo),
+		adminConfig:       adminhandler.NewAdminConfigHandler(commissionRepo, adminAuditRepo),
+		adminUser:         adminhandler.NewAdminUserHandler(authService, authRepo),
+		adminCustomer:     adminhandler.NewAdminCustomerHandler(customerAdminRepo, settlementAdminRepo),
 	}
 }

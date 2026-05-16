@@ -29,6 +29,16 @@ func NewFactoryRepository(db *sqlx.DB) *FactoryRepository {
 	return &FactoryRepository{db: db}
 }
 
+func (r *FactoryRepository) GetApprovalStatus(factoryID int64) (string, error) {
+	var status string
+	err := r.db.Get(&status, `
+		SELECT COALESCE(approval_status, 'PE')
+		FROM factory_profiles
+		WHERE user_id = $1
+	`, factoryID)
+	return status, err
+}
+
 // ErrDuplicateFactoryCategory is returned when map_factory_categories unique pair exists.
 var ErrDuplicateFactoryCategory = errors.New("factory already has this category")
 

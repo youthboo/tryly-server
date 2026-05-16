@@ -1,17 +1,17 @@
-package handler
+package admin
 
 import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/yourusername/wemake/internal/service"
+	adminservice "github.com/yourusername/wemake/internal/service/admin"
 )
 
 type AdminDashboardHandler struct {
-	service *service.AdminDashboardService
+	service *adminservice.AdminDashboardService
 }
 
-func NewAdminDashboardHandler(service *service.AdminDashboardService) *AdminDashboardHandler {
+func NewAdminDashboardHandler(service *adminservice.AdminDashboardService) *AdminDashboardHandler {
 	return &AdminDashboardHandler{service: service}
 }
 

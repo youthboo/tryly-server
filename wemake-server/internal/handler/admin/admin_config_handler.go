@@ -1,4 +1,4 @@
-package handler
+package admin
 
 import (
 	"encoding/json"
@@ -9,14 +9,15 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/repository"
+	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 )
 
 type AdminConfigHandler struct {
 	commission *repository.CommissionRepository
-	audit      *repository.AdminAuditRepository
+	audit      *adminrepo.AdminAuditRepository
 }
 
-func NewAdminConfigHandler(commission *repository.CommissionRepository, audit *repository.AdminAuditRepository) *AdminConfigHandler {
+func NewAdminConfigHandler(commission *repository.CommissionRepository, audit *adminrepo.AdminAuditRepository) *AdminConfigHandler {
 	return &AdminConfigHandler{commission: commission, audit: audit}
 }
 

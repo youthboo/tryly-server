@@ -1,18 +1,18 @@
-package handler
+package admin
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/yourusername/wemake/internal/repository"
+	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 )
 
 type AdminCustomerHandler struct {
-	customers   *repository.CustomerAdminRepository
-	settlements *repository.SettlementAdminRepository
+	customers   *adminrepo.CustomerAdminRepository
+	settlements *adminrepo.SettlementAdminRepository
 }
 
 func NewAdminCustomerHandler(
-	customers *repository.CustomerAdminRepository,
-	settlements *repository.SettlementAdminRepository,
+	customers *adminrepo.CustomerAdminRepository,
+	settlements *adminrepo.SettlementAdminRepository,
 ) *AdminCustomerHandler {
 	return &AdminCustomerHandler{customers: customers, settlements: settlements}
 }
