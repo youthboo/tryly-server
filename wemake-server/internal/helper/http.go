@@ -25,6 +25,14 @@ type ErrorResponse struct {
 	Body   fiber.Map
 }
 
+// APIError เป็น standardized error response ที่ consistent ทั่วทั้ง API
+type APIError struct {
+	ErrorCode string                 `json:"error_code"`
+	Message   string                 `json:"message"`
+	Details   map[string]interface{} `json:"details,omitempty"`
+	Status    int                    `json:"-"` // ไม่ serialize ไปใน JSON
+}
+
 type ErrorResponseBuilder func(error) ErrorResponse
 
 func UserIDFromHeader(c *fiber.Ctx) (int64, error) {
@@ -312,4 +320,87 @@ func PageLimit(c *fiber.Ctx, defaultLimit int) (int, int) {
 
 func LimitOffset(c *fiber.Ctx, defaultLimit int) (int, int) {
 	return ClampInt(c.QueryInt("limit", defaultLimit), 1, 100), MaxInt(c.QueryInt("offset", 0), 0)
+}
+
+// RequireInt64Param อ่าน path parameter เป็น int64 (ต้องมีค่า > 0)
+func RequireInt64Param(c *fiber.Ctx, name string) (int64, error) {
+	val, err := c.ParamsInt(name)
+	if err != nil || val <= 0 {
+		return 0, fiber.NewError(fiber.StatusBadRequest, "invalid "+name)
+	}
+	return int64(val), nil
+}
+
+// RequireStringParam อ่าน path parameter เป็น string (ต้องไม่เป็นค่าว่าง)
+func RequireStringParam(c *fiber.Ctx, name string) (string, error) {
+	val := strings.TrimSpace(c.Params(name))
+	if val == "" {
+		return "", fiber.NewError(fiber.StatusBadRequest, name+" is required")
+	}
+	return val, nil
+}
+
+// OptionalInt64Param อ่าน path parameter เป็น int64 (ถ้าว่างกลับ nil)
+func OptionalInt64Param(c *fiber.Ctx, name string) (*int64, error) {
+	val := strings.TrimSpace(c.Params(name))
+	if val == "" {
+		return nil, nil
+	}
+	parsed, err := strconv.ParseInt(val, 10, 64)
+	if err != nil || parsed <= 0 {
+		return nil, fiber.NewError(fiber.StatusBadRequest, "invalid "+name)
+	}
+	return &parsed, nil
+}
+
+// WriteAPIError เขียน standardized API error response
+func WriteAPIError(c *fiber.Ctx, apiErr *APIError) error {
+	if apiErr.Status == 0 {
+		apiErr.Status = fiber.StatusInternalServerError
+	}
+	return c.Status(apiErr.Status).JSON(apiErr)
+}
+
+// NewAPIError สร้าง APIError ใหม่
+func NewAPIError(status int, errorCode string, message string) *APIError {
+	return &APIError{
+		Status:    status,
+		ErrorCode: errorCode,
+		Message:   message,
+	}
+}
+
+// NewAPIErrorWithDetails สร้าง APIError พร้อม details
+func NewAPIErrorWithDetails(status int, errorCode string, message string, details map[string]interface{}) *APIError {
+	return &APIError{
+		Status:    status,
+		ErrorCode: errorCode,
+		Message:   message,
+		Details:   details,
+	}
+}
+
+// Common APIError creators
+func BadRequestAPIError(code string, message string) *APIError {
+	return NewAPIError(fiber.StatusBadRequest, code, message)
+}
+
+func NotFoundAPIError(code string, message string) *APIError {
+	return NewAPIError(fiber.StatusNotFound, code, message)
+}
+
+func ConflictAPIError(code string, message string) *APIError {
+	return NewAPIError(fiber.StatusConflict, code, message)
+}
+
+func ForbiddenAPIError(code string, message string) *APIError {
+	return NewAPIError(fiber.StatusForbidden, code, message)
+}
+
+func UnauthorizedAPIError(code string, message string) *APIError {
+	return NewAPIError(fiber.StatusUnauthorized, code, message)
+}
+
+func InternalServerError(code string, message string) *APIError {
+	return NewAPIError(fiber.StatusInternalServerError, code, message)
 }

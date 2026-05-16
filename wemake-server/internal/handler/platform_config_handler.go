@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 
+	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	"strconv"
 
@@ -45,20 +46,11 @@ func (h *PlatformConfigHandler) ListAll(c *fiber.Ctx) error {
 }
 
 func (h *PlatformConfigHandler) Create(c *fiber.Ctx) error {
-	type reqBody struct {
-		DefaultCommissionRate float64  `json:"default_commission_rate"`
-		PromoCommissionRate   *float64 `json:"promo_commission_rate"`
-		PromoStartAt          *string  `json:"promo_start_at"`
-		PromoEndAt            *string  `json:"promo_end_at"`
-		PromoLabel            *string  `json:"promo_label"`
-		VatRate               float64  `json:"vat_rate"`
-		CurrencyCode          string   `json:"currency_code"`
-	}
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	var req reqBody
+	var req dto.CreateConfigVersionRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}

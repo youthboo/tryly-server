@@ -7,6 +7,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	"github.com/yourusername/wemake/internal/repository"
 	"github.com/yourusername/wemake/internal/service"
@@ -23,14 +24,11 @@ func NewOrderHandler(orderService *orderservice.OrderService, authService *servi
 }
 
 func (h *OrderHandler) CreateOrder(c *fiber.Ctx) error {
-	type reqBody struct {
-		QuotationID int64 `json:"quote_id" validate:"gt=0"`
-	}
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
-	var req reqBody
+	var req dto.CreateOrderFromQuoteRequest
 	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"QuotationID": "quote_id is required",
 	}); err != nil {
@@ -184,9 +182,6 @@ func (h *OrderHandler) ListActivity(c *fiber.Ctx) error {
 }
 
 func (h *OrderHandler) PatchOrderStatus(c *fiber.Ctx) error {
-	type reqBody struct {
-		Status string `json:"status" validate:"notblank"`
-	}
 	uid, authErr := helper.UserIDFromHeader(c)
 	var actor *int64
 	if authErr == nil {
@@ -196,7 +191,7 @@ func (h *OrderHandler) PatchOrderStatus(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
 	}
-	var req reqBody
+	var req dto.PatchOrderStatusRequest
 	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"Status": "status must be PP, PR, WF, QC, SH, DL, AC, CP, or CC",
 	}); err != nil {
@@ -235,10 +230,6 @@ func (h *OrderHandler) CancelOrder(c *fiber.Ctx) error {
 }
 
 func (h *OrderHandler) MarkShipped(c *fiber.Ctx) error {
-	type reqBody struct {
-		TrackingNo string `json:"tracking_no"`
-		Courier    string `json:"courier"`
-	}
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
@@ -254,7 +245,7 @@ func (h *OrderHandler) MarkShipped(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
 	}
-	var req reqBody
+	var req dto.MarkShippedRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
@@ -269,10 +260,6 @@ func (h *OrderHandler) MarkShipped(c *fiber.Ctx) error {
 }
 
 func (h *OrderHandler) CreatePayment(c *fiber.Ctx) error {
-	type reqBody struct {
-		Type   string  `json:"type"`
-		Amount float64 `json:"amount"`
-	}
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
@@ -285,7 +272,7 @@ func (h *OrderHandler) CreatePayment(c *fiber.Ctx) error {
 	if err != nil || orderID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
 	}
-	var req reqBody
+	var req dto.PayDepositRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
@@ -366,11 +353,7 @@ func (h *OrderHandler) ConfirmReceipt(c *fiber.Ctx) error {
 	if err != nil || orderID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
 	}
-	type reqBody struct {
-		Note       string  `json:"note"`
-		ReceivedAt *string `json:"received_at"`
-	}
-	var req reqBody
+	var req dto.ConfirmReceiptRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}

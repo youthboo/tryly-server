@@ -6,6 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	messageservice "github.com/yourusername/wemake/internal/service/message"
 )
@@ -18,23 +19,12 @@ func NewMessageHandler(service *messageservice.MessageService) *MessageHandler {
 	return &MessageHandler{service: service}
 }
 
-type createMessageRequest struct {
-	ReferenceType *string `json:"reference_type"`
-	ReferenceID   *int64  `json:"reference_id"`
-	ReceiverID    *int64  `json:"receiver_id"`
-	Content       *string `json:"content"`
-	AttachmentURL *string `json:"attachment_url"`
-	ConvID        *int64  `json:"conv_id"`
-	MessageType   *string `json:"message_type"`
-	QuoteData     *string `json:"quote_data"`
-}
-
 func (h *MessageHandler) CreateMessage(c *fiber.Ctx) error {
 	senderID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return helper.BadRequest(c, "invalid X-User-ID header")
 	}
-	var req createMessageRequest
+	var req dto.CreateMessageRequest
 	if err := helper.ParseJSONBody(c, &req, "invalid request payload"); err != nil {
 		return err
 	}

@@ -3,6 +3,7 @@ package factory
 import (
 	"errors"
 
+	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 
@@ -71,15 +72,6 @@ func (h *FactoryHandler) GetByID(c *fiber.Ctx) error {
 }
 
 func (h *FactoryHandler) PatchProfile(c *fiber.Ctx) error {
-	type patchFactoryProfileRequest struct {
-		FactoryName        *string `json:"factory_name"`
-		TaxID              *string `json:"tax_id"`
-		Description        *string `json:"description"`
-		FactoryTypeID      *int64  `json:"factory_type_id"`
-		ImageURL           *string `json:"image_url"`
-		BackgroundImageURL *string `json:"background_image_url"`
-	}
-
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
@@ -92,7 +84,7 @@ func (h *FactoryHandler) PatchProfile(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
 	}
 
-	var req patchFactoryProfileRequest
+	var req dto.PatchFactoryProfileRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}

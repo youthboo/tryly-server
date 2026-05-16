@@ -3,10 +3,11 @@ package boq
 import (
 	"errors"
 
+	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/yourusername/wemake/internal/domain"
 	boqservice "github.com/yourusername/wemake/internal/service/boq"
 )
 
@@ -18,18 +19,6 @@ func NewBOQHandler(service *boqservice.BOQService) *BOQHandler {
 	return &BOQHandler{service: service}
 }
 
-type boqPayload struct {
-	Items          []domain.RFQItem `json:"items"`
-	Currency       string           `json:"currency"`
-	DiscountAmount float64          `json:"discount_amount"`
-	VatPercent     float64          `json:"vat_percent"`
-	MOQ            *int             `json:"moq"`
-	LeadTimeDays   *int             `json:"lead_time_days"`
-	PaymentTerms   *string          `json:"payment_terms"`
-	ValidityDays   *int             `json:"validity_days"`
-	Note           *string          `json:"note"`
-}
-
 func (h *BOQHandler) Create(c *fiber.Ctx) error {
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
@@ -39,11 +28,12 @@ func (h *BOQHandler) Create(c *fiber.Ctx) error {
 	if err != nil || convID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid conv_id"})
 	}
-	var req boqPayload
+	var req dto.BOQPayloadRequest
 	if err := helper.ParseBody(c, &req, "invalid payload"); err != nil {
 		return err
 	}
-	boq, msg, err := h.service.Create(convID, userID, boqservice.BOQInput(req))
+	input := boqPayloadToInput(req)
+	boq, msg, err := h.service.Create(convID, userID, input)
 	if err != nil {
 		return mapBOQError(c, err)
 	}
@@ -75,11 +65,12 @@ func (h *BOQHandler) Update(c *fiber.Ctx) error {
 	if err != nil || rfqID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
 	}
-	var req boqPayload
+	var req dto.BOQPayloadRequest
 	if err := helper.ParseBody(c, &req, "invalid payload"); err != nil {
 		return err
 	}
-	boq, err := h.service.Update(rfqID, userID, boqservice.BOQInput(req))
+	input := boqPayloadToInput(req)
+	boq, err := h.service.Update(rfqID, userID, input)
 	if err != nil {
 		return mapBOQError(c, err)
 	}
@@ -118,9 +109,7 @@ func (h *BOQHandler) Decline(c *fiber.Ctx) error {
 	if err != nil || rfqID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
 	}
-	var req struct {
-		Reason *string `json:"reason"`
-	}
+	var req dto.DeclineBOQRequest
 	_ = helper.ParseBody(c, &req, "invalid payload")
 	rfq, err := h.service.Decline(rfqID, userID, req.Reason)
 	if err != nil {
@@ -143,6 +132,47 @@ func (h *BOQHandler) ListMine(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch boqs"})
 	}
 	return c.JSON(items)
+}
+
+func boqPayloadToInput(req dto.BOQPayloadRequest) boqservice.BOQInput {
+	input := boqservice.BOQInput{
+		Currency:       req.Currency,
+		DiscountAmount: req.DiscountAmount,
+		VatPercent:     req.VatPercent,
+		MOQ:            req.MOQ,
+		LeadTimeDays:   req.LeadTimeDays,
+		PaymentTerms:   req.PaymentTerms,
+		ValidityDays:   req.ValidityDays,
+		Note:           req.Note,
+	}
+	// Convert interface{} items to domain.RFQItem
+	for _, item := range req.Items {
+		itemMap, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		rfqItem := domain.RFQItem{}
+		if desc, ok := itemMap["description"].(string); ok {
+			rfqItem.Description = desc
+		}
+		if qty, ok := itemMap["qty"].(float64); ok {
+			rfqItem.Qty = qty
+		}
+		if unitPrice, ok := itemMap["unit_price"].(float64); ok {
+			rfqItem.UnitPrice = unitPrice
+		}
+		if discountPct, ok := itemMap["discount_pct"].(float64); ok {
+			rfqItem.DiscountPct = discountPct
+		}
+		if unit, ok := itemMap["unit"].(string); ok {
+			rfqItem.Unit = &unit
+		}
+		if spec, ok := itemMap["specification"].(string); ok {
+			rfqItem.Specification = &spec
+		}
+		input.Items = append(input.Items, rfqItem)
+	}
+	return input
 }
 
 func mapBOQError(c *fiber.Ctx, err error) error {

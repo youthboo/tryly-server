@@ -6,6 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	"github.com/yourusername/wemake/internal/repository"
 	"github.com/yourusername/wemake/internal/service"
@@ -22,21 +23,6 @@ func NewQuotationHandler(quotationService *quotationservice.QuotationService, au
 }
 
 func (h *QuotationHandler) CreateQuotation(c *fiber.Ctx) error {
-	type reqBody struct {
-		FactoryID        int64              `json:"factory_id" validate:"gt=0"`
-		PricePerPiece    float64            `json:"price_per_piece" validate:"gte=0"`
-		MoldCost         float64            `json:"mold_cost"`
-		ToolingMoldCost  float64            `json:"tooling_mold_cost"`
-		ShippingCost     float64            `json:"shipping_cost"`
-		PackagingCost    float64            `json:"packaging_cost"`
-		LeadTimeDays     int64              `json:"lead_time_days" validate:"gt=0"`
-		ValidityDays     int                `json:"validity_days"`
-		ShippingMethodID int64              `json:"shipping_method_id"`
-		PaymentTerms     *string            `json:"payment_terms"`
-		ImageURLs        domain.StringArray `json:"image_urls"`
-		FactoryHighlight *string            `json:"factory_highlight"`
-	}
-
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
@@ -47,7 +33,7 @@ func (h *QuotationHandler) CreateQuotation(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
 	}
 
-	var req reqBody
+	var req dto.CreateQuotationRequest
 	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"FactoryID":     "factory_id and lead_time_days are required; price_per_piece must be >= 0",
 		"PricePerPiece": "factory_id and lead_time_days are required; price_per_piece must be >= 0",
@@ -222,18 +208,11 @@ func (h *QuotationHandler) ListHistory(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) Preview(c *fiber.Ctx) error {
-	type reqBody struct {
-		Items           []domain.QuotationItem `json:"items"`
-		DiscountAmount  float64                `json:"discount_amount"`
-		ShippingCost    float64                `json:"shipping_cost"`
-		PackagingCost   float64                `json:"packaging_cost"`
-		ToolingMoldCost float64                `json:"tooling_mold_cost"`
-	}
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
-	var req reqBody
+	var req dto.PreviewQuotationRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
@@ -245,28 +224,11 @@ func (h *QuotationHandler) Preview(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) CreateDetailed(c *fiber.Ctx) error {
-	type reqBody struct {
-		RFQID                int64                  `json:"rfq_id"`
-		Items                []domain.QuotationItem `json:"items"`
-		DiscountAmount       float64                `json:"discount_amount"`
-		ShippingCost         float64                `json:"shipping_cost"`
-		ShippingMethod       *string                `json:"shipping_method"`
-		PackagingCost        float64                `json:"packaging_cost"`
-		ToolingMoldCost      float64                `json:"tooling_mold_cost"`
-		LeadTimeDays         *int64                 `json:"lead_time_days"`
-		ProductionStartDate  *string                `json:"production_start_date"`
-		DeliveryDate         *string                `json:"delivery_date"`
-		Incoterms            *string                `json:"incoterms"`
-		PaymentTerms         *string                `json:"payment_terms"`
-		ValidityDays         int                    `json:"validity_days"`
-		WarrantyPeriodMonths *int                   `json:"warranty_period_months"`
-		FactoryHighlight     *string                `json:"factory_highlight"`
-	}
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
-	var req reqBody
+	var req dto.CreateDetailedQuotationRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
@@ -319,26 +281,11 @@ func (h *QuotationHandler) CreateRevision(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid quotation_id"})
 	}
-	type reqBody struct {
-		Items                []domain.QuotationItem `json:"items"`
-		DiscountAmount       float64                `json:"discount_amount"`
-		ShippingCost         float64                `json:"shipping_cost"`
-		ShippingMethod       *string                `json:"shipping_method"`
-		PackagingCost        float64                `json:"packaging_cost"`
-		ToolingMoldCost      float64                `json:"tooling_mold_cost"`
-		LeadTimeDays         *int64                 `json:"lead_time_days"`
-		ProductionStartDate  *string                `json:"production_start_date"`
-		DeliveryDate         *string                `json:"delivery_date"`
-		Incoterms            *string                `json:"incoterms"`
-		PaymentTerms         *string                `json:"payment_terms"`
-		ValidityDays         int                    `json:"validity_days"`
-		WarrantyPeriodMonths *int                   `json:"warranty_period_months"`
-	}
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
-	var req reqBody
+	var req dto.CreateRevisionQuotationRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
@@ -396,20 +343,6 @@ func (h *QuotationHandler) Reject(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) PatchQuotation(c *fiber.Ctx) error {
-	type reqBody struct {
-		PricePerPiece    float64            `json:"price_per_piece"`
-		MoldCost         float64            `json:"mold_cost"`
-		ToolingMoldCost  float64            `json:"tooling_mold_cost"`
-		ShippingCost     float64            `json:"shipping_cost"`
-		PackagingCost    float64            `json:"packaging_cost"`
-		LeadTimeDays     int64              `json:"lead_time_days"`
-		ValidityDays     int                `json:"validity_days"`
-		ShippingMethodID int64              `json:"shipping_method_id"`
-		PaymentTerms     *string            `json:"payment_terms"`
-		FactoryHighlight *string            `json:"factory_highlight"`
-		Reason           string             `json:"reason"`
-		ImageURLs        domain.StringArray `json:"image_urls"`
-	}
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
@@ -418,7 +351,7 @@ func (h *QuotationHandler) PatchQuotation(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid quotation_id"})
 	}
-	var req reqBody
+	var req dto.PatchQuotationBodyRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
@@ -470,9 +403,6 @@ func (h *QuotationHandler) PatchQuotation(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) PatchQuotationStatus(c *fiber.Ctx) error {
-	type reqBody struct {
-		Status string `json:"status" validate:"notblank"`
-	}
 	userID, err := helper.UserIDFromHeader(c)
 	var editor *int64
 	if err == nil {
@@ -482,7 +412,7 @@ func (h *QuotationHandler) PatchQuotationStatus(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid quotation_id"})
 	}
-	var req reqBody
+	var req dto.PatchQuotationStatusRequest
 	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"Status": "status must be PD, AC, RJ or EX",
 	}); err != nil {

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/service"
@@ -15,35 +16,8 @@ func NewAuthHandler(service *service.AuthService) *AuthHandler {
 	return &AuthHandler{service: service}
 }
 
-type registerRequest struct {
-	Role          string `json:"role" validate:"notblank"`
-	Email         string `json:"email" validate:"notblank"`
-	Phone         string `json:"phone"`
-	Password      string `json:"password" validate:"notblank"`
-	FirstName     string `json:"first_name"`
-	LastName      string `json:"last_name"`
-	FactoryName   string `json:"factory_name"`
-	FactoryTypeID int64  `json:"factory_type_id"`
-	TaxID         string `json:"tax_id"`
-	ProvinceID    *int64 `json:"province_id"`
-}
-
-type loginRequest struct {
-	Email    string `json:"email" validate:"notblank"`
-	Password string `json:"password" validate:"notblank"`
-}
-
-type forgotPasswordRequest struct {
-	Email string `json:"email" validate:"notblank"`
-}
-
-type resetPasswordRequest struct {
-	Token       string `json:"token" validate:"notblank"`
-	NewPassword string `json:"new_password" validate:"notblank"`
-}
-
 func (h *AuthHandler) Register(c *fiber.Ctx) error {
-	var req registerRequest
+	var req dto.RegisterRequest
 	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"Role":     "role, email, and password are required",
 		"Email":    "role, email, and password are required",
@@ -83,7 +57,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) Login(c *fiber.Ctx) error {
-	var req loginRequest
+	var req dto.LoginRequest
 	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"Email":    "email and password are required",
 		"Password": "email and password are required",
@@ -107,7 +81,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) ForgotPassword(c *fiber.Ctx) error {
-	var req forgotPasswordRequest
+	var req dto.ForgotPasswordRequest
 	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"Email": "email is required",
 	}); err != nil {
@@ -130,7 +104,7 @@ func (h *AuthHandler) ForgotPassword(c *fiber.Ctx) error {
 }
 
 func (h *AuthHandler) ResetPassword(c *fiber.Ctx) error {
-	var req resetPasswordRequest
+	var req dto.ResetPasswordRequest
 	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"Token":       "token and new_password are required",
 		"NewPassword": "token and new_password are required",

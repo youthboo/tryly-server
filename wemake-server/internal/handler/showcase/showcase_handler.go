@@ -13,6 +13,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/logger"
 	showcaseservice "github.com/yourusername/wemake/internal/service/showcase"
 )
@@ -46,25 +47,6 @@ func NewShowcaseHandler(service *showcaseservice.ShowcaseService) *ShowcaseHandl
 	return &ShowcaseHandler{service: service}
 }
 
-type showcaseWriteRequest struct {
-	Type            *string         `json:"type"`
-	ContentType     *string         `json:"content_type"`
-	Status          *string         `json:"status"`
-	Title           *string         `json:"title"`
-	CategoryID      *int64          `json:"category_id"`
-	SubCategoryID   *int64          `json:"sub_category_id"`
-	MOQ             *int            `json:"moq"`
-	LeadTimeDays    *int            `json:"lead_time_days"`
-	BasePrice       *float64        `json:"base_price"`
-	PromoPrice      *float64        `json:"promo_price"`
-	StartDate       *string         `json:"start_date"`
-	EndDate         *string         `json:"end_date"`
-	Content         *string         `json:"content"`
-	LinkedShowcases json.RawMessage `json:"linked_showcases"`
-	Excerpt         *string         `json:"excerpt"`
-	ImageURL        *string         `json:"image_url"`
-	Tags            *[]string       `json:"tags"`
-}
 
 type linkedShowcaseObject struct {
 	ImageURL  string `json:"image_url"`
@@ -176,7 +158,7 @@ func parseShowcaseDate(raw *string, field string) (*time.Time, *domain.ShowcaseV
 	return &t, nil
 }
 
-func (r showcaseWriteRequest) toInput() (domain.ShowcaseWriteInput, []domain.ShowcaseValidationDetail) {
+func showcaseWriteRequestToInput(r dto.ShowcaseWriteRequest) (domain.ShowcaseWriteInput, []domain.ShowcaseValidationDetail) {
 	var details []domain.ShowcaseValidationDetail
 	typeValue := r.Type
 	if typeValue == nil {
@@ -358,11 +340,11 @@ func (h *ShowcaseHandler) Create(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	var req showcaseWriteRequest
+	var req dto.ShowcaseWriteRequest
 	if err := helper.ParseJSONBody(c, &req, errInvalidPayload); err != nil {
 		return err
 	}
-	input, details := req.toInput()
+	input, details := showcaseWriteRequestToInput(req)
 	if len(details) > 0 {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "VALIDATION_ERROR", "details": details})
 	}
@@ -390,11 +372,11 @@ func (h *ShowcaseHandler) updateStructured(c *fiber.Ctx, replace bool) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
 	}
-	var req showcaseWriteRequest
+	var req dto.ShowcaseWriteRequest
 	if err := helper.ParseJSONBody(c, &req, errInvalidPayload); err != nil {
 		return err
 	}
-	input, details := req.toInput()
+	input, details := showcaseWriteRequestToInput(req)
 	if len(details) > 0 {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "VALIDATION_ERROR", "details": details})
 	}

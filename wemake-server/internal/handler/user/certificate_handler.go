@@ -3,6 +3,7 @@ package user
 import (
 	"database/sql"
 	"errors"
+	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/gofiber/fiber/v2"
@@ -102,11 +103,6 @@ func (h *CertificateHandler) DeleteByCertID(c *fiber.Ctx) error {
 }
 
 func (h *CertificateHandler) PatchByCertID(c *fiber.Ctx) error {
-	type reqBody struct {
-		DocumentURL *string `json:"document_url"`
-		ExpireDate  *string `json:"expire_date"`
-		CertNumber  *string `json:"cert_number"`
-	}
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return helper.Unauthorized(c)
@@ -119,7 +115,7 @@ func (h *CertificateHandler) PatchByCertID(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.BadRequest(c, "invalid cert_id")
 	}
-	var req reqBody
+	var req dto.PatchCertificateRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}

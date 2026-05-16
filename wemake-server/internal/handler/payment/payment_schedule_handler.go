@@ -6,6 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	paymentservice "github.com/yourusername/wemake/internal/service/payment"
 )
@@ -33,16 +34,11 @@ func (h *PaymentScheduleHandler) List(c *fiber.Ctx) error {
 
 // POST /orders/:order_id/payment-schedules
 func (h *PaymentScheduleHandler) Create(c *fiber.Ctx) error {
-	type reqBody struct {
-		InstallmentNo int     `json:"installment_no"`
-		DueDate       string  `json:"due_date"` // YYYY-MM-DD
-		Amount        float64 `json:"amount"`
-	}
 	orderID, err := c.ParamsInt("order_id")
 	if err != nil || orderID <= 0 {
 		return helper.BadRequest(c, "invalid order_id")
 	}
-	var req reqBody
+	var req dto.CreatePaymentScheduleRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
@@ -67,14 +63,11 @@ func (h *PaymentScheduleHandler) Create(c *fiber.Ctx) error {
 
 // PATCH /payment-schedules/:schedule_id
 func (h *PaymentScheduleHandler) PatchStatus(c *fiber.Ctx) error {
-	type reqBody struct {
-		Status string `json:"status"`
-	}
 	scheduleID, err := helper.ParsePositiveInt64Param(c, "schedule_id")
 	if err != nil {
 		return helper.BadRequest(c, "invalid schedule_id")
 	}
-	var req reqBody
+	var req dto.PatchPaymentScheduleStatusRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}

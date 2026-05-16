@@ -6,6 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	"github.com/yourusername/wemake/internal/repository"
 	"github.com/yourusername/wemake/internal/service"
@@ -22,35 +23,12 @@ func NewRFQHandler(rfqService *rfqservice.RFQService, authService *service.AuthS
 }
 
 func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
-	type createRFQRequest struct {
-		CategoryID             int64    `json:"category_id" validate:"gt=0"`
-		SubCategoryID          *int64   `json:"sub_category_id"`
-		Title                  string   `json:"title" validate:"notblank"`
-		Description            string   `json:"description"`
-		Quantity               int64    `json:"quantity" validate:"gt=0"`
-		Unit                   string   `json:"unit"`
-		Details                string   `json:"details"`
-		AddressID              int64    `json:"address_id" validate:"gt=0"`
-		ShippingMethodID       *int64   `json:"shipping_method_id"`
-		MaterialGrade          *string  `json:"material_grade"`
-		TargetPrice            *float64 `json:"target_price"`
-		TargetLeadTimeDays     *int     `json:"target_lead_time_days"`
-		RequiredDeliveryDate   *string  `json:"required_delivery_date"`
-		DeliveryAddressID      *int64   `json:"delivery_address_id"`
-		CertificationsRequired []string `json:"certifications_required"`
-		SampleRequired         bool     `json:"sample_required"`
-		SampleQty              *int     `json:"sample_qty"`
-		InspectionType         *string  `json:"inspection_type"`
-		ReferenceImages        []string `json:"reference_images"`
-		RequestKind            string   `json:"request_kind"`
-	}
-
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
 
-	var req createRFQRequest
+	var req dto.CreateRFQRequest
 	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"CategoryID": "category_id, title, quantity, and address_id are required",
 		"Title":      "category_id, title, quantity, and address_id are required",
@@ -115,45 +93,52 @@ func (h *RFQHandler) PatchRFQ(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
 	}
-	type patchRFQRequest struct {
-		CategoryID             int64    `json:"category_id"`
-		SubCategoryID          *int64   `json:"sub_category_id"`
-		Title                  string   `json:"title"`
-		Description            string   `json:"description"`
-		Quantity               int64    `json:"quantity"`
-		Unit                   string   `json:"unit"`
-		Details                string   `json:"details"`
-		AddressID              int64    `json:"address_id"`
-		ShippingMethodID       *int64   `json:"shipping_method_id"`
-		MaterialGrade          *string  `json:"material_grade"`
-		TargetPrice            *float64 `json:"target_price"`
-		TargetLeadTimeDays     *int     `json:"target_lead_time_days"`
-		RequiredDeliveryDate   *string  `json:"required_delivery_date"`
-		DeliveryAddressID      *int64   `json:"delivery_address_id"`
-		CertificationsRequired []string `json:"certifications_required"`
-		SampleRequired         bool     `json:"sample_required"`
-		SampleQty              *int     `json:"sample_qty"`
-		InspectionType         *string  `json:"inspection_type"`
-		ReferenceImages        []string `json:"reference_images"`
-		RequestKind            string   `json:"request_kind"`
-	}
-	var req patchRFQRequest
+	var req dto.PatchRFQRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
-	details := strings.TrimSpace(req.Details)
-	if details == "" {
-		details = strings.TrimSpace(req.Description)
+	details := ""
+	if req.Details != nil {
+		details = strings.TrimSpace(*req.Details)
+	}
+	if details == "" && req.Description != nil {
+		details = strings.TrimSpace(*req.Description)
 	}
 	rfq := &domain.RFQ{
-		CategoryID: req.CategoryID, SubCategoryID: req.SubCategoryID, Title: req.Title, Quantity: req.Quantity,
-		Details: details, AddressID: req.AddressID,
-		ShippingMethodID: req.ShippingMethodID,
-		MaterialGrade:    req.MaterialGrade, TargetPrice: req.TargetPrice,
-		TargetLeadTimeDays: req.TargetLeadTimeDays,
-		DeliveryAddressID:  req.DeliveryAddressID, CertificationsRequired: req.CertificationsRequired, SampleRequired: req.SampleRequired,
-		SampleQty: req.SampleQty, InspectionType: req.InspectionType, ReferenceImages: req.ReferenceImages,
-		RequestKind: req.RequestKind,
+		Details: details,
+	}
+	if req.CategoryID != nil {
+		rfq.CategoryID = *req.CategoryID
+	}
+	if req.SubCategoryID != nil {
+		rfq.SubCategoryID = req.SubCategoryID
+	}
+	if req.Title != nil {
+		rfq.Title = *req.Title
+	}
+	if req.Quantity != nil {
+		rfq.Quantity = *req.Quantity
+	}
+	if req.MaterialGrade != nil {
+		rfq.MaterialGrade = req.MaterialGrade
+	}
+	if req.TargetPrice != nil {
+		rfq.TargetPrice = req.TargetPrice
+	}
+	if req.TargetLeadTimeDays != nil {
+		rfq.TargetLeadTimeDays = req.TargetLeadTimeDays
+	}
+	if req.SampleRequired != nil {
+		rfq.SampleRequired = *req.SampleRequired
+	}
+	if req.SampleQty != nil {
+		rfq.SampleQty = req.SampleQty
+	}
+	if req.InspectionType != nil {
+		rfq.InspectionType = req.InspectionType
+	}
+	if req.ReferenceImages != nil {
+		rfq.ReferenceImages = req.ReferenceImages
 	}
 	if req.RequiredDeliveryDate != nil && strings.TrimSpace(*req.RequiredDeliveryDate) != "" {
 		d, err := helper.ParseDate(*req.RequiredDeliveryDate, "required_delivery_date")

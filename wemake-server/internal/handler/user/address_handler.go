@@ -3,6 +3,7 @@ package user
 import (
 	"database/sql"
 	"errors"
+	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 
@@ -43,22 +44,12 @@ func (h *AddressHandler) ListAddresses(c *fiber.Ctx) error {
 }
 
 func (h *AddressHandler) CreateAddress(c *fiber.Ctx) error {
-	type createAddressRequest struct {
-		AddressType   string `json:"address_type"`
-		AddressDetail string `json:"address_detail"`
-		SubDistrictID int64  `json:"sub_district_id"`
-		DistrictID    int64  `json:"district_id"`
-		ProvinceID    int64  `json:"province_id"`
-		ZipCode       string `json:"zip_code"`
-		IsDefault     bool   `json:"is_default"`
-	}
-
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
 
-	var req createAddressRequest
+	var req dto.CreateAddressRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
@@ -89,16 +80,6 @@ func (h *AddressHandler) CreateAddress(c *fiber.Ctx) error {
 }
 
 func (h *AddressHandler) PatchAddress(c *fiber.Ctx) error {
-	type patchAddressRequest struct {
-		AddressType   *string `json:"address_type"`
-		AddressDetail *string `json:"address_detail"`
-		SubDistrictID *int64  `json:"sub_district_id"`
-		DistrictID    *int64  `json:"district_id"`
-		ProvinceID    *int64  `json:"province_id"`
-		ZipCode       *string `json:"zip_code"`
-		IsDefault     *bool   `json:"is_default"`
-	}
-
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
@@ -109,7 +90,7 @@ func (h *AddressHandler) PatchAddress(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid address_id"})
 	}
 
-	var req patchAddressRequest
+	var req dto.PatchAddressRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}

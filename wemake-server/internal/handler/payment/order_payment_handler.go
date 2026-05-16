@@ -4,6 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	paymentservice "github.com/yourusername/wemake/internal/service/payment"
 )
@@ -17,13 +18,6 @@ func NewOrderPaymentHandler(service *paymentservice.OrderPaymentService) *OrderP
 }
 
 func (h *OrderPaymentHandler) PayDeposit(c *fiber.Ctx) error {
-	type reqBody struct {
-		Type           string  `json:"type"`
-		Amount         float64 `json:"amount"`
-		PaymentMethod  string  `json:"payment_method"`
-		IdempotencyKey string  `json:"idempotency_key"`
-	}
-
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
@@ -33,7 +27,7 @@ func (h *OrderPaymentHandler) PayDeposit(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error_code": "INVALID_ORDER_ID", "message": "invalid order_id"})
 	}
 
-	var req reqBody
+	var req dto.PayDepositRequest
 	if err := helper.ParseBody(c, &req, "invalid request payload"); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error_code": "INVALID_PAYLOAD", "message": "invalid request payload"})
 	}
