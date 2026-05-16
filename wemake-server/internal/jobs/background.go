@@ -4,7 +4,7 @@ package jobs
 
 import (
 	"encoding/json"
-	"log"
+	log "github.com/yourusername/wemake/internal/logger"
 	"time"
 
 	"github.com/jmoiron/sqlx"

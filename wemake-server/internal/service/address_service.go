@@ -1,7 +1,7 @@
 package service
 
 import (
-	"log"
+	log "github.com/yourusername/wemake/internal/logger"
 
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/repository"

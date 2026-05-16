@@ -3,12 +3,11 @@ package service
 import (
 	"encoding/json"
 	"fmt"
-	"math"
-	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/repository"
 )
 
@@ -96,11 +95,11 @@ func buildPaymentSchedule(row *repository.OrderDetailRow, status string, deposit
 }
 
 func normalizeOrderStatus(status string) string {
-	switch strings.ToUpper(strings.TrimSpace(status)) {
+	switch domainutil.NormalizeStatus(status) {
 	case "CC":
 		return "CN"
 	default:
-		return strings.ToUpper(strings.TrimSpace(status))
+		return domainutil.NormalizeStatus(status)
 	}
 }
 
@@ -128,7 +127,7 @@ func orderStatusLabelTH(status string) string {
 }
 
 func roundCurrency(v float64) float64 {
-	return math.Round(v*100) / 100
+	return domainutil.RoundMoney(v)
 }
 
 func percentOf(amount, total float64) float64 {

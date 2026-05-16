@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"log"
+	log "github.com/yourusername/wemake/internal/logger"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/service"

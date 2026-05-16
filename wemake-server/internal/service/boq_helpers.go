@@ -3,27 +3,20 @@ package service
 import (
 	"fmt"
 	"time"
+
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 func derefInt64(v *int64) int64 {
-	if v == nil {
-		return 0
-	}
-	return *v
+	return domainutil.Int64Value(v)
 }
 
 func derefInt(v *int) int {
-	if v == nil {
-		return 0
-	}
-	return *v
+	return domainutil.IntValue(v)
 }
 
 func derefFloat64(v *float64) float64 {
-	if v == nil {
-		return 0
-	}
-	return *v
+	return domainutil.Float64Value(v)
 }
 
 func maxInt(a, b int) int {
@@ -46,22 +39,13 @@ func formatThaiShortDate(t time.Time) string {
 }
 
 func nullableBOQInt(v *int) interface{} {
-	if v == nil {
-		return nil
-	}
-	return *v
+	return domainutil.NullableInt(v)
 }
 
 func nullableBOQInt64(v *int64) interface{} {
-	if v == nil {
-		return nil
-	}
-	return *v
+	return domainutil.NullableInt64(v)
 }
 
 func nullableBOQString(v *string) interface{} {
-	if v == nil {
-		return nil
-	}
-	return *v
+	return domainutil.NullableString(v)
 }

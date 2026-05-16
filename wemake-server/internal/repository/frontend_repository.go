@@ -2,7 +2,7 @@ package repository
 
 import (
 	"database/sql"
-	"log"
+	log "github.com/yourusername/wemake/internal/logger"
 	"strings"
 
 	"github.com/jmoiron/sqlx"

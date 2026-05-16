@@ -3,7 +3,7 @@ package service
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	log "github.com/yourusername/wemake/internal/logger"
 	"sort"
 	"strconv"
 	"strings"

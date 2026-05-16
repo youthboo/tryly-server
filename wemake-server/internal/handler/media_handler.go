@@ -3,7 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
-	"log"
+	log "github.com/yourusername/wemake/internal/logger"
 	"os"
 	"path/filepath"
 	"strings"

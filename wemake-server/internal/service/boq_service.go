@@ -12,6 +12,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/repository"
 )
 
@@ -69,7 +70,7 @@ func NewBOQService(
 }
 
 func roundMoney(v float64) float64 {
-	return math.Round(v*100) / 100
+	return domainutil.RoundMoney(v)
 }
 
 func computeBOQTotals(items []domain.RFQItem, discountAmount float64, vatPercent float64) (float64, float64, float64) {

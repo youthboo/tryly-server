@@ -10,6 +10,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/repository"
 )
 
@@ -208,12 +209,9 @@ func mapConversation(row *domain.ConversationRow) domain.ConversationResponse {
 }
 
 func derefString(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
+	return domainutil.StringValue(value)
 }
 
 func derefBool(value *bool) bool {
-	return value != nil && *value
+	return domainutil.BoolValue(value)
 }

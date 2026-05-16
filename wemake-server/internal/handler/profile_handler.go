@@ -2,7 +2,7 @@ package handler
 
 import (
 	"context"
-	"log"
+	log "github.com/yourusername/wemake/internal/logger"
 	"os"
 	"path/filepath"
 	"strconv"

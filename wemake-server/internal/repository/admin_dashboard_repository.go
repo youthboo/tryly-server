@@ -2,7 +2,7 @@ package repository
 
 import (
 	"fmt"
-	"log"
+	log "github.com/yourusername/wemake/internal/logger"
 	"time"
 
 	"github.com/jmoiron/sqlx"

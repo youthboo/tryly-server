@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	log "github.com/yourusername/wemake/internal/logger"
 	"sort"
 	"strconv"
 	"strings"

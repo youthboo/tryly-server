@@ -2,7 +2,7 @@ package handler
 
 import (
 	"fmt"
-	"log"
+	log "github.com/yourusername/wemake/internal/logger"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/repository"
