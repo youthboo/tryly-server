@@ -8,16 +8,16 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
+	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 )
 
 type AdminConfigHandler struct {
-	commission *repository.CommissionRepository
+	commission *walletrepo.CommissionRepository
 	audit      *adminrepo.AdminAuditRepository
 }
 
-func NewAdminConfigHandler(commission *repository.CommissionRepository, audit *adminrepo.AdminAuditRepository) *AdminConfigHandler {
+func NewAdminConfigHandler(commission *walletrepo.CommissionRepository, audit *adminrepo.AdminAuditRepository) *AdminConfigHandler {
 	return &AdminConfigHandler{commission: commission, audit: audit}
 }
 

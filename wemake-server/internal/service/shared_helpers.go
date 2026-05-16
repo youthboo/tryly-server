@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/yourusername/wemake/internal/domainutil"
@@ -20,4 +21,11 @@ func percentOf(amount, total float64) float64 {
 		return 0
 	}
 	return roundCurrency((amount / total) * 100)
+}
+
+func derefString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
 }

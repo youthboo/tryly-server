@@ -13,8 +13,8 @@ import (
 	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
 	quotationrepo "github.com/yourusername/wemake/internal/repository/quotation"
 	rfqrepo "github.com/yourusername/wemake/internal/repository/rfq"
-	coreservice "github.com/yourusername/wemake/internal/service"
 	orderservice "github.com/yourusername/wemake/internal/service/order"
+	walletservice "github.com/yourusername/wemake/internal/service/wallet"
 )
 
 var (
@@ -34,14 +34,14 @@ type QuotationService struct {
 	repo          *quotationrepo.QuotationRepository
 	rfqRepo       *rfqrepo.RFQRepository
 	items         *quotationrepo.QuotationItemRepository
-	commission    *coreservice.CommissionService
+	commission    *walletservice.CommissionService
 	orders        *orderservice.OrderService
 	factories     *factoryrepo.FactoryRepository
 	notifications notificationCreator
 	messages      systemMessageSender
 }
 
-func NewQuotationService(db *sqlx.DB, repo *quotationrepo.QuotationRepository, rfqRepo *rfqrepo.RFQRepository, items *quotationrepo.QuotationItemRepository, commission *coreservice.CommissionService, orders *orderservice.OrderService, factories *factoryrepo.FactoryRepository, notifications notificationCreator, messages systemMessageSender) *QuotationService {
+func NewQuotationService(db *sqlx.DB, repo *quotationrepo.QuotationRepository, rfqRepo *rfqrepo.RFQRepository, items *quotationrepo.QuotationItemRepository, commission *walletservice.CommissionService, orders *orderservice.OrderService, factories *factoryrepo.FactoryRepository, notifications notificationCreator, messages systemMessageSender) *QuotationService {
 	return &QuotationService{db: db, repo: repo, rfqRepo: rfqRepo, items: items, commission: commission, orders: orders, factories: factories, notifications: notifications, messages: messages}
 }
 
@@ -92,7 +92,7 @@ func (s *QuotationService) Create(item *domain.Quotation) error {
 		}
 	}
 	if s.commission != nil {
-		breakdown, err := s.commission.Calculate(coreservice.CommissionInput{
+		breakdown, err := s.commission.Calculate(walletservice.CommissionInput{
 			Items: []domain.QuotationItem{{
 				Description: "สินค้า",
 				Qty:         rfqQty,
@@ -283,7 +283,7 @@ func (s *QuotationService) PatchBody(
 		}
 	}
 	if s.commission != nil {
-		breakdown, calcErr := s.commission.Calculate(coreservice.CommissionInput{
+		breakdown, calcErr := s.commission.Calculate(walletservice.CommissionInput{
 			Items: []domain.QuotationItem{{
 				Description: "สินค้า",
 				Qty:         rfqQty,
@@ -344,11 +344,11 @@ func (s *QuotationService) UpdateImageURLs(quoteID int64, imageURLs domain.Strin
 	return s.repo.UpdateImageURLs(quoteID, imageURLs)
 }
 
-func (s *QuotationService) Preview(items []domain.QuotationItem, discountAmount, shippingCost, packagingCost, toolingCost float64, factoryID *int64) (*coreservice.Breakdown, error) {
+func (s *QuotationService) Preview(items []domain.QuotationItem, discountAmount, shippingCost, packagingCost, toolingCost float64, factoryID *int64) (*walletservice.Breakdown, error) {
 	if err := validateQuotationItems(items); err != nil {
 		return nil, err
 	}
-	return s.commission.Calculate(coreservice.CommissionInput{
+	return s.commission.Calculate(walletservice.CommissionInput{
 		Items:          items,
 		DiscountAmount: discountAmount,
 		ShippingCost:   shippingCost,
@@ -401,7 +401,7 @@ func (s *QuotationService) CreateDetailed(item *domain.Quotation) error {
 	if err := validateQuotationTerms(item.Incoterms, item.PaymentTerms, item.ValidityDays); err != nil {
 		return err
 	}
-	breakdown, err := s.commission.Calculate(coreservice.CommissionInput{
+	breakdown, err := s.commission.Calculate(walletservice.CommissionInput{
 		Items:          item.Items,
 		DiscountAmount: item.DiscountAmount,
 		ShippingCost:   item.ShippingCost,

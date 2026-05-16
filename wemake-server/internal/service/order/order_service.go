@@ -12,6 +12,7 @@ import (
 	paymentrepo "github.com/yourusername/wemake/internal/repository/payment"
 	quotationrepo "github.com/yourusername/wemake/internal/repository/quotation"
 	rfqrepo "github.com/yourusername/wemake/internal/repository/rfq"
+	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 )
 
 var (
@@ -46,8 +47,8 @@ type OrderService struct {
 	db            *sqlx.DB
 	repo          *orderrepo.OrderRepository
 	schedules     *paymentrepo.PaymentScheduleRepository
-	wallets       *repository.WalletRepository
-	txLedger      *repository.TransactionRepository
+	wallets       *walletrepo.WalletRepository
+	txLedger      *walletrepo.TransactionRepository
 	quotations    *quotationrepo.QuotationRepository
 	rfqs          *rfqrepo.RFQRepository
 	reviews       *repository.ReviewRepository
@@ -55,7 +56,7 @@ type OrderService struct {
 	messages      systemMessageSender
 }
 
-func NewOrderService(db *sqlx.DB, repo *orderrepo.OrderRepository, schedules *paymentrepo.PaymentScheduleRepository, wallets *repository.WalletRepository, txLedger *repository.TransactionRepository, quotations *quotationrepo.QuotationRepository, rfqs *rfqrepo.RFQRepository, reviews *repository.ReviewRepository, notifications notificationCreator, messages systemMessageSender) *OrderService {
+func NewOrderService(db *sqlx.DB, repo *orderrepo.OrderRepository, schedules *paymentrepo.PaymentScheduleRepository, wallets *walletrepo.WalletRepository, txLedger *walletrepo.TransactionRepository, quotations *quotationrepo.QuotationRepository, rfqs *rfqrepo.RFQRepository, reviews *repository.ReviewRepository, notifications notificationCreator, messages systemMessageSender) *OrderService {
 	return &OrderService{db: db, repo: repo, schedules: schedules, wallets: wallets, txLedger: txLedger, quotations: quotations, rfqs: rfqs, reviews: reviews, notifications: notifications, messages: messages}
 }
 

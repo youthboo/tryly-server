@@ -8,22 +8,22 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
+	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 	orderservice "github.com/yourusername/wemake/internal/service/order"
 )
 
 type AdminOrderHandler struct {
 	repo            *adminrepo.AdminOrderRepository
 	service         *orderservice.OrderService
-	withdrawal      *repository.WithdrawalRepository
+	withdrawal      *walletrepo.WithdrawalRepository
 	adminWithdrawal *adminrepo.AdminWithdrawalRepository
-	dispute         *repository.DisputeRepository
+	dispute         *walletrepo.DisputeRepository
 	adminDispute    *adminrepo.AdminDisputeRepository
 	audit           *adminrepo.AdminAuditRepository
 }
 
-func NewAdminOrderHandler(repo *adminrepo.AdminOrderRepository, service *orderservice.OrderService, withdrawal *repository.WithdrawalRepository, adminWithdrawal *adminrepo.AdminWithdrawalRepository, dispute *repository.DisputeRepository, adminDispute *adminrepo.AdminDisputeRepository, audit *adminrepo.AdminAuditRepository) *AdminOrderHandler {
+func NewAdminOrderHandler(repo *adminrepo.AdminOrderRepository, service *orderservice.OrderService, withdrawal *walletrepo.WithdrawalRepository, adminWithdrawal *adminrepo.AdminWithdrawalRepository, dispute *walletrepo.DisputeRepository, adminDispute *adminrepo.AdminDisputeRepository, audit *adminrepo.AdminAuditRepository) *AdminOrderHandler {
 	return &AdminOrderHandler{repo: repo, service: service, withdrawal: withdrawal, adminWithdrawal: adminWithdrawal, dispute: dispute, adminDispute: adminDispute, audit: audit}
 }
 

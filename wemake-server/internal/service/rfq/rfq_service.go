@@ -9,7 +9,7 @@ import (
 	"github.com/yourusername/wemake/internal/domain"
 	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
 	rfqrepo "github.com/yourusername/wemake/internal/repository/rfq"
-	coreservice "github.com/yourusername/wemake/internal/service"
+	notificationservice "github.com/yourusername/wemake/internal/service/notification"
 )
 
 const maxRFQImages = 5
@@ -32,10 +32,10 @@ var (
 type RFQService struct {
 	repo          *rfqrepo.RFQRepository
 	factoryRepo   *factoryrepo.FactoryRepository
-	notifications *coreservice.NotificationService
+	notifications *notificationservice.NotificationService
 }
 
-func NewRFQService(repo *rfqrepo.RFQRepository, factoryRepo *factoryrepo.FactoryRepository, notifications *coreservice.NotificationService) *RFQService {
+func NewRFQService(repo *rfqrepo.RFQRepository, factoryRepo *factoryrepo.FactoryRepository, notifications *notificationservice.NotificationService) *RFQService {
 	return &RFQService{repo: repo, factoryRepo: factoryRepo, notifications: notifications}
 }
 

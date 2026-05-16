@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
+	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 )
 
 type ConfirmReceiptInput struct {
@@ -63,7 +63,7 @@ func (s *OrderService) CreatePayment(orderID, userID int64, role, paymentType st
 		return nil, ErrPaymentAmountMismatch
 	}
 
-	existing, err := s.txLedger.List(repository.TransactionFilters{
+	existing, err := s.txLedger.List(walletrepo.TransactionFilters{
 		OrderID: &orderID,
 		Type:    &paymentType,
 	})

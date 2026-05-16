@@ -8,8 +8,8 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
-	"github.com/yourusername/wemake/internal/repository"
 	orderrepo "github.com/yourusername/wemake/internal/repository/order"
+	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 )
 
 func expectedPaymentAmount(order *domain.Order, paymentType string) (float64, error) {
@@ -26,7 +26,7 @@ func expectedPaymentAmount(order *domain.Order, paymentType string) (float64, er
 func (s *OrderService) depositPaidAt(orderID int64) *time.Time {
 	txType := "DP"
 	status := "PT"
-	items, err := s.txLedger.List(repository.TransactionFilters{OrderID: &orderID, Type: &txType, Status: &status})
+	items, err := s.txLedger.List(walletrepo.TransactionFilters{OrderID: &orderID, Type: &txType, Status: &status})
 	if err != nil || len(items) == 0 {
 		return nil
 	}
@@ -37,7 +37,7 @@ func (s *OrderService) depositPaidAt(orderID int64) *time.Time {
 func (s *OrderService) finalPaymentPaidAt(orderID int64) *time.Time {
 	txType := "FP"
 	status := "PT"
-	items, err := s.txLedger.List(repository.TransactionFilters{OrderID: &orderID, Type: &txType, Status: &status})
+	items, err := s.txLedger.List(walletrepo.TransactionFilters{OrderID: &orderID, Type: &txType, Status: &status})
 	if err != nil || len(items) == 0 {
 		return nil
 	}

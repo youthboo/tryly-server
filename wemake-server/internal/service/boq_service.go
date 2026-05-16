@@ -13,10 +13,13 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
-	"github.com/yourusername/wemake/internal/repository"
+	conversationrepo "github.com/yourusername/wemake/internal/repository/conversation"
 	quotationrepo "github.com/yourusername/wemake/internal/repository/quotation"
 	rfqrepo "github.com/yourusername/wemake/internal/repository/rfq"
+	messageservice "github.com/yourusername/wemake/internal/service/message"
+	notificationservice "github.com/yourusername/wemake/internal/service/notification"
 	orderservice "github.com/yourusername/wemake/internal/service/order"
+	walletservice "github.com/yourusername/wemake/internal/service/wallet"
 )
 
 var (
@@ -42,28 +45,28 @@ type BOQInput struct {
 
 type BOQService struct {
 	db             *sqlx.DB
-	conversations  *repository.ConversationRepository
+	conversations  *conversationrepo.ConversationRepository
 	rfqs           *rfqrepo.RFQRepository
 	rfqItems       *rfqrepo.RFQItemRepository
 	quotations     *quotationrepo.QuotationRepository
 	quotationItems *quotationrepo.QuotationItemRepository
 	orders         *orderservice.OrderService
-	messages       *MessageService
-	notifications  *NotificationService
-	commissions    *CommissionService
+	messages       *messageservice.MessageService
+	notifications  *notificationservice.NotificationService
+	commissions    *walletservice.CommissionService
 }
 
 func NewBOQService(
 	db *sqlx.DB,
-	conversations *repository.ConversationRepository,
+	conversations *conversationrepo.ConversationRepository,
 	rfqs *rfqrepo.RFQRepository,
 	rfqItems *rfqrepo.RFQItemRepository,
 	quotations *quotationrepo.QuotationRepository,
 	quotationItems *quotationrepo.QuotationItemRepository,
 	orders *orderservice.OrderService,
-	messages *MessageService,
-	notifications *NotificationService,
-	commissions *CommissionService,
+	messages *messageservice.MessageService,
+	notifications *notificationservice.NotificationService,
+	commissions *walletservice.CommissionService,
 ) *BOQService {
 	return &BOQService{
 		db: db, conversations: conversations, rfqs: rfqs, rfqItems: rfqItems,
@@ -861,7 +864,7 @@ func (s *BOQService) resolveBOQCommission(factoryID int64, items []domain.RFQIte
 			Note:        item.Note,
 		})
 	}
-	breakdown, err := s.commissions.Calculate(CommissionInput{
+	breakdown, err := s.commissions.Calculate(walletservice.CommissionInput{
 		Items:          qItems,
 		DiscountAmount: discountAmount,
 		FactoryID:      &factoryID,
