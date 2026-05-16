@@ -300,8 +300,8 @@ func notifyMatchingFactories(db *sqlx.DB, rfqID, categoryID int64, subCategoryID
 		  AND NOT EXISTS (
 			SELECT 1 FROM notifications n
 			WHERE n.user_id = mfc.factory_id
-			  AND n.reference_type = 'RFQ'
-			  AND n.reference_id = $3
+			  AND n.type = 'RFQ'
+			  AND n.link_to = '/factory/rfqs/' || $3::text
 		  )
 	`, categoryID, subCatArg, rfqID)
 	if err != nil {
@@ -317,8 +317,8 @@ func notifyMatchingFactories(db *sqlx.DB, rfqID, categoryID int64, subCategoryID
 
 	for _, f := range factories {
 		_, err := db.Exec(`
-			INSERT INTO notifications (user_id, title, body, reference_type, reference_id, is_read)
-			VALUES ($1, $2, $3, 'RFQ', $4, FALSE)
+			INSERT INTO notifications (user_id, type, title, message, link_to, is_read)
+			VALUES ($1, 'RFQ', $2, $3, '/factory/rfqs/' || $4::text, FALSE)
 		`, f.UserID, title, body, rfqID)
 		if err != nil {
 			log.Printf("[jobs/matching] insert notification error (factory %d, rfq %d): %v", f.UserID, rfqID, err)

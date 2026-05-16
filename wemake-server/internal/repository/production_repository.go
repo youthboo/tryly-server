@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -17,16 +16,16 @@ type ProductionRepository struct {
 }
 
 type ProductionOrderContext struct {
-	OrderID          int64      `db:"order_id"`
-	UserID           int64      `db:"user_id"`
-	FactoryID        int64      `db:"factory_id"`
-	FactoryTypeID    *int64     `db:"factory_type_id"`
-	OrderStatus      string     `db:"status"`
-	DepositAmount    float64    `db:"deposit_amount"`
-	TotalAmount      float64    `db:"total_amount"`
-	CreatedAt        time.Time  `db:"created_at"`
+	OrderID       int64     `db:"order_id"`
+	UserID        int64     `db:"user_id"`
+	FactoryID     int64     `db:"factory_id"`
+	FactoryTypeID *int64    `db:"factory_type_id"`
+	OrderStatus   string    `db:"status"`
+	DepositAmount float64   `db:"deposit_amount"`
+	TotalAmount   float64   `db:"total_amount"`
+	CreatedAt     time.Time `db:"created_at"`
 	// DepositDueDate คือ due_date จาก payment_schedules installment_no=1 (nil ถ้าไม่มี)
-	DepositDueDate   *time.Time `db:"deposit_due_date"`
+	DepositDueDate *time.Time `db:"deposit_due_date"`
 }
 
 type ProductionUpdateContext struct {
@@ -55,39 +54,27 @@ func (r *ProductionRepository) ListActiveSteps() ([]domain.ProductionStepTemplat
 	return r.ListActiveStepsByFactoryType(nil)
 }
 
-func (r *ProductionRepository) ListActiveStepsByFactoryType(factoryTypeID *int64) ([]domain.ProductionStepTemplate, error) {
+func (r *ProductionRepository) ListActiveStepsByFactoryType(_ *int64) ([]domain.ProductionStepTemplate, error) {
 	var items []domain.ProductionStepTemplate
 	baseQuery := `
 		SELECT
 			step_id,
-			COALESCE(step_code, '') AS step_code,
+			'' AS step_code,
 			COALESCE(step_name_th, '') AS step_name_th,
-			COALESCE(step_name_en, '') AS step_name_en,
-			COALESCE(sort_order, sequence) AS sort_order,
-			COALESCE(requires_evidence, TRUE) AS requires_evidence,
-			COALESCE(min_photos, 1) AS min_photos,
-			COALESCE(is_payment_trigger, FALSE) AS is_payment_trigger,
-			COALESCE(icon_name, '') AS icon_name,
+			COALESCE(step_name, '') AS step_name_en,
+			COALESCE(sort_order, step_id)::bigint AS sort_order,
+			TRUE AS requires_evidence,
+			1::bigint AS min_photos,
+			FALSE AS is_payment_trigger,
+			'' AS icon_name,
 			COALESCE(description, '') AS description,
-			(COALESCE(is_active, FALSE) OR status::text = '1') AS is_active
+			TRUE AS is_active
 		FROM lbi_production
-		WHERE (COALESCE(is_active, FALSE) = TRUE OR status::text = '1')
-	ORDER BY COALESCE(sort_order, sequence), step_id
+		ORDER BY COALESCE(sort_order, step_id), step_id
 	`
-	query := baseQuery
-	args := []interface{}{}
-	if factoryTypeID != nil && *factoryTypeID > 0 {
-		query = strings.Replace(baseQuery, "WHERE (COALESCE(is_active, FALSE) = TRUE OR status::text = '1')", "WHERE (COALESCE(is_active, FALSE) = TRUE OR status::text = '1') AND (factory_type_id = $1 OR factory_type_id IS NULL)", 1)
-		args = append(args, *factoryTypeID)
-	}
-	err := r.db.Select(&items, query, args...)
+	err := r.db.Select(&items, baseQuery)
 	if err != nil {
 		return nil, err
-	}
-	if len(items) == 0 && factoryTypeID != nil && *factoryTypeID > 0 {
-		if err := r.db.Select(&items, baseQuery); err != nil {
-			return nil, err
-		}
 	}
 	return items, nil
 }
@@ -96,39 +83,27 @@ func (r *ProductionRepository) ListActiveStepsTx(tx *sqlx.Tx) ([]domain.Producti
 	return r.ListActiveStepsByFactoryTypeTx(tx, nil)
 }
 
-func (r *ProductionRepository) ListActiveStepsByFactoryTypeTx(tx *sqlx.Tx, factoryTypeID *int64) ([]domain.ProductionStepTemplate, error) {
+func (r *ProductionRepository) ListActiveStepsByFactoryTypeTx(tx *sqlx.Tx, _ *int64) ([]domain.ProductionStepTemplate, error) {
 	var items []domain.ProductionStepTemplate
 	baseQuery := `
 		SELECT
 			step_id,
-			COALESCE(step_code, '') AS step_code,
+			'' AS step_code,
 			COALESCE(step_name_th, '') AS step_name_th,
-			COALESCE(step_name_en, '') AS step_name_en,
-			COALESCE(sort_order, sequence) AS sort_order,
-			COALESCE(requires_evidence, TRUE) AS requires_evidence,
-			COALESCE(min_photos, 1) AS min_photos,
-			COALESCE(is_payment_trigger, FALSE) AS is_payment_trigger,
-			COALESCE(icon_name, '') AS icon_name,
+			COALESCE(step_name, '') AS step_name_en,
+			COALESCE(sort_order, step_id)::bigint AS sort_order,
+			TRUE AS requires_evidence,
+			1::bigint AS min_photos,
+			FALSE AS is_payment_trigger,
+			'' AS icon_name,
 			COALESCE(description, '') AS description,
-			(COALESCE(is_active, FALSE) OR status::text = '1') AS is_active
+			TRUE AS is_active
 		FROM lbi_production
-		WHERE (COALESCE(is_active, FALSE) = TRUE OR status::text = '1')
-		ORDER BY COALESCE(sort_order, sequence), step_id
+			ORDER BY COALESCE(sort_order, step_id), step_id
 	`
-	query := baseQuery
-	args := []interface{}{}
-	if factoryTypeID != nil && *factoryTypeID > 0 {
-		query = strings.Replace(baseQuery, "WHERE (COALESCE(is_active, FALSE) = TRUE OR status::text = '1')", "WHERE (COALESCE(is_active, FALSE) = TRUE OR status::text = '1') AND (factory_type_id = $1 OR factory_type_id IS NULL)", 1)
-		args = append(args, *factoryTypeID)
-	}
-	err := tx.Select(&items, query, args...)
+	err := tx.Select(&items, baseQuery)
 	if err != nil {
 		return nil, err
-	}
-	if len(items) == 0 && factoryTypeID != nil && *factoryTypeID > 0 {
-		if err := tx.Select(&items, baseQuery); err != nil {
-			return nil, err
-		}
 	}
 	return items, nil
 }
@@ -177,10 +152,10 @@ func (r *ProductionRepository) ListByOrderID(orderID int64) ([]domain.Production
 			pu.update_id,
 			pu.order_id,
 			pu.step_id,
-			COALESCE(lp.step_code, '') AS step_code,
+			'' AS step_code,
 			COALESCE(lp.step_name_th, '') AS step_name_th,
-			COALESCE(lp.step_name_en, '') AS step_name_en,
-			COALESCE(lp.sort_order, lp.sequence) AS sort_order,
+			COALESCE(lp.step_name, '') AS step_name_en,
+			COALESCE(lp.sort_order, lp.step_id)::bigint AS sort_order,
 			pu.status,
 			COALESCE(pu.description, '') AS description,
 			COALESCE(pu.image_urls::text, '[]') AS image_urls,
@@ -192,7 +167,7 @@ func (r *ProductionRepository) ListByOrderID(orderID int64) ([]domain.Production
 		FROM production_updates pu
 		INNER JOIN lbi_production lp ON lp.step_id = pu.step_id
 		WHERE pu.order_id = $1
-		ORDER BY COALESCE(lp.sort_order, lp.sequence), pu.update_id
+		ORDER BY COALESCE(lp.sort_order, lp.step_id), pu.update_id
 	`
 	err := r.db.Select(&items, query, orderID)
 	return items, err
@@ -205,10 +180,10 @@ func (r *ProductionRepository) ListByOrderIDTx(tx *sqlx.Tx, orderID int64) ([]do
 			pu.update_id,
 			pu.order_id,
 			pu.step_id,
-			COALESCE(lp.step_code, '') AS step_code,
+			'' AS step_code,
 			COALESCE(lp.step_name_th, '') AS step_name_th,
-			COALESCE(lp.step_name_en, '') AS step_name_en,
-			COALESCE(lp.sort_order, lp.sequence) AS sort_order,
+			COALESCE(lp.step_name, '') AS step_name_en,
+			COALESCE(lp.sort_order, lp.step_id)::bigint AS sort_order,
 			pu.status,
 			COALESCE(pu.description, '') AS description,
 			COALESCE(pu.image_urls::text, '[]') AS image_urls,
@@ -220,7 +195,7 @@ func (r *ProductionRepository) ListByOrderIDTx(tx *sqlx.Tx, orderID int64) ([]do
 		FROM production_updates pu
 		INNER JOIN lbi_production lp ON lp.step_id = pu.step_id
 		WHERE pu.order_id = $1
-		ORDER BY COALESCE(lp.sort_order, lp.sequence), pu.update_id
+		ORDER BY COALESCE(lp.sort_order, lp.step_id), pu.update_id
 	`
 	err := tx.Select(&items, query, orderID)
 	return items, err
@@ -233,10 +208,10 @@ func (r *ProductionRepository) GetUpdateByID(updateID int64) (*ProductionUpdateC
 			pu.update_id,
 			pu.order_id,
 			pu.step_id,
-			COALESCE(lp.step_code, '') AS step_code,
+			'' AS step_code,
 			COALESCE(lp.step_name_th, '') AS step_name_th,
-			COALESCE(lp.step_name_en, '') AS step_name_en,
-			COALESCE(lp.sort_order, lp.sequence) AS sort_order,
+			COALESCE(lp.step_name, '') AS step_name_en,
+			COALESCE(lp.sort_order, lp.step_id)::bigint AS sort_order,
 			pu.status,
 			COALESCE(pu.description, '') AS description,
 			COALESCE(pu.image_urls::text, '[]') AS image_urls,
@@ -266,10 +241,10 @@ func (r *ProductionRepository) GetUpdateByIDForUpdateTx(tx *sqlx.Tx, updateID in
 			pu.update_id,
 			pu.order_id,
 			pu.step_id,
-			COALESCE(lp.step_code, '') AS step_code,
+			'' AS step_code,
 			COALESCE(lp.step_name_th, '') AS step_name_th,
-			COALESCE(lp.step_name_en, '') AS step_name_en,
-			COALESCE(lp.sort_order, lp.sequence) AS sort_order,
+			COALESCE(lp.step_name, '') AS step_name_en,
+			COALESCE(lp.sort_order, lp.step_id)::bigint AS sort_order,
 			pu.status,
 			COALESCE(pu.description, '') AS description,
 			COALESCE(pu.image_urls::text, '[]') AS image_urls,

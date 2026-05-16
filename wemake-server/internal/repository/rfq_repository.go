@@ -34,27 +34,49 @@ type rfqQueryRowExecutor interface {
 	QueryRow(query string, args ...interface{}) *sql.Row
 }
 
+const rfqSelectColumns = `
+		rfq_id, user_id, COALESCE(category_id, 0) AS category_id, sub_category_id, title, quantity, details,
+		0::bigint AS address_id, shipping_method_id, status, COALESCE(request_kind, 'PR') AS request_kind,
+		NULL::timestamp AS uploaded_at, created_at, updated_at,
+		material_grade, target_price, target_lead_time_days, NULL::date AS required_delivery_date, delivery_address_id,
+		certifications_required, FALSE AS sample_required, NULL::integer AS sample_qty, NULL::text AS inspection_type,
+		NULL::bigint AS conversation_id, reference_images, 'RFQ'::text AS rfq_type, 'buyer'::text AS initiated_by,
+		NULL::bigint AS factory_user_id, NULL::bigint AS source_showcase_id, NULL::bigint AS source_conv_id,
+		NULL::text AS boq_currency, NULL::numeric AS boq_subtotal, NULL::numeric AS boq_discount_amount,
+		NULL::numeric AS boq_vat_percent, NULL::numeric AS boq_vat_amount, NULL::numeric AS boq_grand_total,
+		NULL::integer AS boq_moq, NULL::integer AS boq_lead_time_days, NULL::text AS boq_payment_terms,
+		NULL::integer AS boq_validity_days, NULL::text AS boq_note, NULL::timestamptz AS boq_sent_at,
+		NULL::timestamptz AS boq_responded_at, NULL::text AS boq_response, NULL::text AS boq_decline_reason
+`
+
+const rfqSelectColumnsR = `
+		r.rfq_id, r.user_id, COALESCE(r.category_id, 0) AS category_id, r.sub_category_id, r.title, r.quantity, r.details,
+		0::bigint AS address_id, r.shipping_method_id, r.status, COALESCE(r.request_kind, 'PR') AS request_kind,
+		NULL::timestamp AS uploaded_at, r.created_at, r.updated_at,
+		r.material_grade, r.target_price, r.target_lead_time_days, NULL::date AS required_delivery_date, r.delivery_address_id,
+		r.certifications_required, FALSE AS sample_required, NULL::integer AS sample_qty, NULL::text AS inspection_type,
+		NULL::bigint AS conversation_id, r.reference_images, 'RFQ'::text AS rfq_type, 'buyer'::text AS initiated_by,
+		NULL::bigint AS factory_user_id, NULL::bigint AS source_showcase_id, NULL::bigint AS source_conv_id,
+		NULL::text AS boq_currency, NULL::numeric AS boq_subtotal, NULL::numeric AS boq_discount_amount,
+		NULL::numeric AS boq_vat_percent, NULL::numeric AS boq_vat_amount, NULL::numeric AS boq_grand_total,
+		NULL::integer AS boq_moq, NULL::integer AS boq_lead_time_days, NULL::text AS boq_payment_terms,
+		NULL::integer AS boq_validity_days, NULL::text AS boq_note, NULL::timestamptz AS boq_sent_at,
+		NULL::timestamptz AS boq_responded_at, NULL::text AS boq_response, NULL::text AS boq_decline_reason
+`
+
 func (r *RFQRepository) createWithExecutor(exec rfqQueryRowExecutor, rfq *domain.RFQ) error {
 	query := `
 		INSERT INTO rfqs (
 			user_id, category_id, sub_category_id, title, quantity, details,
-			address_id, shipping_method_id, status, request_kind, uploaded_at, created_at, updated_at,
-			material_grade, target_price, target_lead_time_days, required_delivery_date, delivery_address_id,
-			certifications_required, sample_required, sample_qty, inspection_type, conversation_id,
-			reference_images, rfq_type, initiated_by, factory_user_id, source_showcase_id, source_conv_id,
-			boq_currency, boq_subtotal, boq_discount_amount, boq_vat_percent, boq_vat_amount, boq_grand_total,
-			boq_moq, boq_lead_time_days, boq_payment_terms, boq_validity_days, boq_note,
-			boq_sent_at, boq_responded_at, boq_response, boq_decline_reason
+			shipping_method_id, status, request_kind, created_at, updated_at,
+			material_grade, target_price, target_lead_time_days, delivery_address_id,
+			certifications_required, reference_images
 		)
 		VALUES (
 			$1, $2, $3, $4, $5, $6,
-			$7, $8, $9, $10, $11, $12, $13,
-			$14, $15, $16, $17, $18,
-			$19, $20, $21, $22, $23,
-			$24, $25, $26, $27, $28, $29,
-			$30, $31, $32, $33, $34, $35,
-			$36, $37, $38, $39, $40,
-			$41, $42, $43, $44
+			$7, $8, $9, $10, $11,
+			$12, $13, $14, $15,
+			$16, $17
 		)
 		RETURNING rfq_id
 	`
@@ -66,59 +88,24 @@ func (r *RFQRepository) createWithExecutor(exec rfqQueryRowExecutor, rfq *domain
 		rfq.Title,
 		rfq.Quantity,
 		rfq.Details,
-		nullableZeroInt64(rfq.AddressID),
 		nullableInt64Value(rfq.ShippingMethodID),
 		rfq.Status,
 		nullableRequestKind(rfq.RequestKind),
-		nullableTimeValue(rfq.UploadedAt),
 		rfq.CreatedAt,
 		rfq.UpdatedAt,
 		nullableStringPtr(rfq.MaterialGrade),
 		nullableFloat64(rfq.TargetPrice),
 		nullableIntValue(rfq.TargetLeadTimeDays),
-		nullableTimeValue(rfq.RequiredDeliveryDate),
 		nullableInt64Value(rfq.DeliveryAddressID),
 		rfq.CertificationsRequired,
-		rfq.SampleRequired,
-		nullableIntValue(rfq.SampleQty),
-		nullableStringPtr(rfq.InspectionType),
-		nullableInt64Value(rfq.ConversationID),
 		rfq.ReferenceImages,
-		nullableRFQType(rfq.RFQType),
-		nullableInitiatedBy(rfq.InitiatedBy),
-		nullableInt64Value(rfq.FactoryUserID),
-		nullableInt64Value(rfq.SourceShowcaseID),
-		nullableInt64Value(rfq.SourceConvID),
-		nullableStringPtr(rfq.BOQCurrency),
-		nullableFloat64(rfq.BOQSubtotal),
-		nullableFloat64(rfq.BOQDiscountAmount),
-		nullableFloat64(rfq.BOQVatPercent),
-		nullableFloat64(rfq.BOQVatAmount),
-		nullableFloat64(rfq.BOQGrandTotal),
-		nullableIntValue(rfq.BOQMOQ),
-		nullableIntValue(rfq.BOQLeadTimeDays),
-		nullableStringPtr(rfq.BOQPaymentTerms),
-		nullableIntValue(rfq.BOQValidityDays),
-		nullableStringPtr(rfq.BOQNote),
-		nullableTimeValue(rfq.BOQSentAt),
-		nullableTimeValue(rfq.BOQRespondedAt),
-		nullableStringPtr(rfq.BOQResponse),
-		nullableStringPtr(rfq.BOQDeclineReason),
 	).Scan(&rfq.RFQID)
 }
 
 func (r *RFQRepository) ListByUserID(userID int64, status string) ([]domain.RFQ, error) {
 	var rfqs []domain.RFQ
 	query := `
-		SELECT rfq_id, user_id, COALESCE(category_id, 0) AS category_id, sub_category_id, title, quantity, details, COALESCE(address_id, 0) AS address_id,
-		       shipping_method_id, status, COALESCE(request_kind, 'PR') AS request_kind, uploaded_at, created_at, updated_at,
-		       material_grade, target_price, target_lead_time_days, required_delivery_date, delivery_address_id,
-		       certifications_required, sample_required, sample_qty, inspection_type, conversation_id,
-		       reference_images, COALESCE(rfq_type, 'RFQ') AS rfq_type, COALESCE(initiated_by, 'buyer') AS initiated_by,
-		       factory_user_id, source_showcase_id, source_conv_id,
-		       boq_currency, boq_subtotal, boq_discount_amount, boq_vat_percent, boq_vat_amount, boq_grand_total,
-		       boq_moq, boq_lead_time_days, boq_payment_terms, boq_validity_days, boq_note,
-		       boq_sent_at, boq_responded_at, boq_response, boq_decline_reason
+		SELECT ` + rfqSelectColumns + `
 		FROM rfqs
 		WHERE user_id = $1
 	`
@@ -144,15 +131,7 @@ func (r *RFQRepository) ListByUserID(userID int64, status string) ([]domain.RFQ,
 func (r *RFQRepository) GetByID(userID, rfqID int64) (*domain.RFQ, error) {
 	var rfq domain.RFQ
 	query := `
-		SELECT rfq_id, user_id, COALESCE(category_id, 0) AS category_id, sub_category_id, title, quantity, details, COALESCE(address_id, 0) AS address_id,
-		       shipping_method_id, status, COALESCE(request_kind, 'PR') AS request_kind, uploaded_at, created_at, updated_at,
-		       material_grade, target_price, target_lead_time_days, required_delivery_date, delivery_address_id,
-		       certifications_required, sample_required, sample_qty, inspection_type, conversation_id,
-		       reference_images, COALESCE(rfq_type, 'RFQ') AS rfq_type, COALESCE(initiated_by, 'buyer') AS initiated_by,
-		       factory_user_id, source_showcase_id, source_conv_id,
-		       boq_currency, boq_subtotal, boq_discount_amount, boq_vat_percent, boq_vat_amount, boq_grand_total,
-		       boq_moq, boq_lead_time_days, boq_payment_terms, boq_validity_days, boq_note,
-		       boq_sent_at, boq_responded_at, boq_response, boq_decline_reason
+		SELECT ` + rfqSelectColumns + `
 		FROM rfqs
 		WHERE user_id = $1 AND rfq_id = $2
 	`
@@ -264,15 +243,7 @@ func (r *RFQRepository) CategoryScope(categoryID int64) (string, bool, error) {
 func (r *RFQRepository) GetByIDAny(rfqID int64) (*domain.RFQ, error) {
 	var rfq domain.RFQ
 	query := `
-		SELECT rfq_id, user_id, COALESCE(category_id, 0) AS category_id, sub_category_id, title, quantity, details, COALESCE(address_id, 0) AS address_id,
-		       shipping_method_id, status, COALESCE(request_kind, 'PR') AS request_kind, uploaded_at, created_at, updated_at,
-		       material_grade, target_price, target_lead_time_days, required_delivery_date, delivery_address_id,
-		       certifications_required, sample_required, sample_qty, inspection_type, conversation_id,
-		       reference_images, COALESCE(rfq_type, 'RFQ') AS rfq_type, COALESCE(initiated_by, 'buyer') AS initiated_by,
-		       factory_user_id, source_showcase_id, source_conv_id,
-		       boq_currency, boq_subtotal, boq_discount_amount, boq_vat_percent, boq_vat_amount, boq_grand_total,
-		       boq_moq, boq_lead_time_days, boq_payment_terms, boq_validity_days, boq_note,
-		       boq_sent_at, boq_responded_at, boq_response, boq_decline_reason
+		SELECT ` + rfqSelectColumns + `
 		FROM rfqs
 		WHERE rfq_id = $1
 	`
@@ -325,20 +296,10 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 	var rfqs []domain.RFQ
 	query := `
 		SELECT DISTINCT
-		       r.rfq_id, r.user_id, COALESCE(r.category_id, 0) AS category_id, r.sub_category_id,
-		       r.title, r.quantity, r.details, COALESCE(r.address_id, 0) AS address_id,
-		       r.shipping_method_id, r.status, COALESCE(r.request_kind, 'PR') AS request_kind,
+		       ` + rfqSelectColumnsR + `,
 		       (frd.factory_id IS NOT NULL) AS is_dismissed,
 		       frd.dismissed_at,
 		       (q.quote_id IS NULL OR q.status NOT IN ('PD','AC')) AS can_dismiss,
-		       r.uploaded_at, r.created_at, r.updated_at,
-		       r.material_grade, r.target_price, r.target_lead_time_days, r.required_delivery_date, r.delivery_address_id,
-		       r.certifications_required, r.sample_required, r.sample_qty, r.inspection_type, r.conversation_id,
-		       r.reference_images, COALESCE(r.rfq_type, 'RFQ') AS rfq_type, COALESCE(r.initiated_by, 'buyer') AS initiated_by,
-		       r.factory_user_id, r.source_showcase_id, r.source_conv_id,
-		       r.boq_currency, r.boq_subtotal, r.boq_discount_amount, r.boq_vat_percent, r.boq_vat_amount, r.boq_grand_total,
-		       r.boq_moq, r.boq_lead_time_days, r.boq_payment_terms, r.boq_validity_days, r.boq_note,
-		       r.boq_sent_at, r.boq_responded_at, r.boq_response, r.boq_decline_reason,
 		       -- quotation overlay for this factory
 		       q.status         AS my_quote_status,
 		       q.quote_id       AS my_quote_id,
@@ -632,18 +593,13 @@ func (r *RFQRepository) Patch(userID, rfqID int64, rfq *domain.RFQ) error {
 		    title = :title,
 		    quantity = :quantity,
 		    details = :details,
-		    address_id = :address_id,
 		    shipping_method_id = :shipping_method_id,
 		    request_kind = :request_kind,
 		    material_grade = :material_grade,
 		    target_price = :target_price,
 		    target_lead_time_days = :target_lead_time_days,
-		    required_delivery_date = :required_delivery_date,
 		    delivery_address_id = :delivery_address_id,
 		    certifications_required = :certifications_required,
-		    sample_required = :sample_required,
-		    sample_qty = :sample_qty,
-		    inspection_type = :inspection_type,
 		    reference_images = :reference_images,
 		    updated_at = NOW()
 		WHERE rfq_id = :rfq_id AND user_id = :user_id AND status = 'OP'
@@ -690,8 +646,8 @@ func splitRFQKinds(raw string) []string {
 func (r *RFQRepository) LinkConversationTx(tx *sqlx.Tx, rfqID, userID, convID int64) error {
 	_, err := tx.Exec(`
 		UPDATE rfqs
-		SET conversation_id = $3, updated_at = NOW()
+		SET updated_at = NOW()
 		WHERE rfq_id = $1 AND user_id = $2
-	`, rfqID, userID, convID)
+	`, rfqID, userID)
 	return err
 }

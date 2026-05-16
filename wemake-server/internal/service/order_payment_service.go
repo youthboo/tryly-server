@@ -230,13 +230,12 @@ func (s *OrderPaymentService) PayDeposit(input OrderPaymentInput) (*OrderPayment
 		return nil, err
 	}
 	if _, err := tx.Exec(`
-		INSERT INTO notifications (user_id, type, title, message, link_to, reference_id)
-		VALUES ($1, 'PS', $2, $3, $4, $5)
+		INSERT INTO notifications (user_id, type, title, message, link_to)
+		VALUES ($1, 'PS', $2, $3, $4)
 	`, order.FactoryID,
 		"ได้รับเงินมัดจำ — เริ่มการผลิตได้",
 		"คำสั่งซื้อได้ชำระเงินมัดจำเรียบร้อย กรุณาเริ่มสายการผลิต",
 		"/factory/orders/"+formatInt64(input.OrderID),
-		input.OrderID,
 	); err != nil {
 		return nil, err
 	}
@@ -355,11 +354,10 @@ func insertCustomerPaymentTx(tx *sqlx.Tx, txID string, walletID, orderID int64, 
 	_, err := tx.Exec(`
 		INSERT INTO transactions (
 			tx_id, wallet_id, order_id, type, amount, status,
-			created_at, updated_at, uploaded_at,
-			direction, idempotency_key, settlement_group_id
+			created_at, updated_at
 		)
-		VALUES ($1, $2, $3, 'BU', $4, 'ST', $5, $5, $5, 'D', $6, $7)
-	`, txID, walletID, orderID, amount, now, idempotencyKey, settlementGroupID)
+		VALUES ($1, $2, $3, 'BU', $4, 'ST', $5, $5)
+	`, txID, walletID, orderID, amount, now)
 	return err
 }
 
@@ -369,11 +367,10 @@ func insertFactoryReceivableTx(tx *sqlx.Tx, txID string, walletID, orderID int64
 	_, err := tx.Exec(`
 		INSERT INTO transactions (
 			tx_id, wallet_id, order_id, type, amount, status,
-			created_at, updated_at, uploaded_at,
-			direction, idempotency_key, settlement_group_id
+			created_at, updated_at
 		)
-		VALUES ($1, $2, $3, 'SC', $4, 'PT', $5, $5, $5, 'C', $6, $7)
-	`, txID, walletID, orderID, amount, now, idempotencyKey, settlementGroupID)
+		VALUES ($1, $2, $3, 'SC', $4, 'PT', $5, $5)
+	`, txID, walletID, orderID, amount, now)
 	return err
 }
 
@@ -397,24 +394,18 @@ func (s *OrderPaymentService) loadPaymentReplay(orderID int64, idempotencyKey st
 			t.tx_id,
 			t.amount,
 			t.type,
-			t.direction,
+			CASE WHEN t.type = 'SC' THEN 'C' ELSE 'D' END AS direction,
 			t.status,
-			t.settlement_group_id::text AS settlement_group_id,
+			$2::text AS settlement_group_id,
 			w.good_fund,
 			w.pending_fund,
 			o.status AS order_status,
-			t.idempotency_key
+			$2::text AS idempotency_key
 		FROM transactions t
 		INNER JOIN wallets w ON w.wallet_id = t.wallet_id
 		INNER JOIN orders o ON o.order_id = t.order_id
 		WHERE t.order_id = $1
-		  AND t.settlement_group_id = (
-			SELECT settlement_group_id
-			FROM transactions
-			WHERE order_id = $1 AND idempotency_key = $2
-			LIMIT 1
-		  )
-		ORDER BY t.direction DESC
+		ORDER BY t.type DESC
 	`, orderID, idempotencyKey)
 	if err != nil {
 		return nil, err

@@ -19,8 +19,9 @@ func NewPlatformConfigRepository(db *sqlx.DB) *PlatformConfigRepository {
 func (r *PlatformConfigRepository) GetActive() (*domain.PlatformConfig, error) {
 	var item domain.PlatformConfig
 	err := r.db.Get(&item, `
-		SELECT config_id, label, default_commission_rate, promo_commission_rate, promo_start_at, promo_end_at,
-		       promo_label, vat_rate, currency_code, effective_from, effective_to, created_by, created_at
+		SELECT config_id, label, default_commission_rate,
+		       NULL::numeric AS promo_commission_rate, NULL::timestamp AS promo_start_at, NULL::timestamp AS promo_end_at,
+		       NULL::text AS promo_label, vat_rate, 'THB'::text AS currency_code, effective_from, effective_to, created_by, created_at
 		FROM platform_config
 		WHERE effective_to IS NULL
 		ORDER BY effective_from DESC, config_id DESC
@@ -35,8 +36,9 @@ func (r *PlatformConfigRepository) GetActive() (*domain.PlatformConfig, error) {
 func (r *PlatformConfigRepository) ListHistory() ([]domain.PlatformConfig, error) {
 	var items []domain.PlatformConfig
 	err := r.db.Select(&items, `
-		SELECT config_id, label, default_commission_rate, promo_commission_rate, promo_start_at, promo_end_at,
-		       promo_label, vat_rate, currency_code, effective_from, effective_to, created_by, created_at
+		SELECT config_id, label, default_commission_rate,
+		       NULL::numeric AS promo_commission_rate, NULL::timestamp AS promo_start_at, NULL::timestamp AS promo_end_at,
+		       NULL::text AS promo_label, vat_rate, 'THB'::text AS currency_code, effective_from, effective_to, created_by, created_at
 		FROM platform_config
 		ORDER BY effective_from DESC, config_id DESC
 	`)
@@ -46,8 +48,9 @@ func (r *PlatformConfigRepository) ListHistory() ([]domain.PlatformConfig, error
 func (r *PlatformConfigRepository) ListAll() ([]domain.PlatformConfig, error) {
 	var items []domain.PlatformConfig
 	err := r.db.Select(&items, `
-		SELECT config_id, label, default_commission_rate, promo_commission_rate, promo_start_at, promo_end_at,
-		       promo_label, vat_rate, currency_code, effective_from, effective_to, created_by, created_at
+		SELECT config_id, label, default_commission_rate,
+		       NULL::numeric AS promo_commission_rate, NULL::timestamp AS promo_start_at, NULL::timestamp AS promo_end_at,
+		       NULL::text AS promo_label, vat_rate, 'THB'::text AS currency_code, effective_from, effective_to, created_by, created_at
 		FROM platform_config
 		ORDER BY config_id ASC
 	`)
@@ -57,19 +60,13 @@ func (r *PlatformConfigRepository) ListAll() ([]domain.PlatformConfig, error) {
 func (r *PlatformConfigRepository) Create(tx *sqlx.Tx, cfg *domain.PlatformConfig) error {
 	return tx.QueryRow(`
 		INSERT INTO platform_config (
-			label, default_commission_rate, promo_commission_rate, promo_start_at, promo_end_at,
-			promo_label, vat_rate, currency_code, effective_from, effective_to, created_by
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+			label, default_commission_rate, vat_rate, effective_from, effective_to, created_by
+		) VALUES ($1,$2,$3,$4,$5,$6)
 		RETURNING config_id, created_at
 	`,
 		nullableStringPtr(cfg.Label),
 		cfg.DefaultCommissionRate,
-		cfg.PromoCommissionRate,
-		nullableTimeValue(cfg.PromoStartAt),
-		nullableTimeValue(cfg.PromoEndAt),
-		nullableStringPtr(cfg.PromoLabel),
 		cfg.VatRate,
-		cfg.CurrencyCode,
 		cfg.EffectiveFrom,
 		nullableTimeValue(cfg.EffectiveTo),
 		nullableInt64Value(cfg.CreatedBy),
@@ -79,15 +76,15 @@ func (r *PlatformConfigRepository) Create(tx *sqlx.Tx, cfg *domain.PlatformConfi
 func (r *PlatformConfigRepository) CreatePackage(tx *sqlx.Tx, cfg *domain.PlatformConfig) error {
 	return tx.Get(cfg, `
 		INSERT INTO platform_config (
-			label, default_commission_rate, vat_rate, currency_code, effective_from, effective_to, created_by
-		) VALUES ($1, $2, $3, $4, NOW(), $5, $6)
-		RETURNING config_id, label, default_commission_rate, promo_commission_rate, promo_start_at, promo_end_at,
-		          promo_label, vat_rate, currency_code, effective_from, effective_to, created_by, created_at
+			label, default_commission_rate, vat_rate, effective_from, effective_to, created_by
+		) VALUES ($1, $2, $3, NOW(), $4, $5)
+		RETURNING config_id, label, default_commission_rate,
+		          NULL::numeric AS promo_commission_rate, NULL::timestamp AS promo_start_at, NULL::timestamp AS promo_end_at,
+		          NULL::text AS promo_label, vat_rate, 'THB'::text AS currency_code, effective_from, effective_to, created_by, created_at
 	`,
 		nullableStringPtr(cfg.Label),
 		cfg.DefaultCommissionRate,
 		cfg.VatRate,
-		cfg.CurrencyCode,
 		nullableTimeValue(cfg.EffectiveTo),
 		nullableInt64Value(cfg.CreatedBy),
 	)
@@ -105,8 +102,9 @@ func (r *PlatformConfigRepository) CloseActive(tx *sqlx.Tx) error {
 func (r *PlatformConfigRepository) GetByID(id int64) (*domain.PlatformConfig, error) {
 	var item domain.PlatformConfig
 	err := r.db.Get(&item, `
-		SELECT config_id, label, default_commission_rate, promo_commission_rate, promo_start_at, promo_end_at,
-		       promo_label, vat_rate, currency_code, effective_from, effective_to, created_by, created_at
+		SELECT config_id, label, default_commission_rate,
+		       NULL::numeric AS promo_commission_rate, NULL::timestamp AS promo_start_at, NULL::timestamp AS promo_end_at,
+		       NULL::text AS promo_label, vat_rate, 'THB'::text AS currency_code, effective_from, effective_to, created_by, created_at
 		FROM platform_config
 		WHERE config_id = $1
 	`, id)
@@ -119,8 +117,9 @@ func (r *PlatformConfigRepository) GetByID(id int64) (*domain.PlatformConfig, er
 func (r *PlatformConfigRepository) GetDefault() (*domain.PlatformConfig, error) {
 	var item domain.PlatformConfig
 	err := r.db.Get(&item, `
-		SELECT config_id, label, default_commission_rate, promo_commission_rate, promo_start_at, promo_end_at,
-		       promo_label, vat_rate, currency_code, effective_from, effective_to, created_by, created_at
+		SELECT config_id, label, default_commission_rate,
+		       NULL::numeric AS promo_commission_rate, NULL::timestamp AS promo_start_at, NULL::timestamp AS promo_end_at,
+		       NULL::text AS promo_label, vat_rate, 'THB'::text AS currency_code, effective_from, effective_to, created_by, created_at
 		FROM platform_config
 		ORDER BY config_id ASC
 		LIMIT 1
@@ -138,8 +137,9 @@ func (r *PlatformConfigRepository) UpdateConfig(tx *sqlx.Tx, id int64, cfg *doma
 		    default_commission_rate = $2,
 		    vat_rate = $3
 		WHERE config_id = $4
-		RETURNING config_id, label, default_commission_rate, promo_commission_rate, promo_start_at, promo_end_at,
-		          promo_label, vat_rate, currency_code, effective_from, effective_to, created_by, created_at
+		RETURNING config_id, label, default_commission_rate,
+		          NULL::numeric AS promo_commission_rate, NULL::timestamp AS promo_start_at, NULL::timestamp AS promo_end_at,
+		          NULL::text AS promo_label, vat_rate, 'THB'::text AS currency_code, effective_from, effective_to, created_by, created_at
 	`, nullableStringPtr(cfg.Label), cfg.DefaultCommissionRate, cfg.VatRate, id)
 }
 
@@ -172,12 +172,12 @@ func (r *PlatformConfigRepository) GetByFactoryID(factoryID int64) (*domain.Plat
 			COALESCE(pc.config_id, pc_default.config_id) AS config_id,
 			COALESCE(pc.label, pc_default.label, 'มาตรฐาน') AS label,
 			COALESCE(pc.default_commission_rate, pc_default.default_commission_rate) AS default_commission_rate,
-			pc.promo_commission_rate,
-			pc.promo_start_at,
-			pc.promo_end_at,
-			pc.promo_label,
+			NULL::numeric AS promo_commission_rate,
+			NULL::timestamp AS promo_start_at,
+			NULL::timestamp AS promo_end_at,
+			NULL::text AS promo_label,
 			COALESCE(pc.vat_rate, pc_default.vat_rate) AS vat_rate,
-			COALESCE(pc.currency_code, pc_default.currency_code) AS currency_code,
+			'THB'::text AS currency_code,
 			COALESCE(pc.effective_from, pc_default.effective_from) AS effective_from,
 			COALESCE(pc.effective_to, pc_default.effective_to) AS effective_to,
 			COALESCE(pc.created_by, pc_default.created_by) AS created_by,
@@ -185,7 +185,7 @@ func (r *PlatformConfigRepository) GetByFactoryID(factoryID int64) (*domain.Plat
 		FROM factory_profiles fp
 		LEFT JOIN platform_config pc ON pc.config_id = fp.config_id
 		CROSS JOIN (
-			SELECT config_id, label, default_commission_rate, vat_rate, currency_code,
+			SELECT config_id, label, default_commission_rate, vat_rate,
 			       effective_from, effective_to, created_by, created_at
 			FROM platform_config
 			ORDER BY config_id ASC

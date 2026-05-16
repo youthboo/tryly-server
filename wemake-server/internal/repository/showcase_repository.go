@@ -24,7 +24,7 @@ const showcaseExploreBaseSQL = `
 		fs.content_type,
 		fs.title,
 		fs.excerpt,
-		fs.image_url,
+		NULLIF(fs.linked_showcases->>0, '') AS image_url,
 		fs.category_id,
 		fs.sub_category_id,
 		fs.moq,
@@ -175,7 +175,7 @@ func (r *ShowcaseRepository) GetShowcasesByFactory(factoryID int64, contentType 
 	query := `
 		SELECT
 			fs.showcase_id, ` + contentTypeExpr + `, fs.title,
-			fs.excerpt, fs.image_url,
+			fs.excerpt, NULLIF(fs.linked_showcases->>0, '') AS image_url,
 			fs.category_id, fs.sub_category_id,
 			fs.moq, ` + basePriceExpr + `, ` + leadTimeExpr + `,
 			fs.likes_count, fs.status, fs.created_at,
@@ -278,7 +278,7 @@ func (r *ShowcaseRepository) GetDetail(showcaseID int64) (*domain.ShowcaseDetail
 	err := r.db.Get(&s, `
 		SELECT
 			fs.showcase_id, fs.factory_id, fs.content_type,
-			fs.title, fs.excerpt, fs.image_url,
+			fs.title, fs.excerpt, NULLIF(fs.linked_showcases->>0, '') AS image_url,
 			fs.category_id, fs.sub_category_id,
 			fs.moq,
 			fs.base_price, fs.promo_price, fs.start_date, fs.end_date,
@@ -289,13 +289,14 @@ func (r *ShowcaseRepository) GetDetail(showcaseID int64) (*domain.ShowcaseDetail
 			fp.image_url         AS factory_image_url,
 			fp.rating::float8    AS factory_rating,
 			COALESCE(fp.is_verified, FALSE) AS factory_verified,
-			fp.specialization    AS factory_specialization,
+			ft.type_name    AS factory_specialization,
 			fp.review_count      AS factory_review_count,
 			p.name_th            AS province_name,
 			c.name               AS category_name,
 			sc.name              AS sub_category_name
 		FROM factory_showcases fs
 		INNER JOIN factory_profiles fp       ON fs.factory_id      = fp.user_id
+		LEFT JOIN  lbi_factory_types ft      ON ft.factory_type_id = fp.factory_type_id
 		LEFT JOIN lbi_categories c              ON fs.category_id     = c.category_id
 		LEFT JOIN  lbi_sub_categories sc     ON fs.sub_category_id = sc.sub_category_id
 		LEFT JOIN  lbi_provinces p           ON fp.province_id     = p.row_id
@@ -323,13 +324,13 @@ func (r *ShowcaseRepository) GetDetail(showcaseID int64) (*domain.ShowcaseDetail
 func (r *ShowcaseRepository) Create(showcase *domain.FactoryShowcase) error {
 	query := `
 		INSERT INTO factory_showcases
-			(factory_id, content_type, title, excerpt, image_url,
+			(factory_id, content_type, title, excerpt,
 			 category_id, sub_category_id, moq,
 			 base_price, promo_price, start_date, end_date,
 			 content, linked_showcases, tags, status,
 			 published_at, updated_at)
 		VALUES
-			(:factory_id, :content_type, :title, :excerpt, :image_url,
+			(:factory_id, :content_type, :title, :excerpt,
 			 :category_id, :sub_category_id, :moq,
 			 :base_price, :promo_price, :start_date, :end_date,
 			 :content, :linked_showcases, :tags,
@@ -358,7 +359,7 @@ func (r *ShowcaseRepository) GetByID(showcaseID, factoryID int64) (*domain.Facto
 			content_type,
 			title,
 			excerpt,
-			image_url,
+			NULLIF(linked_showcases->>0, '') AS image_url,
 			category_id,
 			sub_category_id,
 			moq,
@@ -420,7 +421,6 @@ func (r *ShowcaseRepository) Update(s *domain.FactoryShowcase) error {
 		SET content_type    = :content_type,
 		    title           = :title,
 		    excerpt         = :excerpt,
-		    image_url       = :image_url,
 		    category_id     = :category_id,
 		    sub_category_id = :sub_category_id,
 		    moq             = :moq,
@@ -520,7 +520,7 @@ func (r *ShowcaseRepository) ListLinkedShowcaseCards(ids []int64) ([]domain.Link
 		return []domain.LinkedShowcaseCard{}, nil
 	}
 	query, args, err := sqlx.In(`
-		SELECT showcase_id, title, COALESCE(image_url, '') AS image_url, base_price
+		SELECT showcase_id, title, COALESCE(NULLIF(linked_showcases->>0, ''), '') AS image_url, base_price
 		FROM factory_showcases
 		WHERE showcase_id IN (?)
 	`, ids)
@@ -569,11 +569,10 @@ func (r *ShowcaseRepository) Delete(showcaseID, factoryID int64) error {
 func (r *ShowcaseRepository) CreateImage(img *domain.ShowcaseImage, factoryID int64) error {
 	var head struct {
 		FactoryID       int64                `db:"factory_id"`
-		ImageURL        *string              `db:"image_url"`
 		LinkedShowcases domain.JSONLinkArray `db:"linked_showcases"`
 	}
 	if err := r.db.Get(&head, `
-		SELECT factory_id, image_url, linked_showcases
+		SELECT factory_id, linked_showcases
 		FROM factory_showcases
 		WHERE showcase_id = $1
 	`, img.ShowcaseID); err != nil {
@@ -624,11 +623,10 @@ func (r *ShowcaseRepository) CreateImage(img *domain.ShowcaseImage, factoryID in
 
 	res, err := r.db.Exec(`
 		UPDATE factory_showcases
-		SET image_url = COALESCE(NULLIF(image_url, ''), $1),
-		    linked_showcases = $2,
+		SET linked_showcases = $1,
 		    updated_at = NOW()
-		WHERE showcase_id = $3 AND factory_id = $4
-	`, imageURL, domain.JSONLinkArray(linked), img.ShowcaseID, factoryID)
+		WHERE showcase_id = $2 AND factory_id = $3
+	`, domain.JSONLinkArray(linked), img.ShowcaseID, factoryID)
 	if err != nil {
 		return err
 	}
@@ -648,11 +646,10 @@ func (r *ShowcaseRepository) ListImages(showcaseID, callerID int64) ([]domain.Sh
 	var head struct {
 		FactoryID       int64                `db:"factory_id"`
 		Status          string               `db:"status"`
-		ImageURL        *string              `db:"image_url"`
 		LinkedShowcases domain.JSONLinkArray `db:"linked_showcases"`
 	}
 	if err := r.db.Get(&head, `
-		SELECT factory_id, status, image_url, linked_showcases
+		SELECT factory_id, status, linked_showcases
 		FROM factory_showcases
 		WHERE showcase_id = $1
 	`, showcaseID); err != nil {
@@ -684,9 +681,6 @@ func (r *ShowcaseRepository) ListImages(showcaseID, callerID int64) ([]domain.Sh
 			SortOrder:  sortOrder,
 		})
 		sortOrder++
-	}
-	if head.ImageURL != nil {
-		addVirtual(*head.ImageURL)
 	}
 	for _, ref := range head.LinkedShowcases {
 		addVirtual(ref)

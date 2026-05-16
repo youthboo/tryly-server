@@ -26,8 +26,8 @@ func NewTransactionRepository(db *sqlx.DB) *TransactionRepository {
 
 func (r *TransactionRepository) Create(item *domain.Transaction) error {
 	query := `
-		INSERT INTO transactions (tx_id, wallet_id, order_id, type, amount, status, created_at, updated_at, uploaded_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO transactions (tx_id, wallet_id, order_id, type, amount, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 	_, err := r.db.Exec(
 		query,
@@ -39,7 +39,6 @@ func (r *TransactionRepository) Create(item *domain.Transaction) error {
 		item.Status,
 		item.CreatedAt,
 		item.UpdatedAt,
-		item.UploadedAt,
 	)
 	return err
 }
@@ -47,8 +46,8 @@ func (r *TransactionRepository) Create(item *domain.Transaction) error {
 // CreateTx inserts a transaction row using the given sqlx transaction.
 func (r *TransactionRepository) CreateTx(tx *sqlx.Tx, item *domain.Transaction) error {
 	query := `
-		INSERT INTO transactions (tx_id, wallet_id, order_id, type, amount, status, created_at, updated_at, uploaded_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO transactions (tx_id, wallet_id, order_id, type, amount, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 	_, err := tx.Exec(
 		query,
@@ -60,7 +59,6 @@ func (r *TransactionRepository) CreateTx(tx *sqlx.Tx, item *domain.Transaction) 
 		item.Status,
 		item.CreatedAt,
 		item.UpdatedAt,
-		item.UploadedAt,
 	)
 	return err
 }
@@ -68,7 +66,7 @@ func (r *TransactionRepository) CreateTx(tx *sqlx.Tx, item *domain.Transaction) 
 func (r *TransactionRepository) List(filters TransactionFilters) ([]domain.Transaction, error) {
 	var items []domain.Transaction
 	query := `
-		SELECT tx_id, wallet_id, order_id, type, amount, status, created_at, updated_at, uploaded_at
+		SELECT tx_id, wallet_id, order_id, type, amount, status, created_at, updated_at, created_at AS uploaded_at
 		FROM transactions
 	`
 	conditions := []string{}
@@ -113,7 +111,7 @@ func (r *TransactionRepository) PatchStatus(txID string, status string) error {
 func (r *TransactionRepository) GetByID(txID string) (*domain.Transaction, error) {
 	var item domain.Transaction
 	err := r.db.Get(&item, `
-		SELECT tx_id, wallet_id, order_id, type, amount, status, created_at, updated_at, uploaded_at
+		SELECT tx_id, wallet_id, order_id, type, amount, status, created_at, updated_at, created_at AS uploaded_at
 		FROM transactions
 		WHERE tx_id = $1
 	`, txID)
@@ -126,7 +124,7 @@ func (r *TransactionRepository) GetByID(txID string) (*domain.Transaction, error
 func (r *TransactionRepository) GetByIDForUpdate(tx *sqlx.Tx, txID string) (*domain.Transaction, error) {
 	var item domain.Transaction
 	err := tx.Get(&item, `
-		SELECT tx_id, wallet_id, order_id, type, amount, status, created_at, updated_at, uploaded_at
+		SELECT tx_id, wallet_id, order_id, type, amount, status, created_at, updated_at, created_at AS uploaded_at
 		FROM transactions
 		WHERE tx_id = $1
 		FOR UPDATE
@@ -157,13 +155,12 @@ func (r *TransactionRepository) PatchStatusTx(tx *sqlx.Tx, txID string, status s
 }
 
 // SettleFactoryReceivables settles all pending (PT) SC transactions for the given order:
-// sets status='ST' and uploaded_at=NOW(). Called when the customer confirms receipt.
+// sets status='ST'. Called when the customer confirms receipt.
 func (r *TransactionRepository) SettleFactoryReceivables(tx *sqlx.Tx, orderID int64) error {
 	_, err := tx.Exec(`
 		UPDATE transactions
 		SET status     = 'ST',
-		    updated_at = NOW(),
-		    uploaded_at = NOW()
+		    updated_at = NOW()
 		WHERE order_id = $1
 		  AND type     = 'SC'
 		  AND status   = 'PT'

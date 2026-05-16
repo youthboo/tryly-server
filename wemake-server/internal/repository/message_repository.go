@@ -31,13 +31,12 @@ func (r *MessageRepository) CreateTx(exec interface {
 		item.MessageType = "TX"
 	}
 	query := `
-		INSERT INTO messages (message_id, reference_type, reference_id, sender_id, receiver_id, content, attachment_url, created_at, conv_id, message_type, quote_data, boq_rfq_id, is_read)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		INSERT INTO messages (message_id, reference_id, sender_id, receiver_id, content, attachment_url, created_at, conv_id, message_type, quote_data, is_read)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 	_, err := exec.Exec(
 		query,
 		item.MessageID,
-		nullableMessageReferenceType(item.ReferenceType),
 		nullableMessageReferenceID(item.ReferenceID),
 		item.SenderID,
 		item.ReceiverID,
@@ -47,7 +46,6 @@ func (r *MessageRepository) CreateTx(exec interface {
 		item.ConvID,
 		item.MessageType,
 		item.QuoteData,
-		nullableInt64Value(item.BOQRfqID),
 		item.IsRead,
 	)
 	return err
@@ -82,14 +80,14 @@ func (r *MessageRepository) ListByReference(referenceType string, referenceID in
 	var items []domain.Message
 	query := `
 		SELECT m.message_id,
-		       COALESCE(m.reference_type, '') AS reference_type,
+		       $1::text AS reference_type,
 		       COALESCE(m.reference_id, 0)    AS reference_id,
-		       CASE WHEN m.reference_type = 'RQ' THEN rq.title ELSE NULL END AS rfq_title,
+		       CASE WHEN $1 = 'RQ' THEN rq.title ELSE NULL END AS rfq_title,
 		       m.sender_id, m.receiver_id, m.content, m.attachment_url,
-		       m.created_at, m.conv_id, m.message_type, m.quote_data, m.boq_rfq_id, m.is_read
+		       m.created_at, m.conv_id, m.message_type, m.quote_data, NULL::bigint AS boq_rfq_id, m.is_read
 		FROM messages m
-		LEFT JOIN rfqs rq ON rq.rfq_id = m.reference_id AND m.reference_type = 'RQ'
-		WHERE m.reference_type = $1 AND m.reference_id = $2 AND (m.sender_id = $3 OR m.receiver_id = $3)
+		LEFT JOIN rfqs rq ON rq.rfq_id = m.reference_id AND $1 = 'RQ'
+		WHERE m.reference_id = $2 AND (m.sender_id = $3 OR m.receiver_id = $3)
 		ORDER BY m.created_at ASC
 	`
 	err := r.db.Select(&items, query, referenceType, referenceID, userID)
@@ -100,13 +98,13 @@ func (r *MessageRepository) ListByConvID(convID int64) ([]domain.Message, error)
 	var items []domain.Message
 	query := `
 		SELECT m.message_id,
-		       COALESCE(m.reference_type, '') AS reference_type,
+		       ''::text AS reference_type,
 		       COALESCE(m.reference_id, 0)    AS reference_id,
-		       CASE WHEN m.reference_type = 'RQ' THEN rq.title ELSE NULL END AS rfq_title,
+		       rq.title AS rfq_title,
 		       m.sender_id, m.receiver_id, m.content, m.attachment_url,
-		       m.created_at, m.conv_id, m.message_type, m.quote_data, m.boq_rfq_id, m.is_read
+		       m.created_at, m.conv_id, m.message_type, m.quote_data, NULL::bigint AS boq_rfq_id, m.is_read
 		FROM messages m
-		LEFT JOIN rfqs rq ON rq.rfq_id = m.reference_id AND m.reference_type = 'RQ'
+		LEFT JOIN rfqs rq ON rq.rfq_id = m.reference_id
 		WHERE m.conv_id = $1
 		ORDER BY m.created_at ASC
 	`
@@ -117,31 +115,23 @@ func (r *MessageRepository) ListByConvID(convID int64) ([]domain.Message, error)
 func (r *MessageRepository) ListThreads(userID int64) ([]domain.MessageThread, error) {
 	var items []domain.MessageThread
 	query := `
-		SELECT COALESCE(m.reference_type, '') AS reference_type,
+		SELECT ''::text AS reference_type,
 		       COALESCE(m.reference_id, 0) AS reference_id,
 		       m.content AS last_message,
 		       m.created_at AS last_message_at
 		FROM messages m
 		INNER JOIN (
-			SELECT reference_type, reference_id, MAX(created_at) AS max_created_at
+			SELECT COALESCE(reference_id, 0) AS reference_id, MAX(created_at) AS max_created_at
 			FROM messages
 			WHERE sender_id = $1 OR receiver_id = $1
-			GROUP BY reference_type, reference_id
+			GROUP BY COALESCE(reference_id, 0)
 		) latest
-		ON m.reference_type = latest.reference_type
-		   AND m.reference_id = latest.reference_id
+		ON COALESCE(m.reference_id, 0) = latest.reference_id
 		   AND m.created_at = latest.max_created_at
 		ORDER BY m.created_at DESC
 	`
 	err := r.db.Select(&items, query, userID)
 	return items, err
-}
-
-func nullableMessageReferenceType(referenceType string) interface{} {
-	if referenceType == "" {
-		return nil
-	}
-	return referenceType
 }
 
 func nullableMessageReferenceID(referenceID int64) interface{} {

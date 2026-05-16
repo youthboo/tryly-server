@@ -77,7 +77,7 @@ func (r *FactoryRepository) GetAdminDetail(factoryID int64) (*domain.AdminFactor
 			NULLIF(fp.tax_id, '') AS tax_id,
 			fp.factory_type_id,
 			ft.type_name AS factory_type_name,
-			fp.specialization,
+			ft.type_name AS specialization,
 			fp.province_id,
 			p.name_th AS province_name,
 			fp.image_url,

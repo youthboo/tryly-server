@@ -64,13 +64,13 @@ type FrontendFactoryDetailRow struct {
 	LeadTimeDesc    sql.NullString  `db:"lead_time_desc"`
 	ImageURL        sql.NullString  `db:"image_url"`
 	PriceRange      sql.NullString  `db:"price_range"`
-	AddressDetail    sql.NullString `db:"address_detail"`
-	SubDistrictName  sql.NullString `db:"sub_district_name"`
-	DistrictName     sql.NullString `db:"district_name"`
-	ProvinceName     sql.NullString `db:"province_name"`
-	ZipCode          sql.NullString `db:"zip_code"`
-	Email            string         `db:"email"`
-	Phone            sql.NullString `db:"phone"`
+	AddressDetail   sql.NullString  `db:"address_detail"`
+	SubDistrictName sql.NullString  `db:"sub_district_name"`
+	DistrictName    sql.NullString  `db:"district_name"`
+	ProvinceName    sql.NullString  `db:"province_name"`
+	ZipCode         sql.NullString  `db:"zip_code"`
+	Email           string          `db:"email"`
+	Phone           sql.NullString  `db:"phone"`
 }
 
 type FrontendRFQRow struct {
@@ -199,7 +199,7 @@ func (r *FrontendRepository) ListFactories() ([]FrontendFactoryRow, error) {
 			u.user_id AS id,
 			fp.factory_name AS name,
 			COALESCE(fp_p.name_th, p.name_th) AS location,
-			COALESCE(fp.specialization, ft.type_name) AS specialization,
+			ft.type_name AS specialization,
 			COALESCE(fp.is_verified, FALSE) AS verified,
 			COALESCE(completed.completed_orders, fp.completed_orders, 0) AS completed_orders,
 			lead.average_lead_days,
@@ -209,7 +209,7 @@ func (r *FrontendRepository) ListFactories() ([]FrontendFactoryRow, error) {
 			fp.min_order,
 			fp.lead_time_desc,
 			fp.image_url,
-			fp.price_range
+			NULL::text AS price_range
 		FROM users u
 		INNER JOIN factory_profiles fp ON fp.user_id = u.user_id
 		LEFT JOIN lbi_factory_types ft ON ft.factory_type_id = fp.factory_type_id
@@ -248,7 +248,7 @@ func (r *FrontendRepository) GetFactoryDetail(factoryID int64) (*FrontendFactory
 			u.user_id AS id,
 			fp.factory_name AS name,
 			COALESCE(fp_p.name_th, p.name_th) AS location,
-			COALESCE(fp.specialization, ft.type_name) AS specialization,
+			ft.type_name AS specialization,
 			COALESCE(fp.is_verified, FALSE) AS verified,
 			COALESCE(completed.completed_orders, fp.completed_orders, 0) AS completed_orders,
 			lead.average_lead_days,
@@ -258,7 +258,7 @@ func (r *FrontendRepository) GetFactoryDetail(factoryID int64) (*FrontendFactory
 			fp.min_order,
 			fp.lead_time_desc,
 			fp.image_url,
-			fp.price_range,
+			NULL::text AS price_range,
 			a.address_detail,
 			COALESCE(sd.name_th, '') AS sub_district_name,
 			COALESCE(d.name_th,  '') AS district_name,
@@ -458,14 +458,14 @@ func (r *FrontendRepository) ListOrderTimeline(orderID int64) ([]FrontendOrderTi
 	query := `
 		SELECT
 			pu.update_id AS id,
-			COALESCE(ps.name, '') AS title,
-			TO_CHAR(COALESCE(pu.update_date, pu.created_at), 'YYYY-MM-DD') AS date,
+			COALESCE(lp.step_name_th, lp.step_name, '') AS title,
+			TO_CHAR(COALESCE(pu.last_updated_at, pu.created_at), 'YYYY-MM-DD') AS date,
 			pu.description,
-			pu.image_url AS photo
+			COALESCE(pu.image_urls->>0, '') AS photo
 		FROM production_updates pu
-		LEFT JOIN production_steps ps ON ps.step_id = pu.step_id
+		LEFT JOIN lbi_production lp ON lp.step_id = pu.step_id
 		WHERE pu.order_id = $1
-		ORDER BY COALESCE(pu.update_date, pu.created_at) ASC
+		ORDER BY COALESCE(pu.last_updated_at, pu.created_at) ASC
 	`
 	err := r.db.Select(&items, query, orderID)
 	return items, err
@@ -475,8 +475,8 @@ func (r *FrontendRepository) ListMessageThreads(userID int64) ([]FrontendMessage
 	var items []FrontendMessageThreadRow
 	query := `
 		SELECT
-			m.reference_type,
-			m.reference_id,
+			''::text AS reference_type,
+			COALESCE(m.reference_id, 0) AS reference_id,
 			m.content AS last_message,
 			TO_CHAR(timezone('UTC', m.created_at), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS last_message_at,
 			CASE
@@ -485,13 +485,12 @@ func (r *FrontendRepository) ListMessageThreads(userID int64) ([]FrontendMessage
 			END AS counterpart_id
 		FROM messages m
 		INNER JOIN (
-			SELECT reference_type, reference_id, MAX(created_at) AS max_created_at
+			SELECT COALESCE(reference_id, 0) AS reference_id, MAX(created_at) AS max_created_at
 			FROM messages
 			WHERE sender_id = $1 OR receiver_id = $1
-			GROUP BY reference_type, reference_id
+			GROUP BY COALESCE(reference_id, 0)
 		) latest
-			ON latest.reference_type = m.reference_type
-			AND latest.reference_id = m.reference_id
+			ON latest.reference_id = COALESCE(m.reference_id, 0)
 			AND latest.max_created_at = m.created_at
 		ORDER BY m.created_at DESC
 	`
@@ -564,7 +563,7 @@ func (r *FrontendRepository) ListMessagesByReference(referenceType string, refer
 	query := `
 		SELECT
 			message_id,
-			reference_type,
+			$1::text AS reference_type,
 			reference_id,
 			sender_id,
 			receiver_id,
@@ -572,8 +571,7 @@ func (r *FrontendRepository) ListMessagesByReference(referenceType string, refer
 			attachment_url,
 			TO_CHAR(created_at, 'HH24:MI') AS created_at
 		FROM messages
-		WHERE reference_type = $1
-		  AND reference_id = $2
+		WHERE reference_id = $2
 		  AND (sender_id = $3 OR receiver_id = $3)
 		ORDER BY created_at ASC
 	`
@@ -588,7 +586,7 @@ func (r *FrontendRepository) GetProducts(limit int, categoryID string) ([]domain
 			showcase_id::text AS id,
 			title,
 			COALESCE(base_price::text, '-') AS price,
-			COALESCE(image_url, '') AS image_url,
+			COALESCE(NULLIF(linked_showcases->>0, ''), '') AS image_url,
 			NULL::text AS discount,
 			factory_id::text AS factory_id,
 			category_id::text AS category_id
@@ -618,7 +616,7 @@ func (r *FrontendRepository) GetPromotions(limit int) ([]domain.Promotion, error
 			title,
 			COALESCE(content, '') AS description,
 			COALESCE(promo_price::text, base_price::text, '-') AS price,
-			COALESCE(image_url, '') AS image_url,
+			COALESCE(NULLIF(linked_showcases->>0, ''), '') AS image_url,
 			'' AS tag,
 			factory_id::text AS factory_id
 		FROM factory_showcases

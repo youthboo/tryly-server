@@ -56,7 +56,7 @@ func (r *OrderRepository) GetOrderSourceByQuotationID(quotationID, userID int64)
 	var src QuotationOrderSource
 	query := `
 		SELECT q.quote_id, q.rfq_id, rfq.user_id, q.factory_id, q.price_per_piece, rfq.quantity,
-		       q.mold_cost, q.lead_time_days, q.delivery_date, q.status, COALESCE(q.grand_total, 0) AS grand_total
+		       q.mold_cost, q.lead_time_days, NULL::date AS delivery_date, q.status, COALESCE(q.grand_total, 0) AS grand_total
 		FROM quotations q
 		INNER JOIN rfqs rfq ON rfq.rfq_id = q.rfq_id
 		WHERE q.quote_id = $1 AND rfq.user_id = $2
@@ -69,7 +69,7 @@ func (r *OrderRepository) GetOrderSourceByQuotationID(quotationID, userID int64)
 
 func (r *OrderRepository) Create(order *domain.Order) error {
 	query := `
-		INSERT INTO orders (quote_id, user_id, factory_id, total_amount, deposit_amount, status, estimated_delivery, created_at, updated_at)
+		INSERT INTO orders (quote_id, customer_id, factory_id, total_amount, deposit_amount, status, estimated_delivery, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING order_id
 	`
@@ -90,7 +90,7 @@ func (r *OrderRepository) Create(order *domain.Order) error {
 // CreateTx inserts an order inside an existing transaction.
 func (r *OrderRepository) CreateTx(tx *sqlx.Tx, order *domain.Order) error {
 	query := `
-		INSERT INTO orders (quote_id, user_id, factory_id, total_amount, deposit_amount, status, estimated_delivery, created_at, updated_at)
+		INSERT INTO orders (quote_id, customer_id, factory_id, total_amount, deposit_amount, status, estimated_delivery, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING order_id
 	`
@@ -123,7 +123,7 @@ func (r *OrderRepository) GetOrderSourceByQuotationIDTx(tx *sqlx.Tx, quotationID
 	var src QuotationOrderSource
 	query := `
 		SELECT q.quote_id, q.rfq_id, rfq.user_id, q.factory_id, q.price_per_piece, rfq.quantity,
-		       q.mold_cost, q.lead_time_days, q.delivery_date, q.status, COALESCE(q.grand_total, 0) AS grand_total
+		       q.mold_cost, q.lead_time_days, NULL::date AS delivery_date, q.status, COALESCE(q.grand_total, 0) AS grand_total
 		FROM quotations q
 		INNER JOIN rfqs rfq ON rfq.rfq_id = q.rfq_id
 		WHERE q.quote_id = $1 AND rfq.user_id = $2
@@ -137,9 +137,10 @@ func (r *OrderRepository) GetOrderSourceByQuotationIDTx(tx *sqlx.Tx, quotationID
 func (r *OrderRepository) ListByUserID(userID int64, status string) ([]domain.Order, error) {
 	var orders []domain.Order
 	query := `
-		SELECT order_id, quote_id, user_id, factory_id, total_amount, deposit_amount, status, estimated_delivery, tracking_no, courier, shipped_at, created_at, updated_at
+		SELECT order_id, quote_id, customer_id AS user_id, factory_id, total_amount, deposit_amount, status,
+		       estimated_delivery, tracking_no, courier, NULL::timestamp AS shipped_at, created_at, updated_at
 		FROM orders
-		WHERE user_id = $1
+		WHERE customer_id = $1
 	`
 	args := []interface{}{userID}
 	statuses := splitOrderStatuses(status)
@@ -235,7 +236,7 @@ const orderListEnrichedSelect = `
 	SELECT
 		o.order_id,
 		o.quote_id,
-		o.user_id,
+		o.customer_id AS user_id,
 		o.factory_id,
 		o.total_amount,
 		o.deposit_amount,
@@ -249,7 +250,7 @@ const orderListEnrichedSelect = `
 		COALESCE(r.title, '') AS rfq_title,
 		r.quantity AS rfq_quantity,
 		'' AS unit_name,
-		COALESCE(NULLIF(TRIM(CONCAT(c.first_name, ' ', c.last_name)), ''), 'ลูกค้า #' || o.user_id::text) AS customer_display_name,
+		COALESCE(NULLIF(TRIM(CONCAT(c.first_name, ' ', c.last_name)), ''), 'ลูกค้า #' || o.customer_id::text) AS customer_display_name,
 		cur.step_id AS current_step_id,
 		cur.step_name_th AS current_step_name_th,
 		cur.status AS current_update_status,
@@ -260,28 +261,28 @@ const orderListEnrichedSelect = `
 	FROM orders o
 	INNER JOIN quotations q ON q.quote_id = o.quote_id
 	INNER JOIN rfqs r ON r.rfq_id = q.rfq_id
-	LEFT JOIN customers c ON c.user_id = o.user_id
+	LEFT JOIN customers c ON c.user_id = o.customer_id
 	LEFT JOIN LATERAL (
 		SELECT
 			pu.step_id,
 			lp.step_name_th,
 			pu.status,
-			COALESCE(pu.last_updated_at, pu.update_date, pu.created_at) AS updated_at,
-			COALESCE(lp.sort_order, lp.sequence) AS sort_order
+			COALESCE(pu.last_updated_at, pu.created_at) AS updated_at,
+			COALESCE(lp.sort_order, lp.step_id)::bigint AS sort_order
 		FROM production_updates pu
 		INNER JOIN lbi_production lp ON lp.step_id = pu.step_id
 		WHERE pu.order_id = o.order_id
 		  AND pu.status IN ('IP', 'CD', 'RJ')
 		ORDER BY
 			CASE pu.status WHEN 'IP' THEN 3 WHEN 'RJ' THEN 2 WHEN 'CD' THEN 1 ELSE 0 END DESC,
-			COALESCE(lp.sort_order, lp.sequence) DESC,
-			COALESCE(pu.last_updated_at, pu.update_date, pu.created_at) DESC
+			COALESCE(lp.sort_order, lp.step_id) DESC,
+			COALESCE(pu.last_updated_at, pu.created_at) DESC
 		LIMIT 1
 	) cur ON TRUE
 	LEFT JOIN LATERAL (
 		SELECT
 			COUNT(*) FILTER (WHERE pu.status = 'CD')::bigint AS completed_count,
-			MAX(COALESCE(pu.last_updated_at, pu.update_date, pu.created_at)) AS last_updated_at,
+			MAX(COALESCE(pu.last_updated_at, pu.created_at)) AS last_updated_at,
 			BOOL_OR(pu.status = 'RJ') AS has_rejected
 		FROM production_updates pu
 		WHERE pu.order_id = o.order_id
@@ -294,7 +295,7 @@ const orderListEnrichedSelect = `
 `
 
 func (r *OrderRepository) ListEnrichedByUserID(userID int64, status string, rfqID *int64, requestKinds []string) ([]domain.OrderListItem, error) {
-	return r.listEnriched("o.user_id = $1", userID, status, rfqID, requestKinds)
+	return r.listEnriched("o.customer_id = $1", userID, status, rfqID, requestKinds)
 }
 
 func (r *OrderRepository) ListEnrichedByFactoryID(factoryID int64, status string, rfqID *int64, requestKinds []string) ([]domain.OrderListItem, error) {
@@ -348,9 +349,10 @@ func orderTypeFromRequestKind(kind string) string {
 func (r *OrderRepository) GetByID(orderID, userID int64) (*domain.Order, error) {
 	var order domain.Order
 	query := `
-		SELECT order_id, quote_id, user_id, factory_id, total_amount, deposit_amount, status, estimated_delivery, tracking_no, courier, shipped_at, created_at, updated_at
+		SELECT order_id, quote_id, customer_id AS user_id, factory_id, total_amount, deposit_amount, status,
+		       estimated_delivery, tracking_no, courier, NULL::timestamp AS shipped_at, created_at, updated_at
 		FROM orders
-		WHERE order_id = $1 AND user_id = $2
+		WHERE order_id = $1 AND customer_id = $2
 	`
 	if err := r.db.Get(&order, query, orderID, userID); err != nil {
 		return nil, err
@@ -372,7 +374,8 @@ func (r *OrderRepository) UpdateStatusTx(tx *sqlx.Tx, orderID int64, status stri
 func (r *OrderRepository) ListByFactoryID(factoryID int64, status string) ([]domain.Order, error) {
 	var orders []domain.Order
 	query := `
-		SELECT order_id, quote_id, user_id, factory_id, total_amount, deposit_amount, status, estimated_delivery, tracking_no, courier, shipped_at, created_at, updated_at
+		SELECT order_id, quote_id, customer_id AS user_id, factory_id, total_amount, deposit_amount, status,
+		       estimated_delivery, tracking_no, courier, NULL::timestamp AS shipped_at, created_at, updated_at
 		FROM orders
 		WHERE factory_id = $1
 	`
@@ -397,7 +400,8 @@ func (r *OrderRepository) ListByFactoryID(factoryID int64, status string) ([]dom
 func (r *OrderRepository) GetByParticipant(orderID, userID int64, role string) (*domain.Order, error) {
 	var order domain.Order
 	query := `
-		SELECT order_id, quote_id, user_id, factory_id, total_amount, deposit_amount, status, estimated_delivery, tracking_no, courier, shipped_at, created_at, updated_at
+		SELECT order_id, quote_id, customer_id AS user_id, factory_id, total_amount, deposit_amount, status,
+		       estimated_delivery, tracking_no, courier, NULL::timestamp AS shipped_at, created_at, updated_at
 		FROM orders
 		WHERE order_id = $1
 	`
@@ -422,7 +426,7 @@ func (r *OrderRepository) GetDetailByParticipant(orderID, userID int64, role str
 		SELECT
 			o.order_id,
 			o.quote_id,
-			o.user_id,
+			o.customer_id AS user_id,
 			o.factory_id,
 			o.total_amount,
 			o.deposit_amount,
@@ -431,7 +435,7 @@ func (r *OrderRepository) GetDetailByParticipant(orderID, userID int64, role str
 			o.estimated_delivery,
 			o.tracking_no,
 			o.courier,
-			o.shipped_at,
+			NULL::timestamp AS shipped_at,
 			o.created_at,
 			o.updated_at,
 			COALESCE(fp.factory_name, '') AS factory_name,
@@ -572,7 +576,6 @@ func (r *OrderRepository) MarkShipped(orderID, factoryID int64, trackingNo, cour
 		SET status = 'SH',
 		    tracking_no = $1,
 		    courier = $2,
-		    shipped_at = NOW(),
 		    updated_at = NOW()
 		WHERE order_id = $3 AND factory_id = $4
 	`, trackingNo, courier, orderID, factoryID)
@@ -593,8 +596,8 @@ func (r *OrderRepository) MarkShipped(orderID, factoryID int64, trackingNo, cour
 func (r *OrderRepository) GetByIDForUpdateTx(tx *sqlx.Tx, orderID int64) (*domain.Order, error) {
 	var order domain.Order
 	err := tx.Get(&order, `
-		SELECT order_id, quote_id, user_id, factory_id, total_amount, deposit_amount, status,
-		       estimated_delivery, tracking_no, courier, shipped_at, created_at, updated_at
+		SELECT order_id, quote_id, customer_id AS user_id, factory_id, total_amount, deposit_amount, status,
+		       estimated_delivery, tracking_no, courier, NULL::timestamp AS shipped_at, created_at, updated_at
 		FROM orders
 		WHERE order_id = $1
 		FOR UPDATE
@@ -652,8 +655,7 @@ func (r *OrderRepository) ListAutoCloseCandidates(cutoff time.Time) ([]int64, er
 		SELECT o.order_id
 		FROM orders o
 		WHERE o.status = 'SH'
-		  AND o.shipped_at IS NOT NULL
-		  AND o.shipped_at <= $1
+		  AND o.updated_at <= $1
 		  AND NOT EXISTS (
 			SELECT 1
 			FROM disputes d
@@ -666,7 +668,7 @@ func (r *OrderRepository) ListAutoCloseCandidates(cutoff time.Time) ([]int64, er
 			WHERE pu.order_id = o.order_id
 			  AND pu.status = 'RJ'
 		  )
-		ORDER BY o.shipped_at ASC
+		ORDER BY o.updated_at ASC
 	`, cutoff)
 	return ids, err
 }

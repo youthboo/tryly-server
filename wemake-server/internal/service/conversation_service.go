@@ -158,8 +158,7 @@ func (s *ConversationService) ShareRFQ(convID, userID, rfqID int64) (*domain.Mes
 
 	if _, err := tx.Exec(`
 		UPDATE conversations
-		SET has_quote = TRUE,
-		    last_message = $2,
+		SET last_message = $2,
 		    unread_factory = COALESCE(unread_factory, 0) + 1,
 		    updated_at = $3
 		WHERE conv_id = $1
@@ -195,7 +194,6 @@ func mapConversation(row *domain.ConversationRow) domain.ConversationResponse {
 		LastMessage:      derefString(row.LastMessage),
 		UnreadCustomer:   row.UnreadCustomer,
 		UnreadFactory:    row.UnreadFactory,
-		HasQuote:         row.HasQuote,
 		UpdatedAt:        row.UpdatedAt,
 		Customer: domain.CustomerPartyInfo{
 			UserID:      row.CustomerID,

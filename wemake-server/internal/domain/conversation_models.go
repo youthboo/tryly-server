@@ -13,7 +13,6 @@ type Conversation struct {
 	LastMessage      string    `db:"last_message" json:"last_message"`
 	UnreadCustomer   int       `db:"unread_customer" json:"unread_customer"`
 	UnreadFactory    int       `db:"unread_factory" json:"unread_factory"`
-	HasQuote         bool      `db:"has_quote" json:"has_quote"`
 	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
 }
 
@@ -26,7 +25,6 @@ type ConversationRow struct {
 	LastMessage           *string   `db:"last_message"`
 	UnreadCustomer        int       `db:"unread_customer"`
 	UnreadFactory         int       `db:"unread_factory"`
-	HasQuote              bool      `db:"has_quote"`
 	UpdatedAt             time.Time `db:"updated_at"`
 	CustomerFirstName     *string   `db:"customer_first_name"`
 	CustomerLastName      *string   `db:"customer_last_name"`
@@ -45,7 +43,6 @@ type ConversationResponse struct {
 	LastMessage        string            `json:"last_message"`
 	UnreadCustomer     int               `json:"unread_customer"`
 	UnreadFactory      int               `json:"unread_factory"`
-	HasQuote           bool              `json:"has_quote"`
 	UpdatedAt          time.Time         `json:"updated_at"`
 	Customer           CustomerPartyInfo `json:"customer"`
 	Factory            FactoryPartyInfo  `json:"factory"`

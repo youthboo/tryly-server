@@ -363,7 +363,7 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 	var quotes []lockedQuotation
 	if err := tx.Select(&quotes, `
 		SELECT q.quote_id, q.rfq_id, q.factory_id, q.price_per_piece, r.quantity,
-		       q.mold_cost, q.lead_time_days, q.delivery_date, q.status, COALESCE(q.grand_total, 0) AS grand_total,
+		       q.mold_cost, q.lead_time_days, NULL::date AS delivery_date, q.status, COALESCE(q.grand_total, 0) AS grand_total,
 		       COALESCE(q.valid_until, (q.create_time + (q.validity_days::text || ' day')::interval)::date) AS valid_until
 		FROM quotations q
 		INNER JOIN rfqs r ON r.rfq_id = q.rfq_id
@@ -685,7 +685,7 @@ func (s *OrderService) VerifyPayment(orderID, userID int64, role, txID string) (
 			DeliveryDate *time.Time `db:"delivery_date"`
 		}
 		var qd quoteDelivery
-		if err2 := tx.Get(&qd, `SELECT lead_time_days, delivery_date FROM quotations WHERE quote_id = $1`, order.QuotationID); err2 == nil {
+		if err2 := tx.Get(&qd, `SELECT lead_time_days, NULL::date AS delivery_date FROM quotations WHERE quote_id = $1`, order.QuotationID); err2 == nil {
 			est := calculateEstimatedDelivery(now, qd.LeadTimeDays, shippingDays, qd.DeliveryDate)
 			if _, err2 := tx.Exec(`UPDATE orders SET estimated_delivery = $1 WHERE order_id = $2`, est, orderID); err2 != nil {
 				return nil, err2
@@ -1249,7 +1249,7 @@ func (s *OrderService) confirmReceiptTx(orderID int64, actorUserID *int64, note 
 		GoodAfter:     roundCurrency(factoryWallet.GoodFund + movedAmount),
 	}
 
-	// Settle the factory's pending SC receivables for this order: PT → ST, uploaded_at = NOW().
+	// Settle the factory's pending SC receivables for this order: PT -> ST.
 	if err := s.txLedger.SettleFactoryReceivables(tx, order.OrderID); err != nil {
 		return nil, err
 	}

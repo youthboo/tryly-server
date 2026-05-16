@@ -126,7 +126,6 @@ CREATE TABLE IF NOT EXISTS conversations (
     unread_customer INTEGER DEFAULT 0,
     unread_factory INTEGER DEFAULT 0,
     updated_at TIMESTAMPTZ DEFAULT now(),
-    has_quote BOOLEAN DEFAULT FALSE,
     CONSTRAINT conversations_pkey PRIMARY KEY (conv_id)
 );
 
@@ -169,8 +168,6 @@ CREATE TABLE IF NOT EXISTS factory_profiles (
     verified_at TIMESTAMP,
     verified_by BIGINT,
     rejection_reason TEXT,
-    price_range VARCHAR(50),
-    specialization VARCHAR(200),
     CONSTRAINT factory_profiles_pkey PRIMARY KEY (user_id)
 );
 
@@ -211,7 +208,6 @@ CREATE TABLE IF NOT EXISTS factory_showcases (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     published_at TIMESTAMP,
-    image_url TEXT,
     CONSTRAINT factory_showcases_pkey PRIMARY KEY (showcase_id)
 );
 
@@ -253,7 +249,6 @@ CREATE TABLE IF NOT EXISTS lbi_production (
     step_name_th VARCHAR(150),
     description TEXT,
     sort_order INTEGER,
-    step_code VARCHAR(40),
     CONSTRAINT lbi_production_pkey PRIMARY KEY (step_id)
 );
 
@@ -309,7 +304,6 @@ CREATE TABLE IF NOT EXISTS messages (
     attachment_url TEXT,
     is_read BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-    reference_type VARCHAR(2),
     CONSTRAINT messages_pkey PRIMARY KEY (message_id)
 );
 
@@ -324,8 +318,6 @@ CREATE TABLE IF NOT EXISTS notifications (
     read_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP,
-    reference_id INTEGER,
-    data JSONB,
     CONSTRAINT notifications_pkey PRIMARY KEY (noti_id)
 );
 
@@ -354,7 +346,6 @@ CREATE TABLE IF NOT EXISTS orders (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     completed_at TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    shipped_at TIMESTAMP,
     CONSTRAINT orders_pkey PRIMARY KEY (order_id)
 );
 
@@ -379,9 +370,6 @@ CREATE TABLE IF NOT EXISTS platform_config (
     effective_to TIMESTAMP,
     created_by BIGINT,
     created_at TIMESTAMP DEFAULT now() NOT NULL,
-    promo_label VARCHAR(120),
-    promo_commission_rate NUMERIC(5,2),
-    currency_code CHAR(3) DEFAULT 'THB' NOT NULL,
     CONSTRAINT platform_config_pkey PRIMARY KEY (config_id)
 );
 
@@ -406,7 +394,6 @@ CREATE TABLE IF NOT EXISTS production_updates (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     completed_at TIMESTAMP,
     last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT production_updates_pkey PRIMARY KEY (update_id)
 );
 
@@ -456,16 +443,6 @@ CREATE TABLE IF NOT EXISTS quotations (
     is_locked BOOLEAN DEFAULT FALSE NOT NULL,
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     log_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    last_edited_at TIMESTAMPTZ,
-    last_edited_by BIGINT,
-    shipping_method VARCHAR(120),
-    tooling_mold_cost NUMERIC(15,2) DEFAULT 0 NOT NULL,
-    production_start_date DATE,
-    warranty_period_months INTEGER,
-    delivery_date DATE,
-    incoterms VARCHAR(10),
-    revision_no INTEGER DEFAULT 1 NOT NULL,
-    parent_quotation_id BIGINT,
     CONSTRAINT quotations_pkey PRIMARY KEY (quote_id)
 );
 
@@ -488,35 +465,6 @@ CREATE TABLE IF NOT EXISTS rfqs (
     shipping_method_id BIGINT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    uploaded_at TIMESTAMP,
-    required_delivery_date DATE,
-    address_id BIGINT,
-    sample_required BOOLEAN DEFAULT FALSE NOT NULL,
-    sample_qty INTEGER,
-    inspection_type VARCHAR(20),
-    rfq_type VARCHAR(3) DEFAULT 'RFQ' NOT NULL,
-    initiated_by VARCHAR(10) DEFAULT 'buyer' NOT NULL,
-    factory_user_id BIGINT,
-    source_showcase_id BIGINT,
-    source_conv_id BIGINT,
-    boq_currency CHAR(3) DEFAULT 'THB',
-    boq_subtotal NUMERIC(15,2),
-    boq_discount_amount NUMERIC(15,2) DEFAULT 0,
-    boq_vat_percent NUMERIC(5,2) DEFAULT 7,
-    boq_vat_amount NUMERIC(15,2),
-    boq_grand_total NUMERIC(15,2),
-    boq_moq INTEGER,
-    boq_lead_time_days INTEGER,
-    boq_payment_terms TEXT,
-    boq_validity_days INTEGER DEFAULT 14,
-    boq_note TEXT,
-    boq_sent_at TIMESTAMPTZ,
-    boq_responded_at TIMESTAMPTZ,
-    boq_response VARCHAR(10),
-    boq_decline_reason TEXT,
-    conversation_id BIGINT,
-    deadline_date DATE,
-    image_urls JSONB DEFAULT '[]'::jsonb NOT NULL,
     CONSTRAINT rfqs_pkey PRIMARY KEY (rfq_id)
 );
 
@@ -535,10 +483,6 @@ CREATE TABLE IF NOT EXISTS transactions (
     amount NUMERIC(10,2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    direction CHAR(1),
-    idempotency_key VARCHAR(160),
-    settlement_group_id UUID,
     CONSTRAINT transactions_pkey PRIMARY KEY (tx_id)
 );
 
@@ -551,8 +495,6 @@ CREATE TABLE IF NOT EXISTS users (
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    avatar_url TEXT,
-    bio VARCHAR(300),
     CONSTRAINT users_pkey PRIMARY KEY (user_id)
 );
 
@@ -716,14 +658,6 @@ ALTER TABLE quotations
     ADD CONSTRAINT fk_quotations_shipping_method_id_lbi_shipping_methods_shipping_method_id
     FOREIGN KEY (shipping_method_id) REFERENCES lbi_shipping_methods(shipping_method_id);
 
-ALTER TABLE quotations
-    ADD CONSTRAINT fk_quotations_last_edited_by_users_user_id
-    FOREIGN KEY (last_edited_by) REFERENCES users(user_id);
-
-ALTER TABLE quotations
-    ADD CONSTRAINT fk_quotations_parent_quotation_id_quotations_quote_id
-    FOREIGN KEY (parent_quotation_id) REFERENCES quotations(quote_id);
-
 ALTER TABLE rfqs
     ADD CONSTRAINT fk_rfqs_user_id_users_user_id
     FOREIGN KEY (user_id) REFERENCES users(user_id);
@@ -739,26 +673,6 @@ ALTER TABLE rfqs
 ALTER TABLE rfqs
     ADD CONSTRAINT fk_rfqs_shipping_method_id_lbi_shipping_methods_shipping_method_id
     FOREIGN KEY (shipping_method_id) REFERENCES lbi_shipping_methods(shipping_method_id);
-
-ALTER TABLE rfqs
-    ADD CONSTRAINT fk_rfqs_address_id_addresses_address_id
-    FOREIGN KEY (address_id) REFERENCES addresses(address_id);
-
-ALTER TABLE rfqs
-    ADD CONSTRAINT fk_rfqs_factory_user_id_users_user_id
-    FOREIGN KEY (factory_user_id) REFERENCES users(user_id);
-
-ALTER TABLE rfqs
-    ADD CONSTRAINT fk_rfqs_source_showcase_id_factory_showcases_showcase_id
-    FOREIGN KEY (source_showcase_id) REFERENCES factory_showcases(showcase_id);
-
-ALTER TABLE rfqs
-    ADD CONSTRAINT fk_rfqs_source_conv_id_conversations_conv_id
-    FOREIGN KEY (source_conv_id) REFERENCES conversations(conv_id);
-
-ALTER TABLE rfqs
-    ADD CONSTRAINT fk_rfqs_conversation_id_conversations_conv_id
-    FOREIGN KEY (conversation_id) REFERENCES conversations(conv_id);
 
 ALTER TABLE transactions
     ADD CONSTRAINT fk_transactions_wallet_id_wallets_wallet_id
@@ -810,17 +724,10 @@ CREATE INDEX IF NOT EXISTS idx_quotations_rfq_id ON quotations(rfq_id);
 CREATE INDEX IF NOT EXISTS idx_quotations_factory_id ON quotations(factory_id);
 CREATE INDEX IF NOT EXISTS idx_quotations_platform_config_id ON quotations(platform_config_id);
 CREATE INDEX IF NOT EXISTS idx_quotations_shipping_method_id ON quotations(shipping_method_id);
-CREATE INDEX IF NOT EXISTS idx_quotations_last_edited_by ON quotations(last_edited_by);
-CREATE INDEX IF NOT EXISTS idx_quotations_parent_quotation_id ON quotations(parent_quotation_id);
 CREATE INDEX IF NOT EXISTS idx_rfqs_user_id ON rfqs(user_id);
 CREATE INDEX IF NOT EXISTS idx_rfqs_category_id ON rfqs(category_id);
 CREATE INDEX IF NOT EXISTS idx_rfqs_delivery_address_id ON rfqs(delivery_address_id);
 CREATE INDEX IF NOT EXISTS idx_rfqs_shipping_method_id ON rfqs(shipping_method_id);
-CREATE INDEX IF NOT EXISTS idx_rfqs_address_id ON rfqs(address_id);
-CREATE INDEX IF NOT EXISTS idx_rfqs_factory_user_id ON rfqs(factory_user_id);
-CREATE INDEX IF NOT EXISTS idx_rfqs_source_showcase_id ON rfqs(source_showcase_id);
-CREATE INDEX IF NOT EXISTS idx_rfqs_source_conv_id ON rfqs(source_conv_id);
-CREATE INDEX IF NOT EXISTS idx_rfqs_conversation_id ON rfqs(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_wallet_id ON transactions(wallet_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_order_id ON transactions(order_id);
 CREATE INDEX IF NOT EXISTS idx_wallets_user_id ON wallets(user_id);

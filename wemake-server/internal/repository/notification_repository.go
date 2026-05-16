@@ -17,7 +17,8 @@ func NewNotificationRepository(db *sqlx.DB) *NotificationRepository {
 
 func (r *NotificationRepository) ListByUserID(userID int64) ([]domain.Notification, error) {
 	var items []domain.Notification
-	query := `SELECT noti_id, user_id, type, title, message, link_to, is_read, read_at, data, reference_id, deleted_at, created_at
+	query := `SELECT noti_id, user_id, type, title, message, link_to, is_read, read_at,
+			NULL::jsonb AS data, NULL::bigint AS reference_id, deleted_at, created_at
 		FROM notifications WHERE user_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC`
 	err := r.db.Select(&items, query, userID)
 	return items, err
@@ -31,8 +32,8 @@ func (r *NotificationRepository) MarkAsRead(notiID, userID int64) error {
 
 func (r *NotificationRepository) Create(noti *domain.Notification) error {
 	query := `
-		INSERT INTO notifications (user_id, type, title, message, link_to, reference_id, data)
-		VALUES (:user_id, :type, :title, :message, :link_to, :reference_id, :data)
+		INSERT INTO notifications (user_id, type, title, message, link_to)
+		VALUES (:user_id, :type, :title, :message, :link_to)
 		RETURNING noti_id, created_at, is_read, read_at
 	`
 	rows, err := r.db.NamedQuery(query, noti)
@@ -61,7 +62,8 @@ func (r *NotificationRepository) ListPaginated(userID int64, page, limit int, un
 	if err := r.db.Get(&unreadCount, `SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = FALSE AND deleted_at IS NULL`, userID); err != nil {
 		return nil, 0, 0, err
 	}
-	query := fmt.Sprintf(`SELECT noti_id, user_id, type, title, message, link_to, is_read, read_at, data, reference_id, deleted_at, created_at
+	query := fmt.Sprintf(`SELECT noti_id, user_id, type, title, message, link_to, is_read, read_at,
+			NULL::jsonb AS data, NULL::bigint AS reference_id, deleted_at, created_at
 		FROM notifications WHERE %s ORDER BY created_at DESC LIMIT $2 OFFSET $3`, where)
 	var items []domain.Notification
 	if err := r.db.Select(&items, query, userID, limit, offset); err != nil {

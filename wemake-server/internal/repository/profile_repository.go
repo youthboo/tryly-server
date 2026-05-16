@@ -21,7 +21,7 @@ func NewProfileRepository(db *sqlx.DB) *ProfileRepository {
 func (r *ProfileRepository) GetProfile(userID int64) (*domain.ProfileResponse, error) {
 	var user domain.User
 	if err := r.db.Get(&user, `
-		SELECT user_id, role, email, phone, avatar_url, bio, password_hash, is_active, created_at, updated_at
+		SELECT user_id, role, email, phone, NULL::text AS avatar_url, NULL::text AS bio, password_hash, is_active, created_at, updated_at
 		FROM users
 		WHERE user_id = $1
 	`, userID); err != nil {
@@ -57,10 +57,11 @@ func (r *ProfileRepository) GetProfile(userID int64) (*domain.ProfileResponse, e
 	case domain.RoleFactory:
 		var factory domain.FactoryProfile
 		if err := r.db.Get(&factory, `
-			SELECT user_id, factory_name, factory_type_id, tax_id, province_id, specialization, min_order, lead_time_desc,
-			       is_verified, verified_at, description, price_range
-			FROM factory_profiles
-			WHERE user_id = $1
+			SELECT fp.user_id, fp.factory_name, fp.factory_type_id, fp.tax_id, fp.province_id, ft.type_name AS specialization, fp.min_order, fp.lead_time_desc,
+			       fp.is_verified, fp.verified_at, fp.description, NULL::text AS price_range
+			FROM factory_profiles fp
+			LEFT JOIN lbi_factory_types ft ON ft.factory_type_id = fp.factory_type_id
+			WHERE fp.user_id = $1
 		`, userID); err != nil {
 			return nil, err
 		}
@@ -86,9 +87,9 @@ func (r *ProfileRepository) UpdateCustomerProfile(userID int64, user *domain.Use
 	}
 	defer tx.Rollback()
 	if _, err := tx.Exec(`
-		UPDATE users SET phone = $1, bio = $2, updated_at = NOW()
-		WHERE user_id = $3
-	`, user.Phone, nullableStringPtr(user.Bio), userID); err != nil {
+		UPDATE users SET phone = $1, updated_at = NOW()
+		WHERE user_id = $2
+	`, user.Phone, userID); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(`
@@ -108,23 +109,23 @@ func (r *ProfileRepository) UpdateFactoryProfile(userID int64, user *domain.User
 	}
 	defer tx.Rollback()
 	if _, err := tx.Exec(`
-		UPDATE users SET phone = $1, bio = $2, updated_at = NOW()
-		WHERE user_id = $3
-	`, user.Phone, nullableStringPtr(user.Bio), userID); err != nil {
+		UPDATE users SET phone = $1, updated_at = NOW()
+		WHERE user_id = $2
+	`, user.Phone, userID); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(`
 		UPDATE factory_profiles
-		SET description = $1, specialization = $2, min_order = $3, lead_time_desc = $4, price_range = $5
-		WHERE user_id = $6
-	`, nullableStringPtr(factory.Description), nullableStringPtr(factory.Specialization), nullableInt64Value(factory.MinOrder), nullableStringPtr(factory.LeadTimeDesc), nullableStringPtr(factory.PriceRange), userID); err != nil {
+		SET description = $1, min_order = $2, lead_time_desc = $3
+		WHERE user_id = $4
+	`, nullableStringPtr(factory.Description), nullableInt64Value(factory.MinOrder), nullableStringPtr(factory.LeadTimeDesc), userID); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
 func (r *ProfileRepository) UpdateAvatar(userID int64, avatarURL string) error {
-	_, err := r.db.Exec(`UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE user_id = $2`, avatarURL, userID)
+	_, err := r.db.Exec(`UPDATE users SET updated_at = NOW() WHERE user_id = $1`, userID)
 	return err
 }
 

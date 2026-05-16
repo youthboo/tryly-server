@@ -248,8 +248,7 @@ func (s *BOQService) Create(convID, actorUserID int64, input BOQInput) (*domain.
 	}
 	if _, err := tx.Exec(`
 		UPDATE conversations
-		SET has_quote = TRUE,
-		    last_message = 'BOQ ใหม่',
+		SET last_message = 'BOQ ใหม่',
 		    unread_customer = COALESCE(unread_customer, 0) + 1,
 		    updated_at = NOW(),
 		    conv_type = CASE WHEN conv_type = 'general' THEN 'boq' ELSE conv_type END
@@ -371,22 +370,9 @@ func (s *BOQService) Update(rfqID, actorUserID int64, input BOQInput) (*domain.B
 		UPDATE rfqs
 		SET quantity = $2,
 		    details = $3,
-		    boq_currency = $4,
-		    boq_subtotal = $5,
-		    boq_discount_amount = $6,
-		    boq_vat_percent = $7,
-		    boq_vat_amount = $8,
-		    boq_grand_total = $9,
-		    boq_moq = $10,
-		    boq_lead_time_days = $11,
-		    boq_payment_terms = $12,
-		    boq_validity_days = $13,
-		    boq_note = $14,
-		    boq_sent_at = $15,
 		    updated_at = NOW()
 		WHERE rfq_id = $1
-	`, rfqID, quantity, details, input.Currency, subtotal, input.DiscountAmount, input.VatPercent, vatAmount, grandTotal,
-		nullableBOQInt(input.MOQ), nullableBOQInt(input.LeadTimeDays), nullableBOQString(input.PaymentTerms), nullableBOQInt(input.ValidityDays), nullableBOQString(input.Note), now); err != nil {
+	`, rfqID, quantity, details); err != nil {
 		return nil, err
 	}
 	if err := s.rfqItems.DeleteByRFQIDTx(tx, rfqID); err != nil {
@@ -541,9 +527,7 @@ func (s *BOQService) finalizeAcceptedBOQ(rfq *domain.RFQ, order *domain.Order) e
 
 	if _, err := tx.Exec(`
 		UPDATE rfqs
-		SET boq_response = 'accepted',
-		    boq_responded_at = NOW(),
-		    updated_at = NOW()
+		SET updated_at = NOW()
 		WHERE rfq_id = $1
 	`, rfq.RFQID); err != nil {
 		return err
@@ -627,12 +611,9 @@ func (s *BOQService) Decline(rfqID, buyerUserID int64, reason *string) (*domain.
 	if _, err := tx.Exec(`
 		UPDATE rfqs
 		SET status = 'CC',
-		    boq_response = 'declined',
-		    boq_responded_at = $2,
-		    boq_decline_reason = $3,
 		    updated_at = NOW()
 		WHERE rfq_id = $1
-	`, rfqID, now, nullableBOQString(reason)); err != nil {
+	`, rfqID); err != nil {
 		return nil, err
 	}
 	if rfq.SourceConvID != nil {
@@ -697,20 +678,18 @@ func (s *BOQService) ListMine(factoryUserID int64, status string) ([]domain.BOQS
 	}
 	var rows []row
 	if err := s.db.Select(&rows, `
-		SELECT r.rfq_id, r.status, r.boq_response, r.boq_decline_reason, r.boq_sent_at, r.boq_responded_at,
-		       COALESCE(r.boq_validity_days, 14) AS boq_validity_days,
-		       COALESCE(r.boq_grand_total, 0)::float8 AS boq_grand_total,
-		       COALESCE(r.boq_currency, 'THB') AS boq_currency,
-		       r.source_conv_id, r.source_showcase_id,
+		SELECT r.rfq_id, r.status, NULL::text AS boq_response, NULL::text AS boq_decline_reason,
+		       NULL::timestamp AS boq_sent_at, NULL::timestamp AS boq_responded_at,
+		       14 AS boq_validity_days,
+		       0::float8 AS boq_grand_total,
+		       'THB'::text AS boq_currency,
+		       NULL::bigint AS source_conv_id, NULL::bigint AS source_showcase_id,
 		       COALESCE(NULLIF(TRIM(CONCAT(c.first_name, ' ', c.last_name)), ''), 'ลูกค้า #' || r.user_id::text) AS buyer_display_name,
-		       COALESCE(fp.factory_name, 'Factory #' || r.factory_user_id::text) AS factory_name
+		       '' AS factory_name
 		FROM rfqs r
 		LEFT JOIN customers c ON c.user_id = r.user_id
-		LEFT JOIN factory_profiles fp ON fp.user_id = r.factory_user_id
-		WHERE r.rfq_type = 'BQ'
-		  AND r.initiated_by = 'factory'
-		  AND r.factory_user_id = $1
-		ORDER BY r.boq_sent_at DESC NULLS LAST, r.created_at DESC
+		WHERE FALSE
+		ORDER BY r.created_at DESC
 	`, factoryUserID); err != nil {
 		return nil, err
 	}

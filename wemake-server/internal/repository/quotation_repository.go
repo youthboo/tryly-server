@@ -26,16 +26,16 @@ func quotationSelectBase() string {
 		q.price_per_piece, q.mold_cost, q.lead_time_days, q.shipping_method_id,
 		COALESCE(r.status, 'OP') AS rfq_status,
 		COALESCE(r.request_kind, 'PR') AS request_kind,
-		r.sample_qty,
+		NULL::integer AS sample_qty,
 		NULLIF(TRIM(COALESCE(to_jsonb(sm)->>'method_name', to_jsonb(sm)->>'name')), '') AS shipping_method_name,
 		q.factory_highlight,
 		q.status, q.create_time, q.log_timestamp,
-		COALESCE(q.version, 1) AS version, COALESCE(q.is_locked, false) AS is_locked, q.last_edited_at, q.last_edited_by,
-		q.subtotal, q.discount_amount, q.shipping_cost, q.shipping_method, q.packaging_cost, q.tooling_mold_cost,
+		COALESCE(q.version, 1) AS version, COALESCE(q.is_locked, false) AS is_locked, NULL::timestamptz AS last_edited_at, NULL::bigint AS last_edited_by,
+		q.subtotal, q.discount_amount, q.shipping_cost, NULL::text AS shipping_method, q.packaging_cost, q.mold_cost AS tooling_mold_cost,
 		q.vat_rate, q.vat_amount, q.platform_commission_rate, q.platform_commission_amount, q.platform_config_id,
-		q.grand_total, q.factory_net_receivable, q.production_start_date, q.delivery_date, q.incoterms, q.payment_terms,
+		q.grand_total, q.factory_net_receivable, NULL::date AS production_start_date, NULL::date AS delivery_date, NULL::text AS incoterms, q.payment_terms,
 		validity_days, COALESCE(q.valid_until, (q.create_time + (q.validity_days::text || ' day')::interval)::date) AS valid_until,
-		q.warranty_period_months, COALESCE(q.revision_no, 1) AS revision_no, q.parent_quotation_id,
+		NULL::integer AS warranty_period_months, 1 AS revision_no, NULL::bigint AS parent_quotation_id,
 		COALESCE(q.image_urls::text, '[]') AS image_urls,
 		NULL::text AS material_detail,
 		NULL::text AS payment_condition,
@@ -68,16 +68,16 @@ func (r *QuotationRepository) createWithExecutor(exec quotationExecutor, item *d
 	query := `
 		INSERT INTO quotations (
 			rfq_id, factory_id, price_per_piece, mold_cost, lead_time_days, shipping_method_id, factory_highlight, status, create_time, log_timestamp,
-			subtotal, discount_amount, shipping_cost, shipping_method, packaging_cost, tooling_mold_cost,
+			subtotal, discount_amount, shipping_cost, packaging_cost,
 			vat_rate, vat_amount, platform_commission_rate, platform_commission_amount, platform_config_id,
-			grand_total, factory_net_receivable, production_start_date, delivery_date, incoterms, payment_terms,
-			validity_days, valid_until, warranty_period_months, revision_no, parent_quotation_id, image_urls
+			grand_total, factory_net_receivable, payment_terms,
+			validity_days, valid_until, image_urls
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-		        $11,$12,$13,$14,$15,$16,
-		        $17,$18,$19,$20,$21,
-		        $22,$23,$24,$25,$26,$27,
-		        $28,$29,$30,$31,$32,$33)
+		        $11,$12,$13,$14,
+		        $15,$16,$17,$18,$19,
+		        $20,$21,$22,
+		        $23,$24,$25)
 		RETURNING quote_id
 	`
 	if err := exec.QueryRow(
@@ -95,9 +95,7 @@ func (r *QuotationRepository) createWithExecutor(exec quotationExecutor, item *d
 		item.Subtotal,
 		item.DiscountAmount,
 		item.ShippingCost,
-		nullableStringPtr(item.ShippingMethod),
 		item.PackagingCost,
-		item.ToolingMoldCost,
 		item.VatRate,
 		item.VatAmount,
 		item.PlatformCommissionRate,
@@ -105,15 +103,9 @@ func (r *QuotationRepository) createWithExecutor(exec quotationExecutor, item *d
 		nullableInt64Value(item.PlatformConfigID),
 		item.GrandTotal,
 		item.FactoryNetReceivable,
-		nullableTimeValue(item.ProductionStartDate),
-		nullableTimeValue(item.DeliveryDate),
-		nullableStringPtr(item.Incoterms),
 		nullableStringPtr(item.PaymentTerms),
 		item.ValidityDays,
 		nullableTimeValue(item.ValidUntil),
-		nullableIntValue(item.WarrantyPeriodMonths),
-		item.RevisionNo,
-		nullableInt64Value(item.ParentQuotationID),
 		imageURLs,
 	).Scan(&item.QuotationID); err != nil {
 		return err
@@ -134,16 +126,16 @@ func (r *QuotationRepository) ListByRFQID(rfqID int64) ([]domain.Quotation, erro
 		q.price_per_piece, q.mold_cost, q.lead_time_days, q.shipping_method_id,
 		COALESCE(r.status, 'OP') AS rfq_status,
 		COALESCE(r.request_kind, 'PR') AS request_kind,
-		r.sample_qty,
+		NULL::integer AS sample_qty,
 		NULL::text AS shipping_method_name,
 		q.factory_highlight,
 		q.status, q.create_time, q.log_timestamp,
-		COALESCE(q.version, 1) AS version, COALESCE(q.is_locked, false) AS is_locked, q.last_edited_at, q.last_edited_by,
-		q.subtotal, q.discount_amount, q.shipping_cost, q.shipping_method, q.packaging_cost, q.tooling_mold_cost,
+		COALESCE(q.version, 1) AS version, COALESCE(q.is_locked, false) AS is_locked, NULL::timestamptz AS last_edited_at, NULL::bigint AS last_edited_by,
+		q.subtotal, q.discount_amount, q.shipping_cost, NULL::text AS shipping_method, q.packaging_cost, q.mold_cost AS tooling_mold_cost,
 		q.vat_rate, q.vat_amount, q.platform_commission_rate, q.platform_commission_amount, q.platform_config_id,
-		q.grand_total, q.factory_net_receivable, q.production_start_date, q.delivery_date, q.incoterms, q.payment_terms,
+		q.grand_total, q.factory_net_receivable, NULL::date AS production_start_date, NULL::date AS delivery_date, NULL::text AS incoterms, q.payment_terms,
 		q.validity_days, COALESCE(q.valid_until, (q.create_time + (q.validity_days::text || ' day')::interval)::date) AS valid_until,
-		q.warranty_period_months, COALESCE(q.revision_no, 1) AS revision_no, q.parent_quotation_id,
+		NULL::integer AS warranty_period_months, 1 AS revision_no, NULL::bigint AS parent_quotation_id,
 		COALESCE(q.image_urls::text, '[]') AS image_urls,
 		NULL::text AS material_detail,
 		NULL::text AS payment_condition,
@@ -324,8 +316,8 @@ func (r *QuotationRepository) ListRevisionChain(root *domain.Quotation) ([]domai
 	}
 	var items []domain.Quotation
 	err := r.db.Select(&items, quotationSelectBase()+`
-		WHERE quote_id = $1 OR parent_quotation_id = $1
-		ORDER BY revision_no ASC, create_time ASC
+		WHERE quote_id = $1
+		ORDER BY create_time ASC
 	`, rootID)
 	for i := range items {
 		enrichQuotationComputed(&items[i])
@@ -348,7 +340,6 @@ func (r *QuotationRepository) UpdateBody(
 		UPDATE quotations
 		SET price_per_piece = $1,
 		    mold_cost = $2,
-		    tooling_mold_cost = $3,
 		    shipping_cost = $4,
 		    packaging_cost = $5,
 		    lead_time_days = $6,
@@ -358,8 +349,6 @@ func (r *QuotationRepository) UpdateBody(
 		    validity_days = CASE WHEN $13::int IS NOT NULL THEN $13 ELSE validity_days END,
 		    valid_until   = CASE WHEN $14::timestamp IS NOT NULL THEN $14 ELSE valid_until END,
 		    version = $9,
-		    last_edited_at = NOW(),
-		    last_edited_by = $10,
 		    log_timestamp = NOW()
 		WHERE quote_id = $11 AND COALESCE(is_locked, false) = false AND status = 'PD'
 	`

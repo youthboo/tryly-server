@@ -46,7 +46,7 @@ func (r *FactoryRepository) ListPublicVerified() ([]domain.FactoryListItem, erro
 			fp.factory_name,
 			fp.factory_type_id,
 			ft.type_name AS factory_type_name,
-			fp.specialization,
+			ft.type_name AS specialization,
 			COALESCE(rev.avg_rating, fp.rating, 0)::float8 AS rating,
 			COALESCE(rev.review_cnt, fp.review_count, 0)::bigint AS review_count,
 			fp.min_order,
@@ -56,7 +56,7 @@ func (r *FactoryRepository) ListPublicVerified() ([]domain.FactoryListItem, erro
 			fp.image_url,
 			fp.background_image_url,
 			fp.description,
-			fp.price_range,
+			NULL::text AS price_range,
 			fp.province_id,
 			p.name_th AS province_name
 		FROM factory_profiles fp
@@ -122,7 +122,7 @@ func (r *FactoryRepository) getFactoryDetailHead(factoryID int64) (factoryDetail
 			fp.factory_type_id,
 			ft.type_name AS factory_type_name,
 			fp.tax_id,
-			fp.specialization,
+			ft.type_name AS specialization,
 			fp.min_order,
 			fp.lead_time_desc,
 			COALESCE(fp.is_verified, FALSE) AS is_verified,
@@ -132,7 +132,7 @@ func (r *FactoryRepository) getFactoryDetailHead(factoryID int64) (factoryDetail
 			fp.image_url,
 			fp.background_image_url,
 			fp.description,
-			fp.price_range,
+			NULL::text AS price_range,
 			fp.province_id,
 			p.name_th AS province_name
 		FROM factory_profiles fp
@@ -262,14 +262,14 @@ func (r *FactoryRepository) selectFactoryCertificates(factoryID int64) ([]domain
 }
 
 type factoryReviewScanRow struct {
-	ReviewID  int64          `db:"review_id"`
-	UserID    int64          `db:"user_id"`
-	Rating    int            `db:"rating"`
-	Comment   sql.NullString `db:"comment"`
+	ReviewID  int64              `db:"review_id"`
+	UserID    int64              `db:"user_id"`
+	Rating    int                `db:"rating"`
+	Comment   sql.NullString     `db:"comment"`
 	ImageURLs domain.StringArray `db:"image_urls"`
-	CreatedAt time.Time      `db:"created_at"`
-	FirstName sql.NullString `db:"first_name"`
-	LastName  sql.NullString `db:"last_name"`
+	CreatedAt time.Time          `db:"created_at"`
+	FirstName sql.NullString     `db:"first_name"`
+	LastName  sql.NullString     `db:"last_name"`
 }
 
 func (r *FactoryRepository) selectFactoryReviews(factoryID int64, limit int) ([]domain.FactoryProfileReview, error) {
@@ -356,12 +356,10 @@ func (r *FactoryRepository) PatchProfile(factoryID int64, fields map[string]inte
 		"tax_id":               true,
 		"description":          true,
 		"factory_type_id":      true,
-		"specialization":       true,
 		"min_order":            true,
 		"lead_time_desc":       true,
 		"image_url":            true,
 		"background_image_url": true,
-		"price_range":          true,
 		"province_id":          true,
 	}
 
