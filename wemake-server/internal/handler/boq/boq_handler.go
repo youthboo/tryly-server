@@ -2,8 +2,8 @@ package boq
 
 import (
 	"errors"
+
 	"github.com/yourusername/wemake/internal/helper"
-	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
@@ -35,13 +35,13 @@ func (h *BOQHandler) Create(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	convID, err := strconv.ParseInt(c.Params("conv_id"), 10, 64)
+	convID, err := helper.ParsePositiveInt64Param(c, "conv_id")
 	if err != nil || convID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid conv_id"})
 	}
 	var req boqPayload
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
+	if err := helper.ParseBody(c, &req, "invalid payload"); err != nil {
+		return err
 	}
 	boq, msg, err := h.service.Create(convID, userID, boqservice.BOQInput(req))
 	if err != nil {
@@ -55,7 +55,7 @@ func (h *BOQHandler) Get(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	rfqID, err := strconv.ParseInt(c.Params("rfq_id"), 10, 64)
+	rfqID, err := helper.ParsePositiveInt64Param(c, "rfq_id")
 	if err != nil || rfqID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
 	}
@@ -71,13 +71,13 @@ func (h *BOQHandler) Update(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	rfqID, err := strconv.ParseInt(c.Params("rfq_id"), 10, 64)
+	rfqID, err := helper.ParsePositiveInt64Param(c, "rfq_id")
 	if err != nil || rfqID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
 	}
 	var req boqPayload
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
+	if err := helper.ParseBody(c, &req, "invalid payload"); err != nil {
+		return err
 	}
 	boq, err := h.service.Update(rfqID, userID, boqservice.BOQInput(req))
 	if err != nil {
@@ -91,7 +91,7 @@ func (h *BOQHandler) Accept(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	rfqID, err := strconv.ParseInt(c.Params("rfq_id"), 10, 64)
+	rfqID, err := helper.ParsePositiveInt64Param(c, "rfq_id")
 	if err != nil || rfqID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
 	}
@@ -114,14 +114,14 @@ func (h *BOQHandler) Decline(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	rfqID, err := strconv.ParseInt(c.Params("rfq_id"), 10, 64)
+	rfqID, err := helper.ParsePositiveInt64Param(c, "rfq_id")
 	if err != nil || rfqID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
 	}
 	var req struct {
 		Reason *string `json:"reason"`
 	}
-	_ = c.BodyParser(&req)
+	_ = helper.ParseBody(c, &req, "invalid payload")
 	rfq, err := h.service.Decline(rfqID, userID, req.Reason)
 	if err != nil {
 		return mapBOQError(c, err)

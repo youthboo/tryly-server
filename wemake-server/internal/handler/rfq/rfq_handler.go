@@ -2,13 +2,11 @@ package rfq
 
 import (
 	"database/sql"
-	"github.com/yourusername/wemake/internal/helper"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/helper"
 	"github.com/yourusername/wemake/internal/repository"
 	"github.com/yourusername/wemake/internal/service"
 	rfqservice "github.com/yourusername/wemake/internal/service/rfq"
@@ -91,7 +89,7 @@ func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
 		rfq.DeliveryAddressID = &rfq.AddressID
 	}
 	if req.RequiredDeliveryDate != nil && strings.TrimSpace(*req.RequiredDeliveryDate) != "" {
-		d, err := time.Parse("2006-01-02", strings.TrimSpace(*req.RequiredDeliveryDate))
+		d, err := helper.ParseDate(*req.RequiredDeliveryDate, "required_delivery_date")
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "required_delivery_date must be YYYY-MM-DD"})
 		}
@@ -158,7 +156,7 @@ func (h *RFQHandler) PatchRFQ(c *fiber.Ctx) error {
 		RequestKind: req.RequestKind,
 	}
 	if req.RequiredDeliveryDate != nil && strings.TrimSpace(*req.RequiredDeliveryDate) != "" {
-		d, err := time.Parse("2006-01-02", strings.TrimSpace(*req.RequiredDeliveryDate))
+		d, err := helper.ParseDate(*req.RequiredDeliveryDate, "required_delivery_date")
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "required_delivery_date must be YYYY-MM-DD"})
 		}
@@ -206,13 +204,13 @@ func (h *RFQHandler) PreviewFactories(c *fiber.Ctx) error {
 	if rawCategory == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "MISSING_CATEGORY"})
 	}
-	categoryID, err := strconv.ParseInt(rawCategory, 10, 64)
+	categoryID, err := helper.ParsePositiveInt64Value(rawCategory, "category_id")
 	if err != nil || categoryID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "MISSING_CATEGORY"})
 	}
 	var subCategoryID *int64
 	if raw := strings.TrimSpace(c.Query("sub_category_id")); raw != "" {
-		parsed, parseErr := strconv.ParseInt(raw, 10, 64)
+		parsed, parseErr := helper.ParsePositiveInt64Value(raw, "sub_category_id")
 		if parseErr != nil || parsed <= 0 {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid sub_category_id"})
 		}

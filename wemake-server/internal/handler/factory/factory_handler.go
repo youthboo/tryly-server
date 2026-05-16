@@ -2,8 +2,8 @@ package factory
 
 import (
 	"errors"
+
 	"github.com/yourusername/wemake/internal/helper"
-	"strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -93,8 +93,8 @@ func (h *FactoryHandler) PatchProfile(c *fiber.Ctx) error {
 	}
 
 	var req patchFactoryProfileRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := helper.RequireBody(c, &req); err != nil {
+		return err
 	}
 
 	fields := map[string]interface{}{}
@@ -247,7 +247,7 @@ func (h *FactoryHandler) RemoveCategory(c *fiber.Ctx) error {
 	if int64(factoryID) != userID {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
 	}
-	categoryID, err := strconv.ParseInt(c.Params("category_id"), 10, 64)
+	categoryID, err := helper.ParsePositiveInt64Param(c, "category_id")
 	if err != nil || categoryID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid category_id"})
 	}
@@ -274,12 +274,9 @@ func (h *FactoryHandler) ReplaceCategories(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
 	}
 	var body replaceFactoryCategoriesBody
-	if err := c.BodyParser(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
-	}
-	if err := helper.ValidateStruct(c, &body, map[string]string{
+	if err := helper.ParseAndValidateBodyWithMessage(c, &body, map[string]string{
 		"CategoryIDs": "body must include category_ids with at least one positive integer",
-	}); err != nil {
+	}, "invalid payload"); err != nil {
 		return err
 	}
 	categoryIDs, ok := validatePositiveUniqueIDs(body.CategoryIDs)
@@ -371,7 +368,7 @@ func (h *FactoryHandler) RemoveSubCategory(c *fiber.Ctx) error {
 	if int64(factoryID) != userID {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
 	}
-	subID, err := strconv.ParseInt(c.Params("sub_category_id"), 10, 64)
+	subID, err := helper.ParsePositiveInt64Param(c, "sub_category_id")
 	if err != nil || subID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid sub_category_id"})
 	}
@@ -398,12 +395,9 @@ func (h *FactoryHandler) ReplaceSubCategories(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
 	}
 	var body replaceFactorySubCategoriesBody
-	if err := c.BodyParser(&body); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
-	}
-	if err := helper.ValidateStruct(c, &body, map[string]string{
+	if err := helper.ParseAndValidateBodyWithMessage(c, &body, map[string]string{
 		"SubCategoryIDs": "sub_category_ids must contain only positive integers",
-	}); err != nil {
+	}, "invalid payload"); err != nil {
 		return err
 	}
 

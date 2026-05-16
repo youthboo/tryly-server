@@ -1,11 +1,10 @@
 package wallet
 
 import (
-	"errors"
-	"github.com/yourusername/wemake/internal/helper"
+	"database/sql"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/yourusername/wemake/internal/repository"
+	"github.com/yourusername/wemake/internal/helper"
 	walletservice "github.com/yourusername/wemake/internal/service/wallet"
 )
 
@@ -51,10 +50,7 @@ func (h *DisputeHandler) GetByOrderID(c *fiber.Ctx) error {
 	}
 	item, err := h.service.GetByOrderID(int64(orderID))
 	if err != nil {
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "dispute not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch dispute"})
+		return helper.MapServiceError(c, err, disputeGetFallback, disputeGetResponses)
 	}
 	return c.JSON(item)
 }
@@ -74,13 +70,20 @@ func (h *DisputeHandler) PatchStatus(c *fiber.Ctx) error {
 		return err
 	}
 	if err := h.service.UpdateStatus(disputeID, req.Status, req.Resolution); err != nil {
-		if errors.Is(err, walletservice.ErrInvalidDisputeStatus) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-		}
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "dispute not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update dispute"})
+		return helper.MapServiceError(c, err, disputePatchStatusFallback, disputePatchStatusResponses)
 	}
 	return c.JSON(fiber.Map{"message": "dispute updated"})
+}
+
+var disputeGetFallback = helper.ErrorMessage(fiber.StatusInternalServerError, "failed to fetch dispute")
+
+var disputeGetResponses = map[error]helper.ErrorResponse{
+	sql.ErrNoRows: helper.ErrorMessage(fiber.StatusNotFound, "dispute not found"),
+}
+
+var disputePatchStatusFallback = helper.ErrorMessage(fiber.StatusInternalServerError, "failed to update dispute")
+
+var disputePatchStatusResponses = map[error]helper.ErrorResponse{
+	walletservice.ErrInvalidDisputeStatus: helper.ErrorMessage(fiber.StatusBadRequest, walletservice.ErrInvalidDisputeStatus.Error()),
+	sql.ErrNoRows:                         helper.ErrorMessage(fiber.StatusNotFound, "dispute not found"),
 }

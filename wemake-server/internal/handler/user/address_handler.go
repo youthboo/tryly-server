@@ -59,8 +59,8 @@ func (h *AddressHandler) CreateAddress(c *fiber.Ctx) error {
 	}
 
 	var req createAddressRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := helper.RequireBody(c, &req); err != nil {
+		return err
 	}
 
 	if strings.TrimSpace(req.AddressType) == "" || strings.TrimSpace(req.AddressDetail) == "" {
@@ -110,8 +110,8 @@ func (h *AddressHandler) PatchAddress(c *fiber.Ctx) error {
 	}
 
 	var req patchAddressRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := helper.RequireBody(c, &req); err != nil {
+		return err
 	}
 
 	fields := map[string]interface{}{}

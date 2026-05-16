@@ -63,8 +63,8 @@ func (h *ProfileHandler) UpdateProfile(c *fiber.Ctx) error {
 			LeadTimeDesc   *string `json:"lead_time_desc"`
 			PriceRange     *string `json:"price_range"`
 		}
-		if err := c.BodyParser(&req); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
+		if err := helper.ParseBody(c, &req, "invalid payload"); err != nil {
+			return err
 		}
 		item, err := h.service.UpdateFactoryProfile(userID, req.Phone, req.Bio, &domain.FactoryProfile{
 			Description:    req.Description,
@@ -89,8 +89,8 @@ func (h *ProfileHandler) UpdateProfile(c *fiber.Ctx) error {
 			Province     *string `json:"province"`
 			PostalCode   *string `json:"postal_code"`
 		}
-		if err := c.BodyParser(&req); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
+		if err := helper.ParseBody(c, &req, "invalid payload"); err != nil {
+			return err
 		}
 		item, err := h.service.UpdateCustomerProfile(userID, req.Phone, req.Bio, &domain.CustomerProfile{
 			FirstName: req.FirstName, LastName: req.LastName, AddressLine1: req.AddressLine1,
@@ -169,8 +169,8 @@ func (h *ProfileHandler) ChangePassword(c *fiber.Ctx) error {
 		NewPassword     string `json:"new_password"`
 		ConfirmPassword string `json:"confirm_password"`
 	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
+	if err := helper.ParseBody(c, &req, "invalid payload"); err != nil {
+		return err
 	}
 	if err := h.service.ChangePassword(userID, req.CurrentPassword, req.NewPassword, req.ConfirmPassword); err != nil {
 		if err == profileservice.ErrProfileUnauthorized {
@@ -271,8 +271,8 @@ func (h *ProfileHandler) UpdateNotifPrefs(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 	var req domain.NotificationPreference
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
+	if err := helper.ParseBody(c, &req, "invalid payload"); err != nil {
+		return err
 	}
 	item, err := h.service.UpdateNotificationPreference(userID, &req)
 	if err != nil {

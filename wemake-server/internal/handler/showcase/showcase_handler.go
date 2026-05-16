@@ -80,7 +80,7 @@ func parseLinkedShowcases(raw json.RawMessage) (*[]string, *domain.ShowcaseValid
 
 	// Format 1: ["https://...", "123"]
 	var asStrings []string
-	if err := json.Unmarshal(raw, &asStrings); err == nil {
+	if err := helper.UnmarshalJSON(raw, &asStrings); err == nil {
 		out := make([]string, 0, len(asStrings))
 		for _, item := range asStrings {
 			v := strings.TrimSpace(item)
@@ -94,7 +94,7 @@ func parseLinkedShowcases(raw json.RawMessage) (*[]string, *domain.ShowcaseValid
 
 	// Format 1b: [31, "32", "https://..."] mixed numeric/string array
 	var asMixed []interface{}
-	if err := json.Unmarshal(raw, &asMixed); err == nil {
+	if err := helper.UnmarshalJSON(raw, &asMixed); err == nil {
 		out := make([]string, 0, len(asMixed))
 		for _, item := range asMixed {
 			switch v := item.(type) {
@@ -119,7 +119,7 @@ func parseLinkedShowcases(raw json.RawMessage) (*[]string, *domain.ShowcaseValid
 
 	// Format 2: [{ "image_url": "...", "sort_order": 1, "is_cover": true }]
 	var asObjects []linkedShowcaseObject
-	if err := json.Unmarshal(raw, &asObjects); err == nil {
+	if err := helper.UnmarshalJSON(raw, &asObjects); err == nil {
 		type normalized struct {
 			URL      string
 			Sort     int
@@ -169,7 +169,7 @@ func parseShowcaseDate(raw *string, field string) (*time.Time, *domain.ShowcaseV
 	if trimmed == "" {
 		return nil, nil
 	}
-	t, err := time.Parse("2006-01-02", trimmed)
+	t, err := helper.ParseDate(trimmed, field)
 	if err != nil {
 		return nil, &domain.ShowcaseValidationDetail{Field: field, Message: "must use YYYY-MM-DD format"}
 	}
@@ -253,7 +253,7 @@ func (h *ShowcaseHandler) listByFactoryParam(c *fiber.Ctx, factoryParam, content
 		}
 		return c.JSON(items)
 	}
-	factoryID, err := strconv.ParseInt(factoryParam, 10, 64)
+	factoryID, err := helper.ParsePositiveInt64Value(factoryParam, "factory_id")
 	if err != nil || factoryID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_id"})
 	}
@@ -284,7 +284,7 @@ func (h *ShowcaseHandler) List(c *fiber.Ctx) error {
 			}
 			factoryID = &userID
 		} else {
-			parsed, err := strconv.ParseInt(factoryParam, 10, 64)
+			parsed, err := helper.ParsePositiveInt64Value(factoryParam, "factory_id")
 			if err != nil || parsed <= 0 {
 				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_id"})
 			}
@@ -359,8 +359,8 @@ func (h *ShowcaseHandler) Create(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 	var req showcaseWriteRequest
-	if err := json.Unmarshal(c.Body(), &req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidPayload})
+	if err := helper.ParseJSONBody(c, &req, errInvalidPayload); err != nil {
+		return err
 	}
 	input, details := req.toInput()
 	if len(details) > 0 {
@@ -391,8 +391,8 @@ func (h *ShowcaseHandler) updateStructured(c *fiber.Ctx, replace bool) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
 	}
 	var req showcaseWriteRequest
-	if err := json.Unmarshal(c.Body(), &req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidPayload})
+	if err := helper.ParseJSONBody(c, &req, errInvalidPayload); err != nil {
+		return err
 	}
 	input, details := req.toInput()
 	if len(details) > 0 {
@@ -417,8 +417,8 @@ func (h *ShowcaseHandler) PatchStatus(c *fiber.Ctx) error {
 	var req struct {
 		Status string `json:"status" validate:"notblank"`
 	}
-	if err := json.Unmarshal(c.Body(), &req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidPayload})
+	if err := helper.ParseJSONBody(c, &req, errInvalidPayload); err != nil {
+		return err
 	}
 	if err := helper.ValidateStruct(c, &req, map[string]string{"Status": errInvalidStatus}); err != nil {
 		return err
@@ -501,10 +501,7 @@ func (h *ShowcaseHandler) CreateImage(c *fiber.Ctx) error {
 		SortOrder int     `json:"sort_order"`
 		Caption   *string `json:"caption"`
 	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidPayload})
-	}
-	if err := helper.ValidateStruct(c, &req, map[string]string{"ImageURL": "image_url is required"}); err != nil {
+	if err := helper.ParseAndValidateBodyWithMessage(c, &req, map[string]string{"ImageURL": "image_url is required"}, errInvalidPayload); err != nil {
 		return err
 	}
 	img := &domain.ShowcaseImage{
@@ -548,7 +545,7 @@ func (h *ShowcaseHandler) DeleteImage(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
 	}
-	imageID, err := strconv.ParseInt(c.Params("image_id"), 10, 64)
+	imageID, err := helper.ParsePositiveInt64Param(c, "image_id")
 	if err != nil || imageID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid image_id"})
 	}
@@ -591,8 +588,8 @@ func (h *ShowcaseHandler) BulkReplaceSections(c *fiber.Ctx) error {
 	var req struct {
 		Sections []domain.ShowcaseSectionInput `json:"sections"`
 	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidPayload})
+	if err := helper.ParseBody(c, &req, errInvalidPayload); err != nil {
+		return err
 	}
 	if len(req.Sections) > 10 {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "max 10 sections per showcase"})
@@ -642,8 +639,8 @@ func (h *ShowcaseHandler) BulkReplaceSpecs(c *fiber.Ctx) error {
 	var req struct {
 		Specs []domain.ShowcaseSpecInput `json:"specs"`
 	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidPayload})
+	if err := helper.ParseBody(c, &req, errInvalidPayload); err != nil {
+		return err
 	}
 	for _, s := range req.Specs {
 		if strings.TrimSpace(s.SpecKey) == "" {
@@ -672,7 +669,7 @@ func (h *ShowcaseHandler) PatchImage(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
 	}
-	imageID, err := strconv.ParseInt(c.Params("image_id"), 10, 64)
+	imageID, err := helper.ParsePositiveInt64Param(c, "image_id")
 	if err != nil || imageID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid image_id"})
 	}
@@ -680,8 +677,8 @@ func (h *ShowcaseHandler) PatchImage(c *fiber.Ctx) error {
 		SortOrder *int    `json:"sort_order"`
 		Caption   *string `json:"caption"`
 	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidPayload})
+	if err := helper.ParseBody(c, &req, errInvalidPayload); err != nil {
+		return err
 	}
 	img, err := h.service.PatchImage(showcaseID, imageID, userID, req.SortOrder, req.Caption)
 	if err != nil {
@@ -700,7 +697,7 @@ func (h *ShowcaseHandler) DeleteSection(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
 	}
-	sectionID, err := strconv.ParseInt(c.Params("section_id"), 10, 64)
+	sectionID, err := helper.ParsePositiveInt64Param(c, "section_id")
 	if err != nil || sectionID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid section_id"})
 	}

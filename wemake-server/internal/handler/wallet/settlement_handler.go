@@ -1,11 +1,12 @@
 package wallet
 
 import (
-	"github.com/yourusername/wemake/internal/helper"
+	"database/sql"
 	"strings"
 
+	"github.com/yourusername/wemake/internal/helper"
+
 	"github.com/gofiber/fiber/v2"
-	"github.com/yourusername/wemake/internal/repository"
 	walletservice "github.com/yourusername/wemake/internal/service/wallet"
 )
 
@@ -42,10 +43,7 @@ func (h *SettlementHandler) GetByID(c *fiber.Ctx) error {
 	}
 	item, err := h.service.GetByID(settlementID, userID)
 	if err != nil {
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "settlement not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch settlement"})
+		return helper.MapServiceError(c, err, settlementGetFallback, settlementGetResponses)
 	}
 	return c.JSON(item)
 }
@@ -92,10 +90,19 @@ func (h *SettlementHandler) PatchStatus(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "status must be PR, CP, or FL"})
 	}
 	if err := h.service.UpdateStatus(settlementID, status); err != nil {
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "settlement not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update settlement status"})
+		return helper.MapServiceError(c, err, settlementPatchStatusFallback, settlementPatchStatusResponses)
 	}
 	return c.JSON(fiber.Map{"message": "settlement status updated"})
+}
+
+var settlementGetFallback = helper.ErrorMessage(fiber.StatusInternalServerError, "failed to fetch settlement")
+
+var settlementGetResponses = map[error]helper.ErrorResponse{
+	sql.ErrNoRows: helper.ErrorMessage(fiber.StatusNotFound, "settlement not found"),
+}
+
+var settlementPatchStatusFallback = helper.ErrorMessage(fiber.StatusInternalServerError, "failed to update settlement status")
+
+var settlementPatchStatusResponses = map[error]helper.ErrorResponse{
+	sql.ErrNoRows: helper.ErrorMessage(fiber.StatusNotFound, "settlement not found"),
 }

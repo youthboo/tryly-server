@@ -2,6 +2,7 @@ package helper
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
@@ -18,6 +19,13 @@ type ServiceErrorCase struct {
 	Status  int
 	Message string
 }
+
+type ErrorResponse struct {
+	Status int
+	Body   fiber.Map
+}
+
+type ErrorResponseBuilder func(error) ErrorResponse
 
 func UserIDFromHeader(c *fiber.Ctx) (int64, error) {
 	if localValue := c.Locals("user_id"); localValue != nil {
@@ -63,14 +71,43 @@ func BadRequest(c *fiber.Ctx, message string) error {
 }
 
 func RequireBody(c *fiber.Ctx, out interface{}) error {
+	return ParseBody(c, out, "invalid request payload")
+}
+
+func ParseBody(c *fiber.Ctx, out interface{}, message string) error {
 	if err := c.BodyParser(out); err != nil {
-		return JSONError(c, fiber.StatusBadRequest, "invalid request payload")
+		if message == "" {
+			message = "invalid request payload"
+		}
+		return JSONError(c, fiber.StatusBadRequest, message)
 	}
 	return nil
 }
 
+func ParseJSONBody(c *fiber.Ctx, out interface{}, message string) error {
+	if err := UnmarshalJSON(c.Body(), out); err != nil {
+		if message == "" {
+			message = "invalid request payload"
+		}
+		return JSONError(c, fiber.StatusBadRequest, message)
+	}
+	return nil
+}
+
+func UnmarshalJSON(data []byte, out interface{}) error {
+	return json.Unmarshal(data, out)
+}
+
 func ParsePositiveInt64Param(c *fiber.Ctx, name string) (int64, error) {
 	value, err := strconv.ParseInt(c.Params(name), 10, 64)
+	if err != nil || value <= 0 {
+		return 0, fiber.NewError(fiber.StatusBadRequest, "invalid "+name)
+	}
+	return value, nil
+}
+
+func ParsePositiveInt64Value(raw string, name string) (int64, error) {
+	value, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
 	if err != nil || value <= 0 {
 		return 0, fiber.NewError(fiber.StatusBadRequest, "invalid "+name)
 	}
@@ -85,6 +122,18 @@ func ParseOptionalPositiveInt64Query(c *fiber.Ctx, name string) (*int64, error) 
 	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil || value <= 0 {
 		return nil, fiber.NewError(fiber.StatusBadRequest, "invalid "+name)
+	}
+	return &value, nil
+}
+
+func ParseOptionalPositiveInt64Value(raw string, name string) (*int64, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	value, err := ParsePositiveInt64Value(raw, name)
+	if err != nil {
+		return nil, err
 	}
 	return &value, nil
 }
@@ -160,6 +209,47 @@ func WriteServiceErrorWithNotFound(c *fiber.Ctx, err error, fallback string, not
 		return JSONError(c, fiber.StatusNotFound, notFoundMessage)
 	}
 	return JSONError(c, fiber.StatusInternalServerError, fallback)
+}
+
+func MapServiceError(c *fiber.Ctx, err error, fallback ErrorResponse, responses map[error]ErrorResponse) error {
+	for target, response := range responses {
+		if target != nil && errors.Is(err, target) {
+			return WriteErrorResponse(c, response)
+		}
+	}
+	return WriteErrorResponse(c, fallback)
+}
+
+func MapServiceErrorFunc(c *fiber.Ctx, err error, fallback ErrorResponse, responses map[error]ErrorResponseBuilder) error {
+	for target, buildResponse := range responses {
+		if target != nil && errors.Is(err, target) {
+			if buildResponse == nil {
+				return WriteErrorResponse(c, fallback)
+			}
+			return WriteErrorResponse(c, buildResponse(err))
+		}
+	}
+	return WriteErrorResponse(c, fallback)
+}
+
+func WriteErrorResponse(c *fiber.Ctx, response ErrorResponse) error {
+	status := response.Status
+	if status == 0 {
+		status = fiber.StatusInternalServerError
+	}
+	body := response.Body
+	if body == nil {
+		body = fiber.Map{"error": "internal server error"}
+	}
+	return c.Status(status).JSON(body)
+}
+
+func ErrorMessage(status int, message string) ErrorResponse {
+	return ErrorResponse{Status: status, Body: fiber.Map{"error": message}}
+}
+
+func ErrorBody(status int, body fiber.Map) ErrorResponse {
+	return ErrorResponse{Status: status, Body: body}
 }
 
 func BadRequestCase(err error) ServiceErrorCase {

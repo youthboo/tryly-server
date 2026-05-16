@@ -1,10 +1,10 @@
 package handler
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/helper"
 	"github.com/yourusername/wemake/internal/service"
 )
 
@@ -40,7 +40,7 @@ func (h *CatalogHandler) GetLBICategories(c *fiber.Ctx) error {
 }
 
 func (h *CatalogHandler) GetSubCategories(c *fiber.Ctx) error {
-	categoryID, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	categoryID, err := helper.ParsePositiveInt64Param(c, "id")
 	if err != nil || categoryID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid category id"})
 	}

@@ -2,12 +2,11 @@ package payment
 
 import (
 	"database/sql"
-	"errors"
-	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/helper"
 	paymentservice "github.com/yourusername/wemake/internal/service/payment"
 )
 
@@ -80,10 +79,14 @@ func (h *PaymentScheduleHandler) PatchStatus(c *fiber.Ctx) error {
 		return err
 	}
 	if err := h.service.PatchStatus(scheduleID, req.Status); err != nil {
-		if errors.Is(err, paymentservice.ErrInvalidScheduleStatus) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-		}
-		return helper.WriteServiceError(c, err, "failed to update payment schedule", helper.NotFoundCase(sql.ErrNoRows, "payment schedule not found"))
+		return helper.MapServiceError(c, err, paymentSchedulePatchStatusFallback, paymentSchedulePatchStatusResponses)
 	}
 	return c.JSON(fiber.Map{"message": "payment schedule updated"})
+}
+
+var paymentSchedulePatchStatusFallback = helper.ErrorMessage(fiber.StatusInternalServerError, "failed to update payment schedule")
+
+var paymentSchedulePatchStatusResponses = map[error]helper.ErrorResponse{
+	paymentservice.ErrInvalidScheduleStatus: helper.ErrorMessage(fiber.StatusBadRequest, paymentservice.ErrInvalidScheduleStatus.Error()),
+	sql.ErrNoRows:                           helper.ErrorMessage(fiber.StatusNotFound, "payment schedule not found"),
 }

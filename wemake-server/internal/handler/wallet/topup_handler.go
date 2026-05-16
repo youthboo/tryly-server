@@ -1,11 +1,10 @@
 package wallet
 
 import (
-	"errors"
-	"github.com/yourusername/wemake/internal/helper"
+	"database/sql"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/yourusername/wemake/internal/repository"
+	"github.com/yourusername/wemake/internal/helper"
 	walletservice "github.com/yourusername/wemake/internal/service/wallet"
 )
 
@@ -34,10 +33,7 @@ func (h *TopupHandler) CreateIntent(c *fiber.Ctx) error {
 	}
 	intent, err := h.service.CreateIntent(userID, req.Amount)
 	if err != nil {
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "wallet not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create topup intent"})
+		return helper.MapServiceError(c, err, topupCreateFallback, topupCreateResponses)
 	}
 	return c.Status(fiber.StatusCreated).JSON(intent)
 }
@@ -50,10 +46,7 @@ func (h *TopupHandler) GetIntent(c *fiber.Ctx) error {
 	}
 	intent, err := h.service.GetIntent(intentID)
 	if err != nil {
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "topup intent not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch topup intent"})
+		return helper.MapServiceError(c, err, topupGetFallback, topupGetResponses)
 	}
 	return c.JSON(intent)
 }
@@ -66,13 +59,26 @@ func (h *TopupHandler) ConfirmIntent(c *fiber.Ctx) error {
 	}
 	intent, err := h.service.ConfirmIntent(intentID)
 	if err != nil {
-		if errors.Is(err, walletservice.ErrTopupAlreadyProcessed) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-		}
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "topup intent not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to confirm topup"})
+		return helper.MapServiceError(c, err, topupConfirmFallback, topupConfirmResponses)
 	}
 	return c.JSON(intent)
+}
+
+var topupCreateFallback = helper.ErrorMessage(fiber.StatusInternalServerError, "failed to create topup intent")
+
+var topupCreateResponses = map[error]helper.ErrorResponse{
+	sql.ErrNoRows: helper.ErrorMessage(fiber.StatusNotFound, "wallet not found"),
+}
+
+var topupGetFallback = helper.ErrorMessage(fiber.StatusInternalServerError, "failed to fetch topup intent")
+
+var topupGetResponses = map[error]helper.ErrorResponse{
+	sql.ErrNoRows: helper.ErrorMessage(fiber.StatusNotFound, "topup intent not found"),
+}
+
+var topupConfirmFallback = helper.ErrorMessage(fiber.StatusInternalServerError, "failed to confirm topup")
+
+var topupConfirmResponses = map[error]helper.ErrorResponse{
+	walletservice.ErrTopupAlreadyProcessed: helper.ErrorMessage(fiber.StatusBadRequest, walletservice.ErrTopupAlreadyProcessed.Error()),
+	sql.ErrNoRows:                          helper.ErrorMessage(fiber.StatusNotFound, "topup intent not found"),
 }

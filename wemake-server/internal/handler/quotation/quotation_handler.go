@@ -2,13 +2,11 @@ package quotation
 
 import (
 	"errors"
-	"github.com/yourusername/wemake/internal/helper"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/helper"
 	"github.com/yourusername/wemake/internal/repository"
 	"github.com/yourusername/wemake/internal/service"
 	quotationservice "github.com/yourusername/wemake/internal/service/quotation"
@@ -162,7 +160,7 @@ func (h *QuotationHandler) ListCollection(c *fiber.Ctx) error {
 	if strings.EqualFold(factoryParam, "me") {
 		factoryID = userID
 	} else {
-		parsed, parseErr := strconv.ParseInt(factoryParam, 10, 64)
+		parsed, parseErr := helper.ParsePositiveInt64Value(factoryParam, "factory_id")
 		if parseErr != nil || parsed <= 0 {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_id"})
 		}
@@ -291,14 +289,14 @@ func (h *QuotationHandler) CreateDetailed(c *fiber.Ctx) error {
 		item.LeadTimeDays = *req.LeadTimeDays
 	}
 	if req.ProductionStartDate != nil && strings.TrimSpace(*req.ProductionStartDate) != "" {
-		d, err := time.Parse("2006-01-02", strings.TrimSpace(*req.ProductionStartDate))
+		d, err := helper.ParseDate(*req.ProductionStartDate, "production_start_date")
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "production_start_date must be YYYY-MM-DD"})
 		}
 		item.ProductionStartDate = &d
 	}
 	if req.DeliveryDate != nil && strings.TrimSpace(*req.DeliveryDate) != "" {
-		d, err := time.Parse("2006-01-02", strings.TrimSpace(*req.DeliveryDate))
+		d, err := helper.ParseDate(*req.DeliveryDate, "delivery_date")
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "delivery_date must be YYYY-MM-DD"})
 		}

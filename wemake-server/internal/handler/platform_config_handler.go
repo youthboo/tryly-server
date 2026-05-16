@@ -2,10 +2,9 @@ package handler
 
 import (
 	"errors"
+
 	"github.com/yourusername/wemake/internal/helper"
 	"strconv"
-	"strings"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
@@ -60,24 +59,16 @@ func (h *PlatformConfigHandler) Create(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := helper.RequireBody(c, &req); err != nil {
+		return err
 	}
-	var promoStartAt *time.Time
-	if req.PromoStartAt != nil && strings.TrimSpace(*req.PromoStartAt) != "" {
-		parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(*req.PromoStartAt))
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "promo_start_at must be RFC3339"})
-		}
-		promoStartAt = &parsed
+	promoStartAt, err := helper.ParseOptionalRFC3339Value(req.PromoStartAt, "promo_start_at")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "promo_start_at must be RFC3339"})
 	}
-	var promoEndAt *time.Time
-	if req.PromoEndAt != nil && strings.TrimSpace(*req.PromoEndAt) != "" {
-		parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(*req.PromoEndAt))
-		if err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "promo_end_at must be RFC3339"})
-		}
-		promoEndAt = &parsed
+	promoEndAt, err := helper.ParseOptionalRFC3339Value(req.PromoEndAt, "promo_end_at")
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "promo_end_at must be RFC3339"})
 	}
 	cfg := &domain.PlatformConfig{
 		DefaultCommissionRate: req.DefaultCommissionRate,
@@ -101,8 +92,8 @@ func (h *PlatformConfigHandler) CreateConfig(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 	var req domain.CreatePlatformConfigRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := helper.RequireBody(c, &req); err != nil {
+		return err
 	}
 	ip := c.IP()
 	item, err := h.service.CreateConfig(req, actorID, &ip)
@@ -116,7 +107,7 @@ func (h *PlatformConfigHandler) CreateConfig(c *fiber.Ctx) error {
 }
 
 func (h *PlatformConfigHandler) UpdateConfig(c *fiber.Ctx) error {
-	configID, err := strconv.ParseInt(c.Params("config_id"), 10, 64)
+	configID, err := helper.ParsePositiveInt64Param(c, "config_id")
 	if err != nil || configID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid config_id"})
 	}
@@ -125,8 +116,8 @@ func (h *PlatformConfigHandler) UpdateConfig(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 	var req domain.UpdatePlatformConfigRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := helper.RequireBody(c, &req); err != nil {
+		return err
 	}
 	ip := c.IP()
 	item, err := h.service.UpdateConfig(configID, req, actorID, &ip)
@@ -144,7 +135,7 @@ func (h *PlatformConfigHandler) UpdateConfig(c *fiber.Ctx) error {
 }
 
 func (h *PlatformConfigHandler) DeleteConfig(c *fiber.Ctx) error {
-	configID, err := strconv.ParseInt(c.Params("config_id"), 10, 64)
+	configID, err := helper.ParsePositiveInt64Param(c, "config_id")
 	if err != nil || configID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid config_id"})
 	}

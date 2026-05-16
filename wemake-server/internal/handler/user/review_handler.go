@@ -52,8 +52,8 @@ func (h *ReviewHandler) Create(c *fiber.Ctx) error {
 	}
 
 	var req domain.FactoryReview
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
+	if err := helper.ParseBody(c, &req, "invalid payload"); err != nil {
+		return err
 	}
 	req.FactoryID = int64(factoryID)
 	req.UserID = userID
@@ -81,8 +81,8 @@ func (h *ReviewHandler) UpdateByUser(c *fiber.Ctx) error {
 		Comment   string             `json:"comment"`
 		ImageURLs domain.StringArray `json:"image_urls"`
 	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
+	if err := helper.ParseBody(c, &req, "invalid payload"); err != nil {
+		return err
 	}
 	item, err := h.service.UpdateByUser(int64(reviewID), userID, req.Rating, req.Comment, req.ImageURLs)
 	if err != nil {

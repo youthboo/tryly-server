@@ -20,8 +20,15 @@ func newRequestValidator() *validator.Validate {
 }
 
 func ParseAndValidateBody(c *fiber.Ctx, out interface{}, messages map[string]string) error {
-	if err := c.BodyParser(out); err != nil {
-		return JSONError(c, fiber.StatusBadRequest, "invalid request payload")
+	if err := ParseBody(c, out, "invalid request payload"); err != nil {
+		return err
+	}
+	return ValidateStruct(c, out, messages)
+}
+
+func ParseAndValidateBodyWithMessage(c *fiber.Ctx, out interface{}, messages map[string]string, parseMessage string) error {
+	if err := ParseBody(c, out, parseMessage); err != nil {
+		return err
 	}
 	return ValidateStruct(c, out, messages)
 }

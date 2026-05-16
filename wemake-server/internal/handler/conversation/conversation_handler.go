@@ -1,7 +1,6 @@
 package conversation
 
 import (
-	"errors"
 	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/gofiber/fiber/v2"
@@ -40,10 +39,7 @@ func (h *ConversationHandler) Get(c *fiber.Ctx) error {
 	}
 	item, err := h.service.GetByID(int64(convID), userID)
 	if err != nil {
-		if errors.Is(err, conversationservice.ErrConversationForbidden) {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
-		}
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "conversation not found"})
+		return helper.MapServiceError(c, err, conversationGetFallback, conversationGetResponses)
 	}
 	return c.JSON(item)
 }
@@ -104,13 +100,7 @@ func (h *ConversationHandler) MarkAsRead(c *fiber.Ctx) error {
 		return helper.BadRequest(c, "invalid conv_id")
 	}
 	if err := h.service.MarkAsRead(int64(convID), userID); err != nil {
-		if errors.Is(err, conversationservice.ErrConversationForbidden) {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
-		}
-		if errors.Is(err, conversationservice.ErrConversationNotFound) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "conversation not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to mark conversation as read"})
+		return helper.MapServiceError(c, err, conversationMarkAsReadFallback, conversationMarkAsReadResponses)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -138,19 +128,31 @@ func (h *ConversationHandler) ShareRFQ(c *fiber.Ctx) error {
 	}
 	msg, rfq, err := h.service.ShareRFQ(int64(convID), userID, req.RFQID)
 	if err != nil {
-		switch {
-		case errors.Is(err, conversationservice.ErrShareRFQForbidden):
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
-		case errors.Is(err, conversationservice.ErrShareRFQClosed):
-			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "rfq cannot be shared"})
-		case errors.Is(err, conversationservice.ErrShareRFQInvalid):
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "rfq or conversation not found"})
-		default:
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to share rfq"})
-		}
+		return helper.MapServiceError(c, err, conversationShareRFQFallback, conversationShareRFQResponses)
 	}
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"message": msg,
 		"rfq":     rfq,
 	})
+}
+
+var conversationGetFallback = helper.ErrorMessage(fiber.StatusNotFound, "conversation not found")
+
+var conversationGetResponses = map[error]helper.ErrorResponse{
+	conversationservice.ErrConversationForbidden: helper.ErrorMessage(fiber.StatusForbidden, "forbidden"),
+}
+
+var conversationMarkAsReadFallback = helper.ErrorMessage(fiber.StatusInternalServerError, "failed to mark conversation as read")
+
+var conversationMarkAsReadResponses = map[error]helper.ErrorResponse{
+	conversationservice.ErrConversationForbidden: helper.ErrorMessage(fiber.StatusForbidden, "forbidden"),
+	conversationservice.ErrConversationNotFound:  helper.ErrorMessage(fiber.StatusNotFound, "conversation not found"),
+}
+
+var conversationShareRFQFallback = helper.ErrorMessage(fiber.StatusInternalServerError, "failed to share rfq")
+
+var conversationShareRFQResponses = map[error]helper.ErrorResponse{
+	conversationservice.ErrShareRFQForbidden: helper.ErrorMessage(fiber.StatusForbidden, "forbidden"),
+	conversationservice.ErrShareRFQClosed:    helper.ErrorMessage(fiber.StatusUnprocessableEntity, "rfq cannot be shared"),
+	conversationservice.ErrShareRFQInvalid:   helper.ErrorMessage(fiber.StatusNotFound, "rfq or conversation not found"),
 }

@@ -2,11 +2,9 @@ package payment
 
 import (
 	"database/sql"
-	"errors"
-	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/yourusername/wemake/internal/repository"
+	"github.com/yourusername/wemake/internal/helper"
 	paymentservice "github.com/yourusername/wemake/internal/service/payment"
 )
 
@@ -36,7 +34,7 @@ func (h *OrderPaymentHandler) PayDeposit(c *fiber.Ctx) error {
 	}
 
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
+	if err := helper.ParseBody(c, &req, "invalid request payload"); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error_code": "INVALID_PAYLOAD", "message": "invalid request payload"})
 	}
 
@@ -56,33 +54,65 @@ func (h *OrderPaymentHandler) PayDeposit(c *fiber.Ctx) error {
 
 func orderPaymentError(c *fiber.Ctx, err error) error {
 	if rule, ok := paymentservice.AsPaymentRuleError(err); ok {
-		switch {
-		case errors.Is(rule, paymentservice.ErrPaymentAmountMismatch):
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error_code": "AMOUNT_MISMATCH", "message": "amount does not match order total amount"})
-		case errors.Is(rule, paymentservice.ErrPaymentInsufficientWallet):
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-				"error_code": "INSUFFICIENT_WALLET_BALANCE",
-				"message":    "insufficient wallet balance",
-				"shortfall":  rule.Shortfall,
-			})
-		case errors.Is(rule, paymentservice.ErrPaymentNotOrderOwner):
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "not order owner"})
-		case errors.Is(rule, paymentservice.ErrDepositAlreadyPaid):
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error_code": "DEPOSIT_ALREADY_PAID", "message": "deposit already paid"})
-		case errors.Is(rule, paymentservice.ErrDepositExpired):
-			return c.Status(fiber.StatusGone).JSON(fiber.Map{"error_code": "DEPOSIT_EXPIRED", "message": "deposit expired"})
-		case errors.Is(rule, paymentservice.ErrPaymentFactoryWalletNotFound):
-			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error_code": "FACTORY_WALLET_NOT_FOUND", "message": "factory wallet not found"})
-		case errors.Is(rule, paymentservice.ErrPaymentMethodNotSupported):
-			return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{"error_code": "METHOD_NOT_SUPPORTED", "message": "payment method not supported"})
-		case errors.Is(rule, paymentservice.ErrPaymentTypeNotSupported):
-			return c.Status(fiber.StatusNotImplemented).JSON(fiber.Map{"error_code": "TYPE_NOT_SUPPORTED", "message": "payment type not supported"})
-		case errors.Is(rule, paymentservice.ErrPaymentIdempotencyKeyRequired):
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error_code": "IDEMPOTENCY_KEY_REQUIRED", "message": "idempotency_key is required"})
+		return helper.MapServiceErrorFunc(c, rule, orderPaymentFallback, orderPaymentRuleResponses)
+	}
+	return helper.MapServiceError(c, err, orderPaymentFallback, orderPaymentResponses)
+}
+
+var orderPaymentFallback = helper.ErrorMessage(fiber.StatusInternalServerError, "failed to process payment")
+
+var orderPaymentResponses = map[error]helper.ErrorResponse{
+	sql.ErrNoRows: helper.ErrorMessage(fiber.StatusNotFound, "order not found"),
+}
+
+var orderPaymentRuleResponses = map[error]helper.ErrorResponseBuilder{
+	paymentservice.ErrPaymentAmountMismatch: paymentRuleBody(fiber.StatusBadRequest, fiber.Map{
+		"error_code": "AMOUNT_MISMATCH",
+		"message":    "amount does not match order total amount",
+	}),
+	paymentservice.ErrPaymentInsufficientWallet: func(err error) helper.ErrorResponse {
+		rule, _ := paymentservice.AsPaymentRuleError(err)
+		shortfall := 0.0
+		if rule != nil {
+			shortfall = rule.Shortfall
 		}
+		return helper.ErrorBody(fiber.StatusBadRequest, fiber.Map{
+			"error_code": "INSUFFICIENT_WALLET_BALANCE",
+			"message":    "insufficient wallet balance",
+			"shortfall":  shortfall,
+		})
+	},
+	paymentservice.ErrPaymentNotOrderOwner: paymentRuleBody(fiber.StatusForbidden, fiber.Map{
+		"error": "not order owner",
+	}),
+	paymentservice.ErrDepositAlreadyPaid: paymentRuleBody(fiber.StatusConflict, fiber.Map{
+		"error_code": "DEPOSIT_ALREADY_PAID",
+		"message":    "deposit already paid",
+	}),
+	paymentservice.ErrDepositExpired: paymentRuleBody(fiber.StatusGone, fiber.Map{
+		"error_code": "DEPOSIT_EXPIRED",
+		"message":    "deposit expired",
+	}),
+	paymentservice.ErrPaymentFactoryWalletNotFound: paymentRuleBody(fiber.StatusUnprocessableEntity, fiber.Map{
+		"error_code": "FACTORY_WALLET_NOT_FOUND",
+		"message":    "factory wallet not found",
+	}),
+	paymentservice.ErrPaymentMethodNotSupported: paymentRuleBody(fiber.StatusNotImplemented, fiber.Map{
+		"error_code": "METHOD_NOT_SUPPORTED",
+		"message":    "payment method not supported",
+	}),
+	paymentservice.ErrPaymentTypeNotSupported: paymentRuleBody(fiber.StatusNotImplemented, fiber.Map{
+		"error_code": "TYPE_NOT_SUPPORTED",
+		"message":    "payment type not supported",
+	}),
+	paymentservice.ErrPaymentIdempotencyKeyRequired: paymentRuleBody(fiber.StatusBadRequest, fiber.Map{
+		"error_code": "IDEMPOTENCY_KEY_REQUIRED",
+		"message":    "idempotency_key is required",
+	}),
+}
+
+func paymentRuleBody(status int, body fiber.Map) helper.ErrorResponseBuilder {
+	return func(error) helper.ErrorResponse {
+		return helper.ErrorBody(status, body)
 	}
-	if errors.Is(err, sql.ErrNoRows) || repository.IsNotFoundError(err) {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "order not found"})
-	}
-	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to process payment"})
 }

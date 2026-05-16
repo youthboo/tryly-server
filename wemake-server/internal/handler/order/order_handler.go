@@ -2,13 +2,12 @@ package order
 
 import (
 	"errors"
-	"github.com/yourusername/wemake/internal/helper"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/helper"
 	"github.com/yourusername/wemake/internal/repository"
 	"github.com/yourusername/wemake/internal/service"
 	orderservice "github.com/yourusername/wemake/internal/service/order"
@@ -72,8 +71,8 @@ func (h *OrderHandler) BulkCheckout(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := helper.RequireBody(c, &req); err != nil {
+		return err
 	}
 	result, err := h.service.BulkCheckout(orderservice.BulkCheckoutInput{
 		RFQID:          int64(rfqID),
@@ -116,7 +115,7 @@ func (h *OrderHandler) ListOrders(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "factory role required"})
 		}
 		if !strings.EqualFold(factoryParam, "me") {
-			factoryID, parseErr := strconv.ParseInt(factoryParam, 10, 64)
+			factoryID, parseErr := helper.ParsePositiveInt64Value(factoryParam, "factory_id")
 			if parseErr != nil || factoryID <= 0 {
 				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_id"})
 			}
@@ -128,7 +127,7 @@ func (h *OrderHandler) ListOrders(c *fiber.Ctx) error {
 	status := strings.TrimSpace(c.Query("status"))
 	var rfqID *int64
 	if raw := strings.TrimSpace(c.Query("rfq_id")); raw != "" {
-		parsed, parseErr := strconv.ParseInt(raw, 10, 64)
+		parsed, parseErr := helper.ParsePositiveInt64Value(raw, "rfq_id")
 		if parseErr != nil || parsed <= 0 {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
 		}
@@ -377,11 +376,11 @@ func (h *OrderHandler) ConfirmReceipt(c *fiber.Ctx) error {
 	}
 	var receivedAt *time.Time
 	if req.ReceivedAt != nil && strings.TrimSpace(*req.ReceivedAt) != "" {
-		t, parseErr := time.Parse(time.RFC3339, strings.TrimSpace(*req.ReceivedAt))
+		t, parseErr := helper.ParseOptionalRFC3339Value(req.ReceivedAt, "received_at")
 		if parseErr != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "received_at must be RFC3339 datetime"})
 		}
-		receivedAt = &t
+		receivedAt = t
 	}
 
 	result, err := h.service.ConfirmReceipt(int64(orderID), userID, u.Role, orderservice.ConfirmReceiptInput{

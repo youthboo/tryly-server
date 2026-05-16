@@ -1,9 +1,8 @@
 package handler
 
 import (
-	"strconv"
-
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/helper"
 	"github.com/yourusername/wemake/internal/service"
 )
 
@@ -26,7 +25,7 @@ func (h *MasterHandler) GetProvinces(c *fiber.Ctx) error {
 func (h *MasterHandler) GetDistricts(c *fiber.Ctx) error {
 	var provinceID *int64
 	if raw := c.Query("province_id"); raw != "" {
-		val, err := strconv.ParseInt(raw, 10, 64)
+		val, err := helper.ParsePositiveInt64Value(raw, "province_id")
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid province_id"})
 		}
@@ -42,7 +41,7 @@ func (h *MasterHandler) GetDistricts(c *fiber.Ctx) error {
 func (h *MasterHandler) GetSubDistricts(c *fiber.Ctx) error {
 	var districtID *int64
 	if raw := c.Query("district_id"); raw != "" {
-		val, err := strconv.ParseInt(raw, 10, 64)
+		val, err := helper.ParsePositiveInt64Value(raw, "district_id")
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid district_id"})
 		}
@@ -66,7 +65,7 @@ func (h *MasterHandler) GetFactoryTypes(c *fiber.Ctx) error {
 func (h *MasterHandler) GetProductCategories(c *fiber.Ctx) error {
 	var parentID *int64
 	if raw := c.Query("parent_category_id"); raw != "" {
-		val, err := strconv.ParseInt(raw, 10, 64)
+		val, err := helper.ParsePositiveInt64Value(raw, "parent_category_id")
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid parent_category_id"})
 		}
@@ -91,7 +90,7 @@ func (h *MasterHandler) GetCategories(c *fiber.Ctx) error {
 func (h *MasterHandler) GetProductionSteps(c *fiber.Ctx) error {
 	var factoryTypeID *int64
 	if raw := c.Query("factory_type_id"); raw != "" {
-		val, err := strconv.ParseInt(raw, 10, 64)
+		val, err := helper.ParsePositiveInt64Value(raw, "factory_type_id")
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_type_id"})
 		}

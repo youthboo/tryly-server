@@ -1,12 +1,11 @@
 package wallet
 
 import (
-	"github.com/yourusername/wemake/internal/helper"
-	"strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/helper"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 	walletservice "github.com/yourusername/wemake/internal/service/wallet"
 )
@@ -53,14 +52,14 @@ func (h *TransactionHandler) ListTransactions(c *fiber.Ctx) error {
 	filters := walletrepo.TransactionFilters{}
 
 	if raw := c.Query("wallet_id"); raw != "" {
-		val, err := strconv.ParseInt(raw, 10, 64)
+		val, err := helper.ParsePositiveInt64Value(raw, "wallet_id")
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid wallet_id"})
 		}
 		filters.WalletID = &val
 	}
 	if raw := c.Query("order_id"); raw != "" {
-		val, err := strconv.ParseInt(raw, 10, 64)
+		val, err := helper.ParsePositiveInt64Value(raw, "order_id")
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
 		}

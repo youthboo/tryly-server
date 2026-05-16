@@ -1,13 +1,12 @@
 package message
 
 import (
-	"encoding/json"
 	"errors"
-	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/helper"
 	messageservice "github.com/yourusername/wemake/internal/service/message"
 )
 
@@ -30,22 +29,14 @@ type createMessageRequest struct {
 	QuoteData     *string `json:"quote_data"`
 }
 
-func parseCreateMessageRequest(body []byte) (*createMessageRequest, error) {
-	var req createMessageRequest
-	if err := json.Unmarshal(body, &req); err != nil {
-		return nil, err
-	}
-	return &req, nil
-}
-
 func (h *MessageHandler) CreateMessage(c *fiber.Ctx) error {
 	senderID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return helper.BadRequest(c, "invalid X-User-ID header")
 	}
-	req, err := parseCreateMessageRequest(c.Body())
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	var req createMessageRequest
+	if err := helper.ParseJSONBody(c, &req, "invalid request payload"); err != nil {
+		return err
 	}
 	if req.ReceiverID == nil || *req.ReceiverID <= 0 || req.Content == nil || strings.TrimSpace(*req.Content) == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "receiver_id and content are required"})

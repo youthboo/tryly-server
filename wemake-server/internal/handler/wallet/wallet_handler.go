@@ -1,11 +1,10 @@
 package wallet
 
 import (
-	"github.com/yourusername/wemake/internal/helper"
-	"strconv"
+	"database/sql"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/yourusername/wemake/internal/repository"
+	"github.com/yourusername/wemake/internal/helper"
 	walletservice "github.com/yourusername/wemake/internal/service/wallet"
 )
 
@@ -24,10 +23,7 @@ func (h *WalletHandler) GetMyWallet(c *fiber.Ctx) error {
 	}
 	wallet, err := h.service.GetByUserID(userID)
 	if err != nil {
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "wallet not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch wallet"})
+		return helper.MapServiceError(c, err, walletGetFallback, walletGetResponses)
 	}
 	return c.JSON(wallet)
 }
@@ -39,7 +35,7 @@ func (h *WalletHandler) ListMyTransactions(c *fiber.Ctx) error {
 	}
 	var orderID *int64
 	if raw := c.Query("order_id"); raw != "" {
-		val, parseErr := strconv.ParseInt(raw, 10, 64)
+		val, parseErr := helper.ParsePositiveInt64Value(raw, "order_id")
 		if parseErr != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
 		}
@@ -55,10 +51,19 @@ func (h *WalletHandler) ListMyTransactions(c *fiber.Ctx) error {
 	}
 	items, err := h.service.ListTransactionsByUserID(userID, orderID, txType, status)
 	if err != nil {
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "wallet not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch transactions"})
+		return helper.MapServiceError(c, err, walletListTransactionsFallback, walletListTransactionsResponses)
 	}
 	return c.JSON(items)
+}
+
+var walletGetFallback = helper.ErrorMessage(fiber.StatusInternalServerError, "failed to fetch wallet")
+
+var walletGetResponses = map[error]helper.ErrorResponse{
+	sql.ErrNoRows: helper.ErrorMessage(fiber.StatusNotFound, "wallet not found"),
+}
+
+var walletListTransactionsFallback = helper.ErrorMessage(fiber.StatusInternalServerError, "failed to fetch transactions")
+
+var walletListTransactionsResponses = map[error]helper.ErrorResponse{
+	sql.ErrNoRows: helper.ErrorMessage(fiber.StatusNotFound, "wallet not found"),
 }

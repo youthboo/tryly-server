@@ -1,11 +1,10 @@
 package wallet
 
 import (
-	"errors"
-	"github.com/yourusername/wemake/internal/helper"
+	"database/sql"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/yourusername/wemake/internal/repository"
+	"github.com/yourusername/wemake/internal/helper"
 	walletservice "github.com/yourusername/wemake/internal/service/wallet"
 )
 
@@ -40,13 +39,7 @@ func (h *WithdrawalHandler) Create(c *fiber.Ctx) error {
 	}
 	item, err := h.service.Create(userID, req.Amount, req.BankAccountNo, req.BankName, req.AccountName)
 	if err != nil {
-		if errors.Is(err, walletservice.ErrInsufficientFunds) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-		}
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "wallet not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create withdrawal request"})
+		return helper.MapServiceError(c, err, withdrawalCreateFallback, withdrawalCreateResponses)
 	}
 	return c.Status(fiber.StatusCreated).JSON(item)
 }
@@ -79,13 +72,21 @@ func (h *WithdrawalHandler) PatchStatus(c *fiber.Ctx) error {
 		return err
 	}
 	if err := h.service.UpdateStatus(requestID, req.Status, req.Note); err != nil {
-		if errors.Is(err, walletservice.ErrInvalidWithdrawalStatus) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-		}
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "withdrawal request not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update withdrawal status"})
+		return helper.MapServiceError(c, err, withdrawalPatchStatusFallback, withdrawalPatchStatusResponses)
 	}
 	return c.JSON(fiber.Map{"message": "withdrawal status updated"})
+}
+
+var withdrawalCreateFallback = helper.ErrorMessage(fiber.StatusInternalServerError, "failed to create withdrawal request")
+
+var withdrawalCreateResponses = map[error]helper.ErrorResponse{
+	walletservice.ErrInsufficientFunds: helper.ErrorMessage(fiber.StatusBadRequest, walletservice.ErrInsufficientFunds.Error()),
+	sql.ErrNoRows:                      helper.ErrorMessage(fiber.StatusNotFound, "wallet not found"),
+}
+
+var withdrawalPatchStatusFallback = helper.ErrorMessage(fiber.StatusInternalServerError, "failed to update withdrawal status")
+
+var withdrawalPatchStatusResponses = map[error]helper.ErrorResponse{
+	walletservice.ErrInvalidWithdrawalStatus: helper.ErrorMessage(fiber.StatusBadRequest, walletservice.ErrInvalidWithdrawalStatus.Error()),
+	sql.ErrNoRows:                            helper.ErrorMessage(fiber.StatusNotFound, "withdrawal request not found"),
 }
