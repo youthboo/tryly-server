@@ -8,8 +8,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/logger"
-	"github.com/yourusername/wemake/internal/repository"
 	orderrepo "github.com/yourusername/wemake/internal/repository/order"
+	userrepo "github.com/yourusername/wemake/internal/repository/user"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 	orderservice "github.com/yourusername/wemake/internal/service/order"
 )
@@ -25,7 +25,7 @@ func Start(db *sqlx.DB) {
 		walletrepo.NewTransactionRepository(db),
 		nil,
 		nil,
-		repository.NewReviewRepository(db),
+		userrepo.NewReviewRepository(db),
 		nil,
 		nil,
 	)

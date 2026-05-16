@@ -1,4 +1,4 @@
-package handler
+package production
 
 import (
 	"database/sql"
@@ -7,14 +7,14 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/yourusername/wemake/internal/service"
+	productionservice "github.com/yourusername/wemake/internal/service/production"
 )
 
 type ProductionHandler struct {
-	service *service.ProductionService
+	service *productionservice.ProductionService
 }
 
-func NewProductionHandler(service *service.ProductionService) *ProductionHandler {
+func NewProductionHandler(service *productionservice.ProductionService) *ProductionHandler {
 	return &ProductionHandler{service: service}
 }
 
@@ -71,7 +71,7 @@ func (h *ProductionHandler) CreateUpdate(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return productionError(c, fiber.StatusBadRequest, "INVALID_PAYLOAD", "invalid request payload", nil)
 	}
-	result, err := h.service.Upsert(int64(orderID), userID, service.ProductionWriteInput{
+	result, err := h.service.Upsert(int64(orderID), userID, productionservice.ProductionWriteInput{
 		StepID:                 req.StepID,
 		Status:                 req.Status,
 		Description:            req.Description,
@@ -109,44 +109,44 @@ func (h *ProductionHandler) RejectUpdate(c *fiber.Ctx) error {
 }
 
 func productionServiceError(c *fiber.Ctx, err error) error {
-	if errors.Is(err, sql.ErrNoRows) || service.IsNotFound(err) {
+	if errors.Is(err, sql.ErrNoRows) || productionservice.IsNotFound(err) {
 		return productionError(c, fiber.StatusNotFound, "NOT_FOUND", "resource not found", nil)
 	}
-	if rule, ok := service.AsProductionRuleError(err); ok {
+	if rule, ok := productionservice.AsProductionRuleError(err); ok {
 		switch {
-		case errors.Is(rule, service.ErrProductionNotOrderFactory):
+		case errors.Is(rule, productionservice.ErrProductionNotOrderFactory):
 			return productionError(c, fiber.StatusForbidden, "NOT_ORDER_FACTORY", "factory caller does not own the order", rule.Details)
-		case errors.Is(rule, service.ErrProductionNotOrderCustomer):
+		case errors.Is(rule, productionservice.ErrProductionNotOrderCustomer):
 			return productionError(c, fiber.StatusForbidden, "NOT_ORDER_CUSTOMER", "customer caller does not own the order", rule.Details)
-		case errors.Is(rule, service.ErrProductionOrderLocked):
+		case errors.Is(rule, productionservice.ErrProductionOrderLocked):
 			return productionError(c, fiber.StatusConflict, "ORDER_STATE_INVALID", "order is locked for production updates", rule.Details)
-		case errors.Is(rule, service.ErrProductionAnotherStepInProgress):
+		case errors.Is(rule, productionservice.ErrProductionAnotherStepInProgress):
 			return productionError(c, fiber.StatusConflict, "ANOTHER_STEP_IN_PROGRESS", "another step is already in progress", rule.Details)
-		case errors.Is(rule, service.ErrProductionInvalidStateTransition):
+		case errors.Is(rule, productionservice.ErrProductionInvalidStateTransition):
 			return productionError(c, fiber.StatusConflict, "STEP_LOCKED", "invalid or locked step transition", rule.Details)
-		case errors.Is(rule, service.ErrProductionDownstreamInFlight):
+		case errors.Is(rule, productionservice.ErrProductionDownstreamInFlight):
 			return productionError(c, fiber.StatusConflict, "DOWNSTREAM_IN_FLIGHT", "cannot reject because downstream steps are already active", rule.Details)
-		case errors.Is(rule, service.ErrProductionStepOrderViolation):
+		case errors.Is(rule, productionservice.ErrProductionStepOrderViolation):
 			return productionError(c, fiber.StatusConflict, "STEP_LOCKED", "previous step must be completed first", rule.Details)
-		case errors.Is(rule, service.ErrProductionInsufficientEvidence):
+		case errors.Is(rule, productionservice.ErrProductionInsufficientEvidence):
 			return productionError(c, fiber.StatusUnprocessableEntity, "INSUFFICIENT_EVIDENCE", "insufficient evidence", rule.Details)
-		case errors.Is(rule, service.ErrProductionPaymentConfirmRequired):
+		case errors.Is(rule, productionservice.ErrProductionPaymentConfirmRequired):
 			return productionError(c, fiber.StatusUnprocessableEntity, "PAYMENT_CONFIRMATION_REQUIRED", "payment confirmation required", rule.Details)
-		case errors.Is(rule, service.ErrProductionInvalidStep):
+		case errors.Is(rule, productionservice.ErrProductionInvalidStep):
 			return productionError(c, fiber.StatusUnprocessableEntity, "INVALID_STEP_ID", "step_id must reference an active production step", rule.Details)
-		case errors.Is(rule, service.ErrProductionStepIDRequired):
+		case errors.Is(rule, productionservice.ErrProductionStepIDRequired):
 			return productionError(c, fiber.StatusUnprocessableEntity, "STEP_ID_REQUIRED", "step_id is required", rule.Details)
-		case errors.Is(rule, service.ErrProductionInvalidStatus):
+		case errors.Is(rule, productionservice.ErrProductionInvalidStatus):
 			return productionError(c, fiber.StatusUnprocessableEntity, "INVALID_STATUS", "status must be IP or CD", rule.Details)
-		case errors.Is(rule, service.ErrProductionMaxImages):
+		case errors.Is(rule, productionservice.ErrProductionMaxImages):
 			return productionError(c, fiber.StatusUnprocessableEntity, "MAX_5_IMAGES", "image_urls can contain at most 5 items", rule.Details)
-		case errors.Is(rule, service.ErrProductionInvalidImageFormat):
+		case errors.Is(rule, productionservice.ErrProductionInvalidImageFormat):
 			return productionError(c, fiber.StatusUnprocessableEntity, "INVALID_IMAGE_FORMAT", "image_urls must be a non-empty array of unique URL strings", rule.Details)
-		case errors.Is(rule, service.ErrProductionInvalidImageURL):
+		case errors.Is(rule, productionservice.ErrProductionInvalidImageURL):
 			return productionError(c, fiber.StatusUnprocessableEntity, "INVALID_IMAGE_URL", "image_urls must be unique HTTP/HTTPS URLs", rule.Details)
-		case errors.Is(rule, service.ErrProductionDescriptionTooLong):
+		case errors.Is(rule, productionservice.ErrProductionDescriptionTooLong):
 			return productionError(c, fiber.StatusUnprocessableEntity, "INVALID_DESCRIPTION", "description must be 2000 characters or fewer", rule.Details)
-		case errors.Is(rule, service.ErrProductionReasonRequired):
+		case errors.Is(rule, productionservice.ErrProductionReasonRequired):
 			return productionError(c, fiber.StatusUnprocessableEntity, "REASON_REQUIRED", "rejected_reason is required", rule.Details)
 		}
 	}
@@ -154,7 +154,7 @@ func productionServiceError(c *fiber.Ctx, err error) error {
 }
 
 func productionInternalError(c *fiber.Ctx, err error) error {
-	return productionError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", service.ExplainProductionError(err), nil)
+	return productionError(c, fiber.StatusInternalServerError, "INTERNAL_ERROR", productionservice.ExplainProductionError(err), nil)
 }
 
 func productionError(c *fiber.Ctx, status int, code, message string, details map[string]interface{}) error {

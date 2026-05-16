@@ -1,4 +1,4 @@
-package service
+package user
 
 import (
 	"context"
@@ -7,16 +7,16 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
+	userrepo "github.com/yourusername/wemake/internal/repository/user"
 )
 
 const maxReviewImages = 5
 
 type ReviewService struct {
-	repo *repository.ReviewRepository
+	repo *userrepo.ReviewRepository
 }
 
-func NewReviewService(repo *repository.ReviewRepository) *ReviewService {
+func NewReviewService(repo *userrepo.ReviewRepository) *ReviewService {
 	return &ReviewService{repo: repo}
 }
 

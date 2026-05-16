@@ -1,4 +1,4 @@
-package handler
+package boq
 
 import (
 	"errors"
@@ -6,14 +6,14 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/service"
+	boqservice "github.com/yourusername/wemake/internal/service/boq"
 )
 
 type BOQHandler struct {
-	service *service.BOQService
+	service *boqservice.BOQService
 }
 
-func NewBOQHandler(service *service.BOQService) *BOQHandler {
+func NewBOQHandler(service *boqservice.BOQService) *BOQHandler {
 	return &BOQHandler{service: service}
 }
 
@@ -42,7 +42,7 @@ func (h *BOQHandler) Create(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
 	}
-	boq, msg, err := h.service.Create(convID, userID, service.BOQInput(req))
+	boq, msg, err := h.service.Create(convID, userID, boqservice.BOQInput(req))
 	if err != nil {
 		return mapBOQError(c, err)
 	}
@@ -78,7 +78,7 @@ func (h *BOQHandler) Update(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
 	}
-	boq, err := h.service.Update(rfqID, userID, service.BOQInput(req))
+	boq, err := h.service.Update(rfqID, userID, boqservice.BOQInput(req))
 	if err != nil {
 		return mapBOQError(c, err)
 	}
@@ -146,17 +146,17 @@ func (h *BOQHandler) ListMine(c *fiber.Ctx) error {
 
 func mapBOQError(c *fiber.Ctx, err error) error {
 	switch {
-	case errors.Is(err, service.ErrBOQNotFound):
+	case errors.Is(err, boqservice.ErrBOQNotFound):
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "BOQ_NOT_FOUND"})
-	case errors.Is(err, service.ErrBOQForbidden):
+	case errors.Is(err, boqservice.ErrBOQForbidden):
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "BOQ_FORBIDDEN"})
-	case errors.Is(err, service.ErrBOQInvalidItems):
+	case errors.Is(err, boqservice.ErrBOQInvalidItems):
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "BOQ_INVALID_ITEMS"})
-	case errors.Is(err, service.ErrBOQExpired):
+	case errors.Is(err, boqservice.ErrBOQExpired):
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "BOQ_EXPIRED"})
-	case errors.Is(err, service.ErrBOQAlreadyHandled):
+	case errors.Is(err, boqservice.ErrBOQAlreadyHandled):
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "BOQ_ALREADY_HANDLED"})
-	case errors.Is(err, service.ErrBOQInvalidState):
+	case errors.Is(err, boqservice.ErrBOQInvalidState):
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "BOQ_INVALID_STATE"})
 	default:
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to process boq"})

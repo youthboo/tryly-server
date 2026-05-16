@@ -1,15 +1,15 @@
-package service
+package user
 
 import (
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
+	userrepo "github.com/yourusername/wemake/internal/repository/user"
 )
 
 type FavoriteService struct {
-	repo *repository.FavoriteRepository
+	repo *userrepo.FavoriteRepository
 }
 
-func NewFavoriteService(repo *repository.FavoriteRepository) *FavoriteService {
+func NewFavoriteService(repo *userrepo.FavoriteRepository) *FavoriteService {
 	return &FavoriteService{repo: repo}
 }
 

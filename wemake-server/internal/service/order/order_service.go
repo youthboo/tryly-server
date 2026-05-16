@@ -12,6 +12,7 @@ import (
 	paymentrepo "github.com/yourusername/wemake/internal/repository/payment"
 	quotationrepo "github.com/yourusername/wemake/internal/repository/quotation"
 	rfqrepo "github.com/yourusername/wemake/internal/repository/rfq"
+	userrepo "github.com/yourusername/wemake/internal/repository/user"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 )
 
@@ -51,12 +52,12 @@ type OrderService struct {
 	txLedger      *walletrepo.TransactionRepository
 	quotations    *quotationrepo.QuotationRepository
 	rfqs          *rfqrepo.RFQRepository
-	reviews       *repository.ReviewRepository
+	reviews       *userrepo.ReviewRepository
 	notifications notificationCreator
 	messages      systemMessageSender
 }
 
-func NewOrderService(db *sqlx.DB, repo *orderrepo.OrderRepository, schedules *paymentrepo.PaymentScheduleRepository, wallets *walletrepo.WalletRepository, txLedger *walletrepo.TransactionRepository, quotations *quotationrepo.QuotationRepository, rfqs *rfqrepo.RFQRepository, reviews *repository.ReviewRepository, notifications notificationCreator, messages systemMessageSender) *OrderService {
+func NewOrderService(db *sqlx.DB, repo *orderrepo.OrderRepository, schedules *paymentrepo.PaymentScheduleRepository, wallets *walletrepo.WalletRepository, txLedger *walletrepo.TransactionRepository, quotations *quotationrepo.QuotationRepository, rfqs *rfqrepo.RFQRepository, reviews *userrepo.ReviewRepository, notifications notificationCreator, messages systemMessageSender) *OrderService {
 	return &OrderService{db: db, repo: repo, schedules: schedules, wallets: wallets, txLedger: txLedger, quotations: quotations, rfqs: rfqs, reviews: reviews, notifications: notifications, messages: messages}
 }
 

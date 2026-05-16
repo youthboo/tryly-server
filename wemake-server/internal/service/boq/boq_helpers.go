@@ -1,9 +1,12 @@
-package service
+package boq
 
 import (
+	"context"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domainutil"
 )
 
@@ -17,6 +20,29 @@ func derefInt(v *int) int {
 
 func derefFloat64(v *float64) float64 {
 	return domainutil.Float64Value(v)
+}
+
+func derefString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
+}
+
+func WithTx(ctx context.Context, db *sqlx.DB, fn func(*sqlx.Tx) error) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	tx, err := db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if err := fn(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func maxInt(a, b int) int {

@@ -1,15 +1,15 @@
-package service
+package user
 
 import (
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
+	userrepo "github.com/yourusername/wemake/internal/repository/user"
 )
 
 type CertificateService struct {
-	repo *repository.CertificateRepository
+	repo *userrepo.CertificateRepository
 }
 
-func NewCertificateService(repo *repository.CertificateRepository) *CertificateService {
+func NewCertificateService(repo *userrepo.CertificateRepository) *CertificateService {
 	return &CertificateService{repo: repo}
 }
 

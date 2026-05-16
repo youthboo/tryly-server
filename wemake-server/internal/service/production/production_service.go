@@ -1,4 +1,4 @@
-package service
+package production
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
+	productionrepo "github.com/yourusername/wemake/internal/repository/production"
 )
 
 var (
@@ -53,7 +53,7 @@ func (e *ProductionRuleError) Unwrap() error {
 }
 
 type ProductionService struct {
-	repo *repository.ProductionRepository
+	repo *productionrepo.ProductionRepository
 }
 
 type ProductionWriteInput struct {
@@ -65,7 +65,7 @@ type ProductionWriteInput struct {
 	HeaderPaymentConfirmed bool
 }
 
-func NewProductionService(repo *repository.ProductionRepository) *ProductionService {
+func NewProductionService(repo *productionrepo.ProductionRepository) *ProductionService {
 	return &ProductionService{repo: repo}
 }
 
@@ -487,7 +487,7 @@ func deriveProductionLockReason(status string) string {
 	}
 }
 
-func buildProductionLockContext(order *repository.ProductionOrderContext, reason string) map[string]interface{} {
+func buildProductionLockContext(order *productionrepo.ProductionOrderContext, reason string) map[string]interface{} {
 	depositAmount := roundCurrency(orderDepositAmountFallback(order))
 	depositPercent := percentOf(depositAmount, order.TotalAmount)
 	switch reason {
@@ -521,7 +521,7 @@ func buildProductionLockContext(order *repository.ProductionOrderContext, reason
 	}
 }
 
-func depositDueDateForProduction(order *repository.ProductionOrderContext) time.Time {
+func depositDueDateForProduction(order *productionrepo.ProductionOrderContext) time.Time {
 	// ใช้ due_date จาก payment_schedules ถ้ามี (ตรงกับ order_service.lookupDepositDueDate)
 	if order.DepositDueDate != nil {
 		d := order.DepositDueDate.In(thailandLocation)
@@ -532,7 +532,7 @@ func depositDueDateForProduction(order *repository.ProductionOrderContext) time.
 	return time.Date(due.Year(), due.Month(), due.Day(), 23, 59, 59, 0, thailandLocation)
 }
 
-func orderDepositAmountFallback(order *repository.ProductionOrderContext) float64 {
+func orderDepositAmountFallback(order *productionrepo.ProductionOrderContext) float64 {
 	if order.DepositAmount > 0 {
 		return order.DepositAmount
 	}

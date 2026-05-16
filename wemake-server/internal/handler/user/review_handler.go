@@ -1,18 +1,18 @@
-package handler
+package user
 
 import (
 	"database/sql"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/service"
+	userservice "github.com/yourusername/wemake/internal/service/user"
 )
 
 type ReviewHandler struct {
-	service *service.ReviewService
+	service *userservice.ReviewService
 }
 
-func NewReviewHandler(service *service.ReviewService) *ReviewHandler {
+func NewReviewHandler(service *userservice.ReviewService) *ReviewHandler {
 	return &ReviewHandler{service: service}
 }
 
@@ -58,7 +58,7 @@ func (h *ReviewHandler) Create(c *fiber.Ctx) error {
 	req.UserID = userID
 
 	if err := h.service.Create(&req); err != nil {
-		if err == service.ErrReviewImagesInvalid {
+		if err == userservice.ErrReviewImagesInvalid {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create review"})
@@ -85,7 +85,7 @@ func (h *ReviewHandler) UpdateByUser(c *fiber.Ctx) error {
 	}
 	item, err := h.service.UpdateByUser(int64(reviewID), userID, req.Rating, req.Comment, req.ImageURLs)
 	if err != nil {
-		if err == service.ErrReviewImagesInvalid {
+		if err == userservice.ErrReviewImagesInvalid {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
 		if err == sql.ErrNoRows {

@@ -1,4 +1,4 @@
-package handler
+package user
 
 import (
 	"database/sql"
@@ -6,14 +6,14 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/service"
+	userservice "github.com/yourusername/wemake/internal/service/user"
 )
 
 type CertificateHandler struct {
-	service *service.CertificateService
+	service *userservice.CertificateService
 }
 
-func NewCertificateHandler(service *service.CertificateService) *CertificateHandler {
+func NewCertificateHandler(service *userservice.CertificateService) *CertificateHandler {
 	return &CertificateHandler{service: service}
 }
 

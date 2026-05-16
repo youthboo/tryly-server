@@ -1,16 +1,16 @@
-package handler
+package user
 
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/service"
+	userservice "github.com/yourusername/wemake/internal/service/user"
 )
 
 type FavoriteHandler struct {
-	service *service.FavoriteService
+	service *userservice.FavoriteService
 }
 
-func NewFavoriteHandler(service *service.FavoriteService) *FavoriteHandler {
+func NewFavoriteHandler(service *userservice.FavoriteService) *FavoriteHandler {
 	return &FavoriteHandler{service: service}
 }
 

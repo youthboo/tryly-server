@@ -1,4 +1,4 @@
-package handler
+package user
 
 import (
 	"database/sql"
@@ -7,14 +7,14 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/service"
+	userservice "github.com/yourusername/wemake/internal/service/user"
 )
 
 type AddressHandler struct {
-	service *service.AddressService
+	service *userservice.AddressService
 }
 
-func NewAddressHandler(service *service.AddressService) *AddressHandler {
+func NewAddressHandler(service *userservice.AddressService) *AddressHandler {
 	return &AddressHandler{service: service}
 }
 

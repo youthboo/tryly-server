@@ -1,18 +1,18 @@
-package service
+package user
 
 import (
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/logger"
-	"github.com/yourusername/wemake/internal/repository"
 	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
+	userrepo "github.com/yourusername/wemake/internal/repository/user"
 )
 
 type AddressService struct {
-	repo        *repository.AddressRepository
+	repo        *userrepo.AddressRepository
 	factoryRepo *factoryrepo.FactoryRepository
 }
 
-func NewAddressService(repo *repository.AddressRepository, factoryRepo *factoryrepo.FactoryRepository) *AddressService {
+func NewAddressService(repo *userrepo.AddressRepository, factoryRepo *factoryrepo.FactoryRepository) *AddressService {
 	return &AddressService{repo: repo, factoryRepo: factoryRepo}
 }
 
