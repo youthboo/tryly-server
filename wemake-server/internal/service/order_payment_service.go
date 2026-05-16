@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"math"
@@ -21,6 +22,7 @@ var (
 	ErrPaymentNotOrderOwner            = errors.New("NOT_ORDER_OWNER")
 	ErrPaymentIdempotencyKeyRequired   = errors.New("IDEMPOTENCY_KEY_REQUIRED")
 	ErrPaymentIdempotencyReplayMissing = errors.New("IDEMPOTENCY_REPLAY_MISSING")
+	errPaymentReplayReady              = errors.New("payment replay ready")
 )
 
 type OrderPaymentService struct {
@@ -110,176 +112,185 @@ func (s *OrderPaymentService) PayDeposit(input OrderPaymentInput) (*OrderPayment
 		return replay, nil
 	}
 
-	tx, err := s.db.Beginx()
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	order, err := lockPaymentOrder(tx, input.OrderID)
-	if err != nil {
-		return nil, err
-	}
-	if order.UserID != input.UserID {
-		return nil, &PaymentRuleError{Err: ErrPaymentNotOrderOwner}
-	}
-	if replay, err := s.loadPaymentReplay(input.OrderID, input.IdempotencyKey); err != nil {
-		return nil, err
-	} else if replay != nil {
-		return replay, nil
-	}
-	switch normalizeOrderStatus(order.Status) {
-	case "PR", "QC", "SH", "CP", "PD":
-		return nil, &PaymentRuleError{Err: ErrDepositAlreadyPaid}
-	case "PE":
-		return nil, &PaymentRuleError{Err: ErrDepositExpired}
-	case "PP":
-	default:
-		return nil, &PaymentRuleError{Err: ErrDepositAlreadyPaid}
-	}
-	// For full-payment model (DP or FP), validate against total_amount.
-	// Fall back to deposit_amount only if total_amount is zero (legacy orders).
-	expectedAmount := order.TotalAmount
-	if expectedAmount <= 0 {
-		expectedAmount = order.DepositAmount
-	}
-	if !amountEqual(input.Amount, expectedAmount) {
-		return nil, &PaymentRuleError{Err: ErrPaymentAmountMismatch}
-	}
-
-	customerWallet, err := getPaymentWallet(tx, order.UserID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &PaymentRuleError{Err: ErrPaymentInsufficientWallet, Shortfall: roundCurrency(input.Amount)}
+	var out *OrderPaymentResponse
+	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+		order, err := lockPaymentOrder(tx, input.OrderID)
+		if err != nil {
+			return err
 		}
-		return nil, err
-	}
-	factoryWallet, err := getPaymentWallet(tx, order.FactoryID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &PaymentRuleError{Err: ErrPaymentFactoryWalletNotFound}
+		if order.UserID != input.UserID {
+			return &PaymentRuleError{Err: ErrPaymentNotOrderOwner}
 		}
-		return nil, err
-	}
-	if err := lockWalletsInOrder(tx, customerWallet.WalletID, factoryWallet.WalletID); err != nil {
-		return nil, err
-	}
-	customerWallet, err = getPaymentWallet(tx, order.UserID)
-	if err != nil {
-		return nil, err
-	}
-	factoryWallet, err = getPaymentWallet(tx, order.FactoryID)
-	if err != nil {
-		return nil, err
-	}
+		if replay, err := s.loadPaymentReplay(input.OrderID, input.IdempotencyKey); err != nil {
+			return err
+		} else if replay != nil {
+			out = replay
+			return errPaymentReplayReady
+		}
+		switch normalizeOrderStatus(order.Status) {
+		case "PR", "QC", "SH", "CP", "PD":
+			return &PaymentRuleError{Err: ErrDepositAlreadyPaid}
+		case "PE":
+			return &PaymentRuleError{Err: ErrDepositExpired}
+		case "PP":
+		default:
+			return &PaymentRuleError{Err: ErrDepositAlreadyPaid}
+		}
 
-	var customerGoodAfter float64
-	err = tx.QueryRow(`
-		UPDATE wallets
-		SET good_fund = good_fund - $1
-		WHERE wallet_id = $2 AND good_fund >= $1
-		RETURNING good_fund
-	`, input.Amount, customerWallet.WalletID).Scan(&customerGoodAfter)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			shortfall := roundCurrency(input.Amount - customerWallet.GoodFund)
-			if shortfall < 0 {
-				shortfall = 0
+		expectedAmount := order.TotalAmount
+		if expectedAmount <= 0 {
+			expectedAmount = order.DepositAmount
+		}
+		if !amountEqual(input.Amount, expectedAmount) {
+			return &PaymentRuleError{Err: ErrPaymentAmountMismatch}
+		}
+
+		customerWallet, err := getPaymentWallet(tx, order.UserID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return &PaymentRuleError{Err: ErrPaymentInsufficientWallet, Shortfall: roundCurrency(input.Amount)}
 			}
-			return nil, &PaymentRuleError{Err: ErrPaymentInsufficientWallet, Shortfall: shortfall}
+			return err
 		}
-		return nil, err
-	}
-
-	var factoryPendingAfter float64
-	if err := tx.QueryRow(`
-		UPDATE wallets
-		SET pending_fund = pending_fund + $1
-		WHERE wallet_id = $2
-		RETURNING pending_fund
-	`, input.Amount, factoryWallet.WalletID).Scan(&factoryPendingAfter); err != nil {
-		return nil, err
-	}
-
-	groupID := uuid.New()
-	customerTxID := "tx_" + uuid.NewString()
-	factoryTxID := "tx_" + uuid.NewString()
-	now := time.Now()
-	if err := insertCustomerPaymentTx(tx, customerTxID, customerWallet.WalletID, input.OrderID, -input.Amount, input.IdempotencyKey, groupID, now); err != nil {
-		if isUniqueViolation(err) {
-			return s.loadPaymentReplay(input.OrderID, input.IdempotencyKey)
+		factoryWallet, err := getPaymentWallet(tx, order.FactoryID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return &PaymentRuleError{Err: ErrPaymentFactoryWalletNotFound}
+			}
+			return err
 		}
-		return nil, err
-	}
-	if err := insertFactoryReceivableTx(tx, factoryTxID, factoryWallet.WalletID, input.OrderID, input.Amount, input.IdempotencyKey+":f", groupID, now); err != nil {
-		if isUniqueViolation(err) {
-			return s.loadPaymentReplay(input.OrderID, input.IdempotencyKey)
+		if err := lockWalletsInOrder(tx, customerWallet.WalletID, factoryWallet.WalletID); err != nil {
+			return err
 		}
-		return nil, err
-	}
+		customerWallet, err = getPaymentWallet(tx, order.UserID)
+		if err != nil {
+			return err
+		}
+		factoryWallet, err = getPaymentWallet(tx, order.FactoryID)
+		if err != nil {
+			return err
+		}
 
-	if _, err := tx.Exec(`UPDATE orders SET status = 'PR', updated_at = NOW() WHERE order_id = $1 AND status = 'PP'`, input.OrderID); err != nil {
-		return nil, err
-	}
-	if _, err := tx.Exec(`
-		UPDATE payment_schedules
-		SET status = 'PD',
-		    paid_at = NOW()
-		WHERE order_id = $1 AND installment_no = 1
-	`, input.OrderID); err != nil {
-		return nil, err
-	}
-	if _, err := tx.Exec(`
-		INSERT INTO notifications (user_id, type, title, message, link_to)
-		VALUES ($1, 'PS', $2, $3, $4)
-	`, order.FactoryID,
-		"ได้รับเงินมัดจำ — เริ่มการผลิตได้",
-		"คำสั่งซื้อได้ชำระเงินมัดจำเรียบร้อย กรุณาเริ่มสายการผลิต",
-		"/factory/orders/"+formatInt64(input.OrderID),
-	); err != nil {
-		return nil, err
-	}
-	if err := insertDomainEventTx(tx, "order.deposit_paid", map[string]interface{}{
-		"order_id":            input.OrderID,
-		"settlement_group_id": groupID.String(),
-		"amount":              input.Amount,
+		var customerGoodAfter float64
+		err = tx.QueryRow(`
+			UPDATE wallets
+			SET good_fund = good_fund - $1
+			WHERE wallet_id = $2 AND good_fund >= $1
+			RETURNING good_fund
+		`, input.Amount, customerWallet.WalletID).Scan(&customerGoodAfter)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				shortfall := roundCurrency(input.Amount - customerWallet.GoodFund)
+				if shortfall < 0 {
+					shortfall = 0
+				}
+				return &PaymentRuleError{Err: ErrPaymentInsufficientWallet, Shortfall: shortfall}
+			}
+			return err
+		}
+
+		var factoryPendingAfter float64
+		if err := tx.QueryRow(`
+			UPDATE wallets
+			SET pending_fund = pending_fund + $1
+			WHERE wallet_id = $2
+			RETURNING pending_fund
+		`, input.Amount, factoryWallet.WalletID).Scan(&factoryPendingAfter); err != nil {
+			return err
+		}
+
+		groupID := uuid.New()
+		customerTxID := "tx_" + uuid.NewString()
+		factoryTxID := "tx_" + uuid.NewString()
+		now := time.Now()
+		if err := insertCustomerPaymentTx(tx, customerTxID, customerWallet.WalletID, input.OrderID, -input.Amount, input.IdempotencyKey, groupID, now); err != nil {
+			if isUniqueViolation(err) {
+				replay, replayErr := s.loadPaymentReplay(input.OrderID, input.IdempotencyKey)
+				if replayErr != nil {
+					return replayErr
+				}
+				out = replay
+				return errPaymentReplayReady
+			}
+			return err
+		}
+		if err := insertFactoryReceivableTx(tx, factoryTxID, factoryWallet.WalletID, input.OrderID, input.Amount, input.IdempotencyKey+":f", groupID, now); err != nil {
+			if isUniqueViolation(err) {
+				replay, replayErr := s.loadPaymentReplay(input.OrderID, input.IdempotencyKey)
+				if replayErr != nil {
+					return replayErr
+				}
+				out = replay
+				return errPaymentReplayReady
+			}
+			return err
+		}
+
+		if _, err := tx.Exec(`UPDATE orders SET status = 'PR', updated_at = NOW() WHERE order_id = $1 AND status = 'PP'`, input.OrderID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`
+			UPDATE payment_schedules
+			SET status = 'PD',
+			    paid_at = NOW()
+			WHERE order_id = $1 AND installment_no = 1
+		`, input.OrderID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`
+			INSERT INTO notifications (user_id, type, title, message, link_to)
+			VALUES ($1, 'PS', $2, $3, $4)
+		`, order.FactoryID,
+			"ได้รับเงินมัดจำ — เริ่มการผลิตได้",
+			"คำสั่งซื้อได้ชำระเงินมัดจำเรียบร้อย กรุณาเริ่มสายการผลิต",
+			"/factory/orders/"+formatInt64(input.OrderID),
+		); err != nil {
+			return err
+		}
+		if err := insertDomainEventTx(tx, "order.deposit_paid", map[string]interface{}{
+			"order_id":            input.OrderID,
+			"settlement_group_id": groupID.String(),
+			"amount":              input.Amount,
+		}); err != nil {
+			return err
+		}
+		if err := insertDomainEventTx(tx, "cache.invalidate", map[string]interface{}{
+			"paths": []string{
+				"/orders/" + formatInt64(input.OrderID),
+				"/orders/" + formatInt64(input.OrderID) + "/production-updates",
+			},
+		}); err != nil {
+			return err
+		}
+
+		out = &OrderPaymentResponse{
+			SettlementGroupID: groupID.String(),
+			CustomerTransaction: WalletPaymentTransaction{
+				TxID:      customerTxID,
+				Amount:    -input.Amount,
+				Type:      "BU",
+				Direction: "D",
+				Status:    "ST",
+			},
+			FactoryTransaction: WalletPaymentTransaction{
+				TxID:              factoryTxID,
+				Amount:            input.Amount,
+				Type:              "SC",
+				Direction:         "C",
+				Status:            "PT",
+				HeldInPendingFund: true,
+			},
+			OrderStatusAfter: "PR",
+			WalletBalanceAfter: WalletBalanceAfter{
+				GoodFund:    roundCurrency(customerGoodAfter),
+				PendingFund: roundCurrency(customerWallet.PendingFund),
+			},
+		}
+		return nil
 	}); err != nil {
-		return nil, err
-	}
-	if err := insertDomainEventTx(tx, "cache.invalidate", map[string]interface{}{
-		"paths": []string{
-			"/orders/" + formatInt64(input.OrderID),
-			"/orders/" + formatInt64(input.OrderID) + "/production-updates",
-		},
-	}); err != nil {
-		return nil, err
-	}
-
-	out := &OrderPaymentResponse{
-		SettlementGroupID: groupID.String(),
-		CustomerTransaction: WalletPaymentTransaction{
-			TxID:      customerTxID,
-			Amount:    -input.Amount,
-			Type:      "BU",
-			Direction: "D",
-			Status:    "ST",
-		},
-		FactoryTransaction: WalletPaymentTransaction{
-			TxID:              factoryTxID,
-			Amount:            input.Amount,
-			Type:              "SC",
-			Direction:         "C",
-			Status:            "PT",
-			HeldInPendingFund: true,
-		},
-		OrderStatusAfter: "PR",
-		WalletBalanceAfter: WalletBalanceAfter{
-			GoodFund:    roundCurrency(customerGoodAfter),
-			PendingFund: roundCurrency(customerWallet.PendingFund),
-		},
-	}
-
-	if err := tx.Commit(); err != nil {
+		if errors.Is(err, errPaymentReplayReady) {
+			return out, nil
+		}
 		return nil, err
 	}
 	return out, nil

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"strconv"
@@ -42,23 +43,17 @@ func (s *PlatformConfigService) ListAll() ([]domain.PlatformConfig, error) {
 }
 
 func (s *PlatformConfigService) CreateVersion(cfg *domain.PlatformConfig) error {
-	tx, err := s.db.Beginx()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
 	if cfg.CurrencyCode == "" {
 		cfg.CurrencyCode = "THB"
 	}
 	cfg.CurrencyCode = strings.ToUpper(strings.TrimSpace(cfg.CurrencyCode))
 	cfg.EffectiveFrom = time.Now().UTC()
-	if err := s.repo.CloseActive(tx); err != nil {
-		return err
-	}
-	if err := s.repo.Create(tx, cfg); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+		if err := s.repo.CloseActive(tx); err != nil {
+			return err
+		}
+		return s.repo.Create(tx, cfg)
+	})
 }
 
 func (s *PlatformConfigService) CreateConfig(req domain.CreatePlatformConfigRequest, actorID int64, ip *string) (*domain.PlatformConfig, error) {
@@ -93,18 +88,12 @@ func (s *PlatformConfigService) CreateConfig(req domain.CreatePlatformConfigRequ
 		EffectiveTo:           effectiveTo,
 		CreatedBy:             &actorID,
 	}
-	tx, err := s.db.Beginx()
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-	if err := s.repo.CreatePackage(tx, cfg); err != nil {
-		return nil, err
-	}
-	if err := s.insertAudit(actorID, "PLATFORM_CONFIG_CREATE", "platform_config", cfg.ConfigID, cfg, ip); err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
+	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+		if err := s.repo.CreatePackage(tx, cfg); err != nil {
+			return err
+		}
+		return s.insertAudit(actorID, "PLATFORM_CONFIG_CREATE", "platform_config", cfg.ConfigID, cfg, ip)
+	}); err != nil {
 		return nil, err
 	}
 	return cfg, nil
@@ -127,22 +116,16 @@ func (s *PlatformConfigService) UpdateConfig(configID int64, req domain.UpdatePl
 		DefaultCommissionRate: req.DefaultCommissionRate,
 		VatRate:               req.VatRate,
 	}
-	tx, err := s.db.Beginx()
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-	if err := s.repo.UpdateConfig(tx, configID, after); err != nil {
-		if repository.IsNotFoundError(err) {
-			return nil, ErrPlatformConfigNotFound
+	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+		if err := s.repo.UpdateConfig(tx, configID, after); err != nil {
+			if repository.IsNotFoundError(err) {
+				return ErrPlatformConfigNotFound
+			}
+			return err
 		}
-		return nil, err
-	}
-	payload := map[string]interface{}{"before": before, "after": after}
-	if err := s.insertAudit(actorID, "PLATFORM_CONFIG_UPDATE", "platform_config", configID, payload, ip); err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
+		payload := map[string]interface{}{"before": before, "after": after}
+		return s.insertAudit(actorID, "PLATFORM_CONFIG_UPDATE", "platform_config", configID, payload, ip)
+	}); err != nil {
 		return nil, err
 	}
 	return after, nil

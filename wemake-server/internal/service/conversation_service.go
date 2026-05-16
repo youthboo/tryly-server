@@ -1,12 +1,14 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/repository"
 )
@@ -129,16 +131,6 @@ func (s *ConversationService) ShareRFQ(convID, userID, rfqID int64) (*domain.Mes
 		return nil, nil, ErrShareRFQClosed
 	}
 
-	tx, err := s.rfqs.DB().Beginx()
-	if err != nil {
-		return nil, nil, err
-	}
-	defer tx.Rollback()
-
-	if err := s.rfqs.LinkConversationTx(tx, rfqID, userID, convID); err != nil {
-		return nil, nil, err
-	}
-
 	nowUTC := time.Now().UTC()
 	msg := &domain.Message{
 		ConvID:        &convID,
@@ -152,21 +144,25 @@ func (s *ConversationService) ShareRFQ(convID, userID, rfqID int64) (*domain.Mes
 		CreatedAt:     nowUTC,
 	}
 	msg.MessageID = "msg-" + msg.CreatedAt.Format("20060102150405.000000000")
-	if err := s.messages.CreateTx(tx, msg); err != nil {
-		return nil, nil, err
-	}
+	if err := WithTx(context.Background(), s.rfqs.DB(), func(tx *sqlx.Tx) error {
+		if err := s.rfqs.LinkConversationTx(tx, rfqID, userID, convID); err != nil {
+			return err
+		}
+		if err := s.messages.CreateTx(tx, msg); err != nil {
+			return err
+		}
 
-	if _, err := tx.Exec(`
+		if _, err := tx.Exec(`
 		UPDATE conversations
 		SET last_message = $2,
 		    unread_factory = COALESCE(unread_factory, 0) + 1,
 		    updated_at = $3
 		WHERE conv_id = $1
 	`, convID, rfq.Title, nowUTC); err != nil {
-		return nil, nil, err
-	}
-
-	if err := tx.Commit(); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
 		return nil, nil, err
 	}
 

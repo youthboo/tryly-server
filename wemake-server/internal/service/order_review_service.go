@@ -1,12 +1,14 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/repository"
 )
@@ -90,12 +92,6 @@ func (s *OrderService) CreateReview(orderID, userID int64, role string, input Cr
 		return nil, err
 	}
 
-	tx, err := s.db.Beginx()
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
 	orderIDPtr := order.OrderID
 	review := &domain.FactoryReview{
 		FactoryID: order.FactoryID,
@@ -105,22 +101,21 @@ func (s *OrderService) CreateReview(orderID, userID int64, role string, input Cr
 		Comment:   comment,
 		ImageURLs: imageURLs,
 	}
-	if err := s.reviews.CreateForOrderTx(tx, review); err != nil {
-		if errors.Is(err, repository.ErrReviewAlreadyExists) {
-			return nil, ErrReviewAlreadyExists
+	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+		if err := s.reviews.CreateForOrderTx(tx, review); err != nil {
+			if errors.Is(err, repository.ErrReviewAlreadyExists) {
+				return ErrReviewAlreadyExists
+			}
+			return err
 		}
-		return nil, err
-	}
-	if err := s.reviews.SyncFactoryAggregateTx(tx, order.FactoryID); err != nil {
-		return nil, err
-	}
-	if err := s.repo.InsertActivityTx(tx, orderID, &userID, "REVIEW_CREATED", map[string]interface{}{
-		"review_id": review.ReviewID,
-		"rating":    review.Rating,
+		if err := s.reviews.SyncFactoryAggregateTx(tx, order.FactoryID); err != nil {
+			return err
+		}
+		return s.repo.InsertActivityTx(tx, orderID, &userID, "REVIEW_CREATED", map[string]interface{}{
+			"review_id": review.ReviewID,
+			"rating":    review.Rating,
+		})
 	}); err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	createNotificationSafe(s.notifications, &domain.Notification{

@@ -426,23 +426,17 @@ func (s *QuotationService) CreateDetailed(item *domain.Quotation) error {
 	item.PlatformCommissionAmount = breakdown.PlatformCommissionAmount
 	item.FactoryNetReceivable = breakdown.FactoryNetReceivable
 	item.PlatformConfigID = &breakdown.PlatformConfigID
-	tx, err := s.db.Beginx()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if item.ParentQuotationID != nil {
-		if err := s.repo.MarkAncestorsRevised(tx, item.RFQID, item.FactoryID); err != nil {
+	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+		if item.ParentQuotationID != nil {
+			if err := s.repo.MarkAncestorsRevised(tx, item.RFQID, item.FactoryID); err != nil {
+				return err
+			}
+		}
+		if err := s.repo.CreateTx(tx, item); err != nil {
 			return err
 		}
-	}
-	if err := s.repo.CreateTx(tx, item); err != nil {
-		return err
-	}
-	if err := s.items.BulkInsert(tx, item.QuotationID, item.Items); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
+		return s.items.BulkInsert(tx, item.QuotationID, item.Items)
+	}); err != nil {
 		return err
 	}
 	s.notifyQuotationQuoted(item)

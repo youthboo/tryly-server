@@ -1,9 +1,11 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"strings"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/repository"
 )
@@ -50,15 +52,9 @@ func (s *ReviewService) DeleteByUser(reviewID, userID int64) error {
 	if err != nil {
 		return err
 	}
-	tx, err := s.repo.DB().Beginx()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if err := s.repo.SyncFactoryAggregateTx(tx, item.FactoryID); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return WithTx(context.Background(), s.repo.DB(), func(tx *sqlx.Tx) error {
+		return s.repo.SyncFactoryAggregateTx(tx, item.FactoryID)
+	})
 }
 
 func normalizeReviewImageURLs(values domain.StringArray) domain.StringArray {

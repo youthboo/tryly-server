@@ -8,8 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/repository"
 )
 
 type BulkCheckoutItemInput struct {
@@ -41,90 +43,91 @@ type BulkCheckoutResult struct {
 // CreateFromQuotation accepts a pending (PD) quotation or continues from an already-accepted (AC) quote.
 // For PD: rejects sibling PD quotations, sets this quote to AC, closes the RFQ (OP→CL), then creates an order in payment-pending state.
 func (s *OrderService) CreateFromQuotation(quotationID, userID int64) (*domain.Order, error) {
-	tx, err := s.db.Beginx()
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	src, err := s.repo.GetOrderSourceByQuotationIDTx(tx, quotationID, userID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			tx.Rollback()
+	var src *repository.QuotationOrderSource
+	var order *domain.Order
+	var total float64
+	var deposit float64
+	var now time.Time
+	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+		var err error
+		src, err = s.repo.GetOrderSourceByQuotationIDTx(tx, quotationID, userID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				tx.Rollback()
+			}
+			return err
 		}
-		return nil, err
-	}
-	switch src.Status {
-	case "RJ":
-		return nil, ErrQuotationRejected
-	case "PD":
-		// Multi-factory: ยอมรับเฉพาะ quote นี้ ไม่ reject quotations อื่น
-		// ไม่ปิด RFQ อัตโนมัติ — ลูกค้าสามารถยอมรับโรงงานอื่นได้ต่อ
-		if err := s.quotations.UpdateStatusTx(tx, quotationID, "AC"); err != nil {
-			return nil, err
+		switch src.Status {
+		case "RJ":
+			return ErrQuotationRejected
+		case "PD":
+			// Multi-factory: ยอมรับเฉพาะ quote นี้ ไม่ reject quotations อื่น
+			// ไม่ปิด RFQ อัตโนมัติ — ลูกค้าสามารถยอมรับโรงงานอื่นได้ต่อ
+			if err := s.quotations.UpdateStatusTx(tx, quotationID, "AC"); err != nil {
+				return err
+			}
+		case "AC":
+			// AC แล้ว — ไม่ทำอะไรกับ quotation อื่น แค่ตรวจสอบว่า order ยังไม่มี
+		default:
+			return ErrQuotationInvalidState
 		}
-	case "AC":
-		// AC แล้ว — ไม่ทำอะไรกับ quotation อื่น แค่ตรวจสอบว่า order ยังไม่มี
-	default:
-		return nil, ErrQuotationInvalidState
-	}
 
-	exists, err := s.repo.OrderExistsForQuoteTx(tx, quotationID)
-	if err != nil {
-		return nil, err
-	}
-	if exists {
-		return nil, ErrOrderAlreadyExistsForQuote
-	}
-
-	// Use grand_total (VAT + commission inclusive) from the quotation.
-	// Fall back to legacy formula only when grand_total was not yet calculated (old quotations).
-	total := src.GrandTotal
-	if total <= 0 {
-		total = roundCurrency((src.PricePerPiece * float64(src.Quantity)) + src.MoldCost)
-	}
-	if total < 0 {
-		return nil, errors.New("invalid order total")
-	}
-	// Platform policy: 100% upfront payment — deposit equals full amount.
-	deposit := total
-	status := "PP"
-	if total == 0 {
-		deposit = 0
-		status = "PE"
-	}
-
-	shippingDays := getShippingDays(s.db)
-	now := time.Now()
-	deliveryDate := calculateEstimatedDelivery(now, src.LeadTimeDays, shippingDays, src.DeliveryDate)
-	order := &domain.Order{
-		QuotationID:       src.QuotationID,
-		UserID:            src.UserID,
-		FactoryID:         src.FactoryID,
-		TotalAmount:       total,
-		DepositAmount:     deposit,
-		Status:            status,
-		EstimatedDelivery: &deliveryDate,
-		CreatedAt:         now,
-		UpdatedAt:         now,
-	}
-
-	if err := s.repo.CreateTx(tx, order); err != nil {
-		return nil, err
-	}
-	if s.schedules != nil {
-		depositDueDate := deriveDefaultDepositScheduleDate(order.CreatedAt)
-		if err := s.schedules.CreateTx(tx, &domain.PaymentSchedule{
-			OrderID:       order.OrderID,
-			InstallmentNo: 1,
-			DueDate:       depositDueDate,
-			Amount:        deposit,
-		}); err != nil {
-			return nil, err
+		exists, err := s.repo.OrderExistsForQuoteTx(tx, quotationID)
+		if err != nil {
+			return err
 		}
-	}
+		if exists {
+			return ErrOrderAlreadyExistsForQuote
+		}
 
-	if err := tx.Commit(); err != nil {
+		// Use grand_total (VAT + commission inclusive) from the quotation.
+		// Fall back to legacy formula only when grand_total was not yet calculated (old quotations).
+		total = src.GrandTotal
+		if total <= 0 {
+			total = roundCurrency((src.PricePerPiece * float64(src.Quantity)) + src.MoldCost)
+		}
+		if total < 0 {
+			return errors.New("invalid order total")
+		}
+		// Platform policy: 100% upfront payment — deposit equals full amount.
+		deposit = total
+		status := "PP"
+		if total == 0 {
+			deposit = 0
+			status = "PE"
+		}
+
+		shippingDays := getShippingDays(s.db)
+		now = time.Now()
+		deliveryDate := calculateEstimatedDelivery(now, src.LeadTimeDays, shippingDays, src.DeliveryDate)
+		order = &domain.Order{
+			QuotationID:       src.QuotationID,
+			UserID:            src.UserID,
+			FactoryID:         src.FactoryID,
+			TotalAmount:       total,
+			DepositAmount:     deposit,
+			Status:            status,
+			EstimatedDelivery: &deliveryDate,
+			CreatedAt:         now,
+			UpdatedAt:         now,
+		}
+
+		if err := s.repo.CreateTx(tx, order); err != nil {
+			return err
+		}
+		if s.schedules != nil {
+			depositDueDate := deriveDefaultDepositScheduleDate(order.CreatedAt)
+			if err := s.schedules.CreateTx(tx, &domain.PaymentSchedule{
+				OrderID:       order.OrderID,
+				InstallmentNo: 1,
+				DueDate:       depositDueDate,
+				Amount:        deposit,
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 
@@ -187,66 +190,63 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 		addressIDs[item.AddressID] = struct{}{}
 	}
 
-	tx, err := s.db.Beginx()
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-
-	type lockedRFQ struct {
-		RFQID  int64  `db:"rfq_id"`
-		UserID int64  `db:"user_id"`
-		Status string `db:"status"`
-	}
-	var rfq lockedRFQ
-	if err := tx.Get(&rfq, `
+	now := time.Now()
+	orders := make([]domain.Order, 0, len(quoteIDs))
+	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+		type lockedRFQ struct {
+			RFQID  int64  `db:"rfq_id"`
+			UserID int64  `db:"user_id"`
+			Status string `db:"status"`
+		}
+		var rfq lockedRFQ
+		if err := tx.Get(&rfq, `
 		SELECT rfq_id, user_id, status
 		FROM rfqs
 		WHERE rfq_id = $1
 		FOR UPDATE
 	`, input.RFQID); err != nil {
-		return nil, err
-	}
-	if rfq.UserID != input.UserID {
-		return nil, ErrNotQuotationParty
-	}
-	if rfq.Status != "OP" && rfq.Status != "IR" {
-		return nil, ErrRFQLocked
-	}
-	if len(addressIDs) > 0 {
-		ids := make([]int64, 0, len(addressIDs))
-		for id := range addressIDs {
-			ids = append(ids, id)
+			return err
 		}
-		var ownedCount int
-		if err := tx.Get(&ownedCount, `
+		if rfq.UserID != input.UserID {
+			return ErrNotQuotationParty
+		}
+		if rfq.Status != "OP" && rfq.Status != "IR" {
+			return ErrRFQLocked
+		}
+		if len(addressIDs) > 0 {
+			ids := make([]int64, 0, len(addressIDs))
+			for id := range addressIDs {
+				ids = append(ids, id)
+			}
+			var ownedCount int
+			if err := tx.Get(&ownedCount, `
 			SELECT COUNT(*)
 			FROM addresses
 			WHERE user_id = $1
 			  AND address_id = ANY($2)
 		`, input.UserID, pq.Array(ids)); err != nil {
-			return nil, err
+				return err
+			}
+			if ownedCount != len(ids) {
+				return ErrInvalidQuotationSet
+			}
 		}
-		if ownedCount != len(ids) {
-			return nil, ErrInvalidQuotationSet
-		}
-	}
 
-	type lockedQuotation struct {
-		QuoteID       int64      `db:"quote_id"`
-		RFQID         int64      `db:"rfq_id"`
-		FactoryID     int64      `db:"factory_id"`
-		PricePerPiece float64    `db:"price_per_piece"`
-		Quantity      int64      `db:"quantity"`
-		MoldCost      float64    `db:"mold_cost"`
-		LeadTimeDays  int64      `db:"lead_time_days"`
-		DeliveryDate  *time.Time `db:"delivery_date"`
-		Status        string     `db:"status"`
-		GrandTotal    float64    `db:"grand_total"`
-		ValidUntil    *time.Time `db:"valid_until"`
-	}
-	var quotes []lockedQuotation
-	if err := tx.Select(&quotes, `
+		type lockedQuotation struct {
+			QuoteID       int64      `db:"quote_id"`
+			RFQID         int64      `db:"rfq_id"`
+			FactoryID     int64      `db:"factory_id"`
+			PricePerPiece float64    `db:"price_per_piece"`
+			Quantity      int64      `db:"quantity"`
+			MoldCost      float64    `db:"mold_cost"`
+			LeadTimeDays  int64      `db:"lead_time_days"`
+			DeliveryDate  *time.Time `db:"delivery_date"`
+			Status        string     `db:"status"`
+			GrandTotal    float64    `db:"grand_total"`
+			ValidUntil    *time.Time `db:"valid_until"`
+		}
+		var quotes []lockedQuotation
+		if err := tx.Select(&quotes, `
 		SELECT q.quote_id, q.rfq_id, q.factory_id, q.price_per_piece, r.quantity,
 		       q.mold_cost, q.lead_time_days, NULL::date AS delivery_date, q.status, COALESCE(q.grand_total, 0) AS grand_total,
 		       COALESCE(q.valid_until, (q.create_time + (q.validity_days::text || ' day')::interval)::date) AS valid_until
@@ -256,87 +256,83 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 		  AND q.quote_id = ANY($2)
 		FOR UPDATE OF q
 	`, input.RFQID, pq.Array(quoteIDs)); err != nil {
-		return nil, err
-	}
-	if len(quotes) != len(quoteIDs) {
-		return nil, ErrInvalidQuotationSet
-	}
+			return err
+		}
+		if len(quotes) != len(quoteIDs) {
+			return ErrInvalidQuotationSet
+		}
 
-	shippingDays := getShippingDays(s.db)
-	now := time.Now()
-	orders := make([]domain.Order, 0, len(quotes))
-	for _, q := range quotes {
-		if q.FactoryID == input.UserID {
-			return nil, ErrSelfTransaction
-		}
-		if q.Status != "PD" {
-			return nil, ErrQuotationInvalidState
-		}
-		if q.ValidUntil != nil && q.ValidUntil.Before(now.UTC()) {
-			return nil, ErrQuotationExpired
-		}
-		exists, err := s.repo.OrderExistsForQuoteTx(tx, q.QuoteID)
-		if err != nil {
-			return nil, err
-		}
-		if exists {
-			return nil, ErrOrderAlreadyExistsForQuote
-		}
-		total := q.GrandTotal
-		if total <= 0 {
-			total = roundCurrency((q.PricePerPiece * float64(q.Quantity)) + q.MoldCost)
-		}
-		if total < 0 {
-			return nil, errors.New("invalid order total")
-		}
-		deposit := total
-		status := "PP"
-		if total == 0 {
-			status = "PE"
-			deposit = 0
-		}
-		deliveryDate := calculateEstimatedDelivery(now, q.LeadTimeDays, shippingDays, q.DeliveryDate)
-		order := &domain.Order{
-			QuotationID:       q.QuoteID,
-			UserID:            input.UserID,
-			FactoryID:         q.FactoryID,
-			TotalAmount:       total,
-			DepositAmount:     deposit,
-			Status:            status,
-			EstimatedDelivery: &deliveryDate,
-			CreatedAt:         now,
-			UpdatedAt:         now,
-		}
-		if err := s.repo.CreateTx(tx, order); err != nil {
-			return nil, err
-		}
-		if _, err := tx.Exec(`UPDATE orders SET payment_type = $1 WHERE order_id = $2`, paymentTypes[q.QuoteID], order.OrderID); err != nil {
-			return nil, err
-		}
-		if s.schedules != nil && deposit > 0 {
-			if err := s.schedules.CreateTx(tx, &domain.PaymentSchedule{
-				OrderID:       order.OrderID,
-				InstallmentNo: 1,
-				DueDate:       deriveDefaultDepositScheduleDate(order.CreatedAt),
-				Amount:        deposit,
-			}); err != nil {
-				return nil, err
+		shippingDays := getShippingDays(s.db)
+		for _, q := range quotes {
+			if q.FactoryID == input.UserID {
+				return ErrSelfTransaction
 			}
+			if q.Status != "PD" {
+				return ErrQuotationInvalidState
+			}
+			if q.ValidUntil != nil && q.ValidUntil.Before(now.UTC()) {
+				return ErrQuotationExpired
+			}
+			exists, err := s.repo.OrderExistsForQuoteTx(tx, q.QuoteID)
+			if err != nil {
+				return err
+			}
+			if exists {
+				return ErrOrderAlreadyExistsForQuote
+			}
+			total := q.GrandTotal
+			if total <= 0 {
+				total = roundCurrency((q.PricePerPiece * float64(q.Quantity)) + q.MoldCost)
+			}
+			if total < 0 {
+				return errors.New("invalid order total")
+			}
+			deposit := total
+			status := "PP"
+			if total == 0 {
+				status = "PE"
+				deposit = 0
+			}
+			deliveryDate := calculateEstimatedDelivery(now, q.LeadTimeDays, shippingDays, q.DeliveryDate)
+			order := &domain.Order{
+				QuotationID:       q.QuoteID,
+				UserID:            input.UserID,
+				FactoryID:         q.FactoryID,
+				TotalAmount:       total,
+				DepositAmount:     deposit,
+				Status:            status,
+				EstimatedDelivery: &deliveryDate,
+				CreatedAt:         now,
+				UpdatedAt:         now,
+			}
+			if err := s.repo.CreateTx(tx, order); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(`UPDATE orders SET payment_type = $1 WHERE order_id = $2`, paymentTypes[q.QuoteID], order.OrderID); err != nil {
+				return err
+			}
+			if s.schedules != nil && deposit > 0 {
+				if err := s.schedules.CreateTx(tx, &domain.PaymentSchedule{
+					OrderID:       order.OrderID,
+					InstallmentNo: 1,
+					DueDate:       deriveDefaultDepositScheduleDate(order.CreatedAt),
+					Amount:        deposit,
+				}); err != nil {
+					return err
+				}
+			}
+			orders = append(orders, *order)
 		}
-		orders = append(orders, *order)
-	}
 
-	if _, err := tx.Exec(`
+		if _, err := tx.Exec(`
 		UPDATE quotations
 		SET status = 'AC', is_locked = TRUE, log_timestamp = NOW()
 		WHERE rfq_id = $1 AND quote_id = ANY($2)
 	`, input.RFQID, pq.Array(quoteIDs)); err != nil {
-		return nil, err
-	}
-	if err := s.rfqs.MarkInReviewTx(tx, input.RFQID, input.UserID); err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
+			return err
+		}
+		return s.rfqs.MarkInReviewTx(tx, input.RFQID, input.UserID)
+	}); err != nil {
 		return nil, err
 	}
 

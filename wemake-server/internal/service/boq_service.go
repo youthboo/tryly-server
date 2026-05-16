@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -231,32 +232,28 @@ func (s *BOQService) Create(convID, actorUserID int64, input BOQInput) (*domain.
 		BOQSentAt:         &now,
 	}
 
-	tx, err := s.db.Beginx()
-	if err != nil {
-		return nil, nil, err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	if err := s.rfqs.CreateTx(tx, rfq); err != nil {
-		return nil, nil, err
-	}
-	for i := range input.Items {
-		input.Items[i].RFQID = rfq.RFQID
-	}
-	if err := s.rfqItems.BulkInsertTx(tx, rfq.RFQID, input.Items); err != nil {
-		return nil, nil, err
-	}
-	if _, err := tx.Exec(`
+	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+		if err := s.rfqs.CreateTx(tx, rfq); err != nil {
+			return err
+		}
+		for i := range input.Items {
+			input.Items[i].RFQID = rfq.RFQID
+		}
+		if err := s.rfqItems.BulkInsertTx(tx, rfq.RFQID, input.Items); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`
 		UPDATE conversations
 		SET last_message = 'BOQ ใหม่',
 		    unread_customer = COALESCE(unread_customer, 0) + 1,
 		    updated_at = NOW(),
 		    conv_type = CASE WHEN conv_type = 'general' THEN 'boq' ELSE conv_type END
 		WHERE conv_id = $1
-	`, convID); err != nil {
-		return nil, nil, err
-	}
-	if err := tx.Commit(); err != nil {
+		`, convID); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
 		return nil, nil, err
 	}
 
@@ -360,40 +357,36 @@ func (s *BOQService) Update(rfqID, actorUserID int64, input BOQInput) (*domain.B
 	rfq.BOQNote = input.Note
 	rfq.BOQSentAt = &now
 
-	tx, err := s.db.Beginx()
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	if _, err := tx.Exec(`
+	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+		if _, err := tx.Exec(`
 		UPDATE rfqs
 		SET quantity = $2,
 		    details = $3,
 		    updated_at = NOW()
 		WHERE rfq_id = $1
 	`, rfqID, quantity, details); err != nil {
-		return nil, err
-	}
-	if err := s.rfqItems.DeleteByRFQIDTx(tx, rfqID); err != nil {
-		return nil, err
-	}
-	for i := range input.Items {
-		input.Items[i].RFQID = rfqID
-	}
-	if err := s.rfqItems.BulkInsertTx(tx, rfqID, input.Items); err != nil {
-		return nil, err
-	}
-	if _, err := tx.Exec(`
+			return err
+		}
+		if err := s.rfqItems.DeleteByRFQIDTx(tx, rfqID); err != nil {
+			return err
+		}
+		for i := range input.Items {
+			input.Items[i].RFQID = rfqID
+		}
+		if err := s.rfqItems.BulkInsertTx(tx, rfqID, input.Items); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`
 		UPDATE conversations
 		SET last_message = 'BOQ อัปเดต',
 		    unread_customer = COALESCE(unread_customer, 0) + 1,
 		    updated_at = NOW()
 		WHERE conv_id = $1
 	`, nullableBOQInt64(rfq.SourceConvID)); err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 
@@ -479,32 +472,25 @@ func (s *BOQService) Accept(rfqID, buyerUserID int64) (*domain.Order, int64, err
 		RevisionNo:               1,
 	}
 
-	tx, err := s.db.Beginx()
-	if err != nil {
-		return nil, 0, err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	if err := s.quotations.CreateTx(tx, quotation); err != nil {
-		return nil, 0, err
-	}
-	qItems := make([]domain.QuotationItem, 0, len(items))
-	for _, item := range items {
-		qItems = append(qItems, domain.QuotationItem{
-			ItemNo:      item.ItemNo,
-			Description: item.Description,
-			Qty:         item.Qty,
-			Unit:        item.Unit,
-			UnitPrice:   item.UnitPrice,
-			DiscountPct: item.DiscountPct,
-			LineTotal:   item.LineTotal,
-			Note:        item.Note,
-		})
-	}
-	if err := s.quotationItems.BulkInsert(tx, quotation.QuotationID, qItems); err != nil {
-		return nil, 0, err
-	}
-	if err := tx.Commit(); err != nil {
+	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+		if err := s.quotations.CreateTx(tx, quotation); err != nil {
+			return err
+		}
+		qItems := make([]domain.QuotationItem, 0, len(items))
+		for _, item := range items {
+			qItems = append(qItems, domain.QuotationItem{
+				ItemNo:      item.ItemNo,
+				Description: item.Description,
+				Qty:         item.Qty,
+				Unit:        item.Unit,
+				UnitPrice:   item.UnitPrice,
+				DiscountPct: item.DiscountPct,
+				LineTotal:   item.LineTotal,
+				Note:        item.Note,
+			})
+		}
+		return s.quotationItems.BulkInsert(tx, quotation.QuotationID, qItems)
+	}); err != nil {
 		return nil, 0, err
 	}
 
@@ -519,47 +505,43 @@ func (s *BOQService) Accept(rfqID, buyerUserID int64) (*domain.Order, int64, err
 }
 
 func (s *BOQService) finalizeAcceptedBOQ(rfq *domain.RFQ, order *domain.Order) error {
-	tx, err := s.db.Beginx()
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	if _, err := tx.Exec(`
+	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+		if _, err := tx.Exec(`
 		UPDATE rfqs
 		SET updated_at = NOW()
 		WHERE rfq_id = $1
 	`, rfq.RFQID); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(`
+			return err
+		}
+		if _, err := tx.Exec(`
 		UPDATE orders
 		SET deposit_amount = total_amount,
 		    payment_type = 'FP',
 		    updated_at = NOW()
 		WHERE order_id = $1
 	`, order.OrderID); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(`
+			return err
+		}
+		if _, err := tx.Exec(`
 		UPDATE payment_schedules
 		SET amount = $2
 		WHERE order_id = $1 AND installment_no = 1
 	`, order.OrderID, order.TotalAmount); err != nil {
-		return err
-	}
-	if rfq.SourceConvID != nil {
-		if _, err := tx.Exec(`
+			return err
+		}
+		if rfq.SourceConvID != nil {
+			if _, err := tx.Exec(`
 			UPDATE conversations
 			SET last_message = $2,
 			    unread_factory = COALESCE(unread_factory, 0) + 1,
 			    updated_at = NOW()
 			WHERE conv_id = $1
 		`, *rfq.SourceConvID, fmt.Sprintf("ยืนยัน BOQ แล้ว — คำสั่งซื้อ #%d ถูกสร้างแล้ว", order.OrderID)); err != nil {
-			return err
+				return err
+			}
 		}
-	}
-	if err := tx.Commit(); err != nil {
+		return nil
+	}); err != nil {
 		return err
 	}
 
@@ -602,32 +584,29 @@ func (s *BOQService) Decline(rfqID, buyerUserID int64, reason *string) (*domain.
 		return nil, ErrBOQExpired
 	}
 	now := time.Now()
-	tx, err := s.db.Beginx()
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback() }()
 
-	if _, err := tx.Exec(`
+	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+		if _, err := tx.Exec(`
 		UPDATE rfqs
 		SET status = 'CC',
 		    updated_at = NOW()
 		WHERE rfq_id = $1
 	`, rfqID); err != nil {
-		return nil, err
-	}
-	if rfq.SourceConvID != nil {
-		if _, err := tx.Exec(`
+			return err
+		}
+		if rfq.SourceConvID != nil {
+			if _, err := tx.Exec(`
 			UPDATE conversations
 			SET last_message = 'ลูกค้าปฏิเสธ BOQ',
 			    unread_factory = COALESCE(unread_factory, 0) + 1,
 			    updated_at = NOW()
 			WHERE conv_id = $1
 		`, *rfq.SourceConvID); err != nil {
-			return nil, err
+				return err
+			}
 		}
-	}
-	if err := tx.Commit(); err != nil {
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 
