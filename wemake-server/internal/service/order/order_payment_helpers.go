@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/yourusername/wemake/internal/domain"
+	domainstatus "github.com/yourusername/wemake/internal/domain/status"
 	"github.com/yourusername/wemake/internal/helper"
 	orderrepo "github.com/yourusername/wemake/internal/repository/order"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
@@ -93,29 +94,6 @@ func buildPaymentSchedule(row *orderrepo.OrderDetailRow, status string, depositD
 	}
 }
 
-func orderStatusLabelTH(status string) string {
-	switch status {
-	case "PP":
-		return "รอชำระเงิน"
-	case "PE":
-		return "หมดกำหนดชำระ"
-	case "PD":
-		return "ชำระเงินแล้ว รอเริ่มผลิต"
-	case "PR":
-		return "กำลังผลิต"
-	case "QC":
-		return "ตรวจสอบคุณภาพ"
-	case "SH":
-		return "จัดส่งแล้ว"
-	case "CP":
-		return "เสร็จสิ้น"
-	case "CN":
-		return "ยกเลิก"
-	default:
-		return status
-	}
-}
-
 func timePtrInTH(v *time.Time) *time.Time {
 	if v == nil {
 		return nil
@@ -125,11 +103,11 @@ func timePtrInTH(v *time.Time) *time.Time {
 }
 
 func (s *OrderService) ensureDepositPayable(order *domain.Order) error {
-	status := helper.NormalizeOrderStatus(order.Status)
-	if status == "PD" || status == "PR" || status == "QC" || status == "SH" || status == "CP" {
+	status := domainstatus.NormalizeOrder(order.Status)
+	if domainstatus.IsDepositPaidOrBeyondOrder(status) {
 		return ErrDepositAlreadyPaid
 	}
-	if status == "PE" {
+	if domainstatus.IsDepositExpiredOrder(status) {
 		return ErrDepositExpired
 	}
 	dueDate := s.lookupDepositDueDate(order)

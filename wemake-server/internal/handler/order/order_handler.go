@@ -6,6 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	domainstatus "github.com/yourusername/wemake/internal/domain/status"
 	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	"github.com/yourusername/wemake/internal/repository"
@@ -167,11 +168,8 @@ func (h *OrderHandler) PatchOrderStatus(c *fiber.Ctx) error {
 	}); err != nil {
 		return err
 	}
-	status := strings.TrimSpace(strings.ToUpper(req.Status))
-	validOrderStatuses := map[string]struct{}{
-		"PP": {}, "PR": {}, "WF": {}, "QC": {}, "SH": {}, "DL": {}, "AC": {}, "CP": {}, "CC": {},
-	}
-	if _, ok := validOrderStatuses[status]; !ok {
+	status := domainstatus.NormalizeOrder(req.Status)
+	if !domainstatus.IsValidOrder(status) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "status must be PP, PR, WF, QC, SH, DL, AC, CP, or CC"})
 	}
 	if err := h.service.UpdateStatus(int64(orderID), status, actor); err != nil {

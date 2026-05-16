@@ -5,13 +5,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	domainstatus "github.com/yourusername/wemake/internal/domain/status"
+	"github.com/yourusername/wemake/internal/helper"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 )
 
@@ -200,7 +201,7 @@ func (s *OrderService) VerifyPayment(orderID, userID int64, role, txID string) (
 			return err
 		}
 
-		if paymentTx.Type == "DP" && (helper.NormalizeOrderStatus(order.Status) == "PP" || helper.NormalizeOrderStatus(order.Status) == "PE") {
+		if paymentTx.Type == "DP" && (domainstatus.NormalizeOrder(order.Status) == "PP" || domainstatus.NormalizeOrder(order.Status) == "PE") {
 			if err := s.repo.UpdateStatusTx(tx, orderID, "PD"); err != nil {
 				return err
 			}
@@ -289,7 +290,7 @@ func (s *OrderService) confirmReceiptTx(orderID int64, actorUserID *int64, note 
 			return domain.ErrForbidden
 		}
 
-		statusBefore = helper.NormalizeOrderStatus(order.Status)
+		statusBefore = domainstatus.NormalizeOrder(order.Status)
 		if statusBefore == "CP" {
 			if !idempotent {
 				return ErrConfirmReceiptNotAllowed

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"github.com/yourusername/wemake/internal/helper"
 	"math"
 	"strconv"
 	"strings"
@@ -13,6 +12,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
+	domainstatus "github.com/yourusername/wemake/internal/domain/status"
+	"github.com/yourusername/wemake/internal/helper"
 )
 
 var (
@@ -131,7 +132,7 @@ func (s *OrderPaymentService) PayDeposit(input OrderPaymentInput) (*OrderPayment
 			out = replay
 			return errPaymentReplayReady
 		}
-		switch helper.NormalizeOrderStatus(order.Status) {
+		switch domainstatus.NormalizeOrder(order.Status) {
 		case "PR", "QC", "SH", "CP", "PD":
 			return &PaymentRuleError{Err: ErrDepositAlreadyPaid}
 		case "PE":

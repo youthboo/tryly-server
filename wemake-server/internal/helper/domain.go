@@ -7,7 +7,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/domainutil"
+	domainstatus "github.com/yourusername/wemake/internal/domain/status"
 )
 
 func NotificationData(payload map[string]interface{}) *domain.JSONB {
@@ -28,12 +28,7 @@ func CreateNotificationSafe(s interface {
 }
 
 func NormalizeOrderStatus(status string) string {
-	switch domainutil.NormalizeStatus(status) {
-	case "CC":
-		return "CN"
-	default:
-		return domainutil.NormalizeStatus(status)
-	}
+	return domainstatus.NormalizeOrder(status)
 }
 
 func InsertDomainEventTx(tx *sqlx.Tx, eventType string, payload interface{}) error {

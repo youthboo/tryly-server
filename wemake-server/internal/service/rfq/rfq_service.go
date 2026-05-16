@@ -8,6 +8,7 @@ import (
 
 	"github.com/lib/pq"
 	"github.com/yourusername/wemake/internal/domain"
+	domainstatus "github.com/yourusername/wemake/internal/domain/status"
 	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/helper"
 	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
@@ -100,7 +101,7 @@ func (s *RFQService) Create(rfq *domain.RFQ) error {
 }
 
 func (s *RFQService) ListByUserID(userID int64, status string) ([]domain.RFQ, error) {
-	return s.repo.ListByUserID(userID, strings.TrimSpace(strings.ToUpper(status)))
+	return s.repo.ListByUserID(userID, domainstatus.NormalizeCode(status))
 }
 
 func (s *RFQService) GetByID(userID, rfqID int64) (*domain.RFQ, error) {
@@ -131,7 +132,7 @@ func (s *RFQService) ListMatchingForFactory(factoryID int64, status string, kind
 	if normalizedKind != "" && normalizeRFQKind(normalizedKind) == "" {
 		return nil, ErrRFQKindInvalid
 	}
-	return s.repo.ListMatchingForFactory(factoryID, strings.TrimSpace(strings.ToUpper(status)), normalizedKind, showDismissed)
+	return s.repo.ListMatchingForFactory(factoryID, domainstatus.NormalizeCode(status), normalizedKind, showDismissed)
 }
 
 type PreviewFactoriesResult struct {

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/yourusername/wemake/internal/domain"
+	domainstatus "github.com/yourusername/wemake/internal/domain/status"
 	"github.com/yourusername/wemake/internal/helper"
 	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/repository"
@@ -313,7 +314,7 @@ func (s *FrontendService) GetRFQDetail(userID, rfqID int64) (*domain.FrontendRFQ
 			Verified:        offer.Verified,
 			Recommended:     index == 0,
 			CompletedOrders: offer.CompletedOrders,
-			Status:          mapQuotationStatus(offer.Status),
+			Status:          domainstatus.FrontendQuotation(offer.Status),
 		})
 	}
 	for _, image := range imageRows {
@@ -581,7 +582,7 @@ func mapRFQCard(row frontendrepo.FrontendRFQRow) domain.FrontendRFQCard {
 		ID:          row.ID,
 		ProjectName: row.ProjectName,
 		Category:    row.Category,
-		Status:      mapRFQStatus(row.Status, row.OfferCount),
+		Status:      domainstatus.FrontendRFQ(row.Status, row.OfferCount),
 		OfferCount:  row.OfferCount,
 		Budget:      row.Budget,
 		Quantity:    row.Quantity,
@@ -599,51 +600,9 @@ func mapOrderCard(row frontendrepo.FrontendOrderRow) domain.FrontendOrderCard {
 		FactoryName:       row.FactoryName,
 		TotalAmount:       row.TotalAmount,
 		DepositPaid:       row.DepositPaid,
-		Status:            mapOrderStatus(row.Status),
+		Status:            domainstatus.FrontendOrder(row.Status),
 		EstimatedDelivery: row.EstimatedDelivery,
 		CreatedAt:         row.CreatedAt,
-	}
-}
-
-func mapRFQStatus(status string, offerCount int64) string {
-	switch status {
-	case "CC":
-		return "cancelled"
-	case "CL":
-		return "completed"
-	case "OP":
-		if offerCount > 0 {
-			return "offers_received"
-		}
-		return "pending"
-	default:
-		return strings.ToLower(status)
-	}
-}
-
-func mapOrderStatus(status string) string {
-	switch status {
-	case "PR", "QC":
-		return "in_production"
-	case "SH":
-		return "shipped"
-	case "CP":
-		return "completed"
-	default:
-		return strings.ToLower(status)
-	}
-}
-
-func mapQuotationStatus(status string) string {
-	switch status {
-	case "PD":
-		return "pending"
-	case "AC":
-		return "accepted"
-	case "RJ":
-		return "rejected"
-	default:
-		return strings.ToLower(status)
 	}
 }
 
@@ -893,7 +852,7 @@ func (s *FrontendService) buildMockRFQ(row frontendrepo.FrontendRFQRow, category
 			ResponseTime:    fmt.Sprintf("%d ชั่วโมง", index+1),
 		})
 	}
-	status := mapRFQStatus(row.Status, row.OfferCount)
+	status := domainstatus.FrontendRFQ(row.Status, row.OfferCount)
 	if status == "completed" && row.OfferCount > 0 {
 		status = "completed"
 	}
@@ -932,7 +891,7 @@ func (s *FrontendService) buildMockOrder(row frontendrepo.FrontendOrderRow, rfq 
 	}
 	for index, item := range timelineRows {
 		status := "completed"
-		if index == len(timelineRows)-1 && mapOrderStatus(row.Status) != "completed" {
+		if index == len(timelineRows)-1 && domainstatus.FrontendOrder(row.Status) != "completed" {
 			status = "current"
 		}
 		photo := helper.OptionalString(item.Photo.String)
@@ -952,7 +911,7 @@ func (s *FrontendService) buildMockOrder(row frontendrepo.FrontendOrderRow, rfq 
 		FactoryName:       row.FactoryName,
 		ProjectName:       row.ProjectName,
 		Category:          rfq.Category,
-		Status:            mapOrderStatus(row.Status),
+		Status:            domainstatus.FrontendOrder(row.Status),
 		Progress:          progress,
 		TotalAmount:       row.TotalAmount,
 		DepositPaid:       row.DepositPaid,

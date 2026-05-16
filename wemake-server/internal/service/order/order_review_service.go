@@ -10,6 +10,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	domainstatus "github.com/yourusername/wemake/internal/domain/status"
 	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/helper"
 	userrepo "github.com/yourusername/wemake/internal/repository/user"
@@ -57,7 +58,7 @@ func (s *OrderService) GetReviewState(orderID, userID int64, role string) (*doma
 		return nil, err
 	}
 
-	if helper.NormalizeOrderStatus(order.Status) != "CP" {
+	if domainstatus.NormalizeOrder(order.Status) != "CP" {
 		reason := "order_not_completed"
 		state.Reason = &reason
 		return state, nil
@@ -87,7 +88,7 @@ func (s *OrderService) CreateReview(orderID, userID int64, role string, input Cr
 	if err != nil {
 		return nil, err
 	}
-	if helper.NormalizeOrderStatus(order.Status) != "CP" {
+	if domainstatus.NormalizeOrder(order.Status) != "CP" {
 		return nil, ErrReviewOrderNotCompleted
 	}
 	if _, err := s.reviews.GetByOrderAndUser(orderID, userID); err == nil {

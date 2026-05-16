@@ -5,13 +5,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/yourusername/wemake/internal/helper"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	domainstatus "github.com/yourusername/wemake/internal/domain/status"
+	"github.com/yourusername/wemake/internal/helper"
 	productionrepo "github.com/yourusername/wemake/internal/repository/production"
 )
 
@@ -90,9 +91,9 @@ func (s *ProductionService) ListByOrderID(orderID, userID int64) (*domain.Produc
 	if err != nil {
 		return nil, err
 	}
-	status := normalizeProductionOrderStatus(order.OrderStatus)
-	if isLockedProductionReadStatus(status) {
-		lockReason := deriveProductionLockReason(status)
+	status := domainstatus.NormalizeOrder(order.OrderStatus)
+	if domainstatus.IsProductionReadLockedOrder(status) {
+		lockReason := domainstatus.ProductionLockReason(status)
 		return &domain.ProductionUpdatesList{
 			OrderID:          orderID,
 			Updates:          []domain.ProductionUpdate{},
@@ -149,7 +150,7 @@ func (s *ProductionService) Upsert(orderID, userID int64, input ProductionWriteI
 		if order.FactoryID != userID {
 			return &ProductionRuleError{Err: ErrProductionNotOrderFactory}
 		}
-		if isLockedOrderStatus(order.OrderStatus) {
+		if domainstatus.IsProductionLockedOrder(order.OrderStatus) {
 			return &ProductionRuleError{Err: ErrProductionOrderLocked}
 		}
 
@@ -305,7 +306,7 @@ func (s *ProductionService) Upsert(orderID, userID int64, input ProductionWriteI
 				newOrderStatus = "CP"
 			}
 		default:
-			if input.Status == "IP" && isPreProductionOrderStatus(order.OrderStatus) {
+			if input.Status == "IP" && domainstatus.IsPreProductionOrder(order.OrderStatus) {
 				newOrderStatus = "PR"
 			}
 		}
@@ -352,7 +353,7 @@ func (s *ProductionService) Reject(updateID, userID int64, reason string) (*doma
 		if err != nil {
 			return err
 		}
-		if isLockedOrderStatus(order.OrderStatus) {
+		if domainstatus.IsProductionLockedOrder(order.OrderStatus) {
 			return &ProductionRuleError{Err: ErrProductionOrderLocked}
 		}
 
@@ -424,33 +425,6 @@ func normalizeUserRole(role string) string {
 	}
 }
 
-func isLockedOrderStatus(status string) bool {
-	switch normalizeProductionOrderStatus(status) {
-	case "PP", "PE", "CN", "CP":
-		return true
-	default:
-		return false
-	}
-}
-
-func isLockedProductionReadStatus(status string) bool {
-	switch normalizeProductionOrderStatus(status) {
-	case "PP", "PE", "CN":
-		return true
-	default:
-		return false
-	}
-}
-
-func isPreProductionOrderStatus(status string) bool {
-	switch strings.ToUpper(strings.TrimSpace(status)) {
-	case "CF", "PE", "PP":
-		return true
-	default:
-		return false
-	}
-}
-
 func equalStringArrays(a, b domain.StringArray) bool {
 	if len(a) != len(b) {
 		return false
@@ -461,28 +435,6 @@ func equalStringArrays(a, b domain.StringArray) bool {
 		}
 	}
 	return true
-}
-
-func normalizeProductionOrderStatus(status string) string {
-	switch strings.ToUpper(strings.TrimSpace(status)) {
-	case "CC":
-		return "CN"
-	default:
-		return strings.ToUpper(strings.TrimSpace(status))
-	}
-}
-
-func deriveProductionLockReason(status string) string {
-	switch normalizeProductionOrderStatus(status) {
-	case "PP":
-		return "PENDING_DEPOSIT"
-	case "PE":
-		return "DEPOSIT_EXPIRED"
-	case "CN":
-		return "ORDER_CANCELLED"
-	default:
-		return "UNKNOWN"
-	}
 }
 
 func buildProductionLockContext(order *productionrepo.ProductionOrderContext, reason string) map[string]interface{} {
