@@ -1,8 +1,7 @@
 package notification
 
 import (
-	"fmt"
-
+	sq "github.com/Masterminds/squirrel"
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 )
@@ -49,26 +48,74 @@ func (r *NotificationRepository) Create(noti *domain.Notification) error {
 
 func (r *NotificationRepository) ListPaginated(userID int64, page, limit int, unreadOnly bool) ([]domain.Notification, int64, int64, error) {
 	offset := (page - 1) * limit
-	where := "user_id = $1 AND deleted_at IS NULL"
-	args := []interface{}{userID}
+
+	conditions := sq.And{
+		sq.Eq{"user_id": userID},
+		sq.Eq{"deleted_at": nil},
+	}
 	if unreadOnly {
-		where += " AND is_read = FALSE"
+		conditions = append(conditions, sq.Eq{"is_read": false})
 	}
+
+	countQuery := sq.Select("COUNT(*)").
+		From("notifications").
+		Where(conditions)
+
 	var total int64
-	if err := r.db.Get(&total, `SELECT COUNT(*) FROM notifications WHERE `+where, args...); err != nil {
+	countSQL, countArgs, err := countQuery.ToSql()
+	if err != nil {
 		return nil, 0, 0, err
 	}
+	if err := r.db.Get(&total, countSQL, countArgs...); err != nil {
+		return nil, 0, 0, err
+	}
+
 	var unreadCount int64
-	if err := r.db.Get(&unreadCount, `SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = FALSE AND deleted_at IS NULL`, userID); err != nil {
+	unreadQuery := sq.Select("COUNT(*)").
+		From("notifications").
+		Where(sq.And{
+			sq.Eq{"user_id": userID},
+			sq.Eq{"is_read": false},
+			sq.Eq{"deleted_at": nil},
+		})
+	unreadSQL, unreadArgs, err := unreadQuery.ToSql()
+	if err != nil {
 		return nil, 0, 0, err
 	}
-	query := fmt.Sprintf(`SELECT noti_id, user_id, type, title, message, link_to, is_read, read_at,
-			NULL::jsonb AS data, NULL::bigint AS reference_id, deleted_at, created_at
-		FROM notifications WHERE %s ORDER BY created_at DESC LIMIT $2 OFFSET $3`, where)
+	if err := r.db.Get(&unreadCount, unreadSQL, unreadArgs...); err != nil {
+		return nil, 0, 0, err
+	}
+
+	query := sq.Select(
+		"noti_id",
+		"user_id",
+		"type",
+		"title",
+		"message",
+		"link_to",
+		"is_read",
+		"read_at",
+		"NULL::jsonb AS data",
+		"NULL::bigint AS reference_id",
+		"deleted_at",
+		"created_at",
+	).
+		From("notifications").
+		Where(conditions).
+		OrderBy("created_at DESC").
+		Limit(uint64(limit)).
+		Offset(uint64(offset))
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
 	var items []domain.Notification
-	if err := r.db.Select(&items, query, userID, limit, offset); err != nil {
+	if err := r.db.Select(&items, sql, args...); err != nil {
 		return nil, 0, 0, err
 	}
+
 	return items, total, unreadCount, nil
 }
 

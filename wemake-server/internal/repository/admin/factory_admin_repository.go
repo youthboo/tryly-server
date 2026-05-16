@@ -2,9 +2,8 @@ package admin
 
 import (
 	"database/sql"
-	"fmt"
-	"strings"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
@@ -22,59 +21,72 @@ func NewAdminFactoryRepository(db *sqlx.DB, factories *factoryrepo.FactoryReposi
 
 func (r *AdminFactoryRepository) ListAdmin(filter domain.AdminFactoryFilter) ([]domain.AdminFactoryListItem, int, error) {
 	page, pageSize := normalizePage(filter.Page, filter.PageSize)
-	where := []string{"u.role = 'FT'"}
-	args := []interface{}{}
-	arg := func(v interface{}) string {
-		args = append(args, v)
-		return fmt.Sprintf("$%d", len(args))
-	}
+	offset := (page - 1) * pageSize
+
+	conditions := sq.And{sq.Eq{"u.role": "FT"}}
 	if filter.ApprovalStatus != "" {
-		where = append(where, "fp.approval_status = "+arg(domainutil.NormalizeStatus(filter.ApprovalStatus)))
+		conditions = append(conditions, sq.Eq{"fp.approval_status": domainutil.NormalizeStatus(filter.ApprovalStatus)})
 	}
 	if filter.IsVerified != nil {
-		where = append(where, "COALESCE(fp.is_verified, FALSE) = "+arg(*filter.IsVerified))
+		conditions = append(conditions, sq.Eq{"COALESCE(fp.is_verified, FALSE)": *filter.IsVerified})
 	}
 	if filter.Search != "" {
-		like := "%" + domainutil.NormalizeLower(filter.Search) + "%"
-		where = append(where, "(LOWER(fp.factory_name) LIKE "+arg(like)+" OR LOWER(u.email) LIKE "+arg(like)+")")
+		searchTerm := "%" + domainutil.NormalizeLower(filter.Search) + "%"
+		conditions = append(conditions, sq.Or{
+			sq.Like{"LOWER(fp.factory_name)": searchTerm},
+			sq.Like{"LOWER(u.email)": searchTerm},
+		})
 	}
-	condition := strings.Join(where, " AND ")
+
+	countQuery := sq.Select("COUNT(*)").
+		From("factory_profiles fp").
+		InnerJoin("users u ON u.user_id = fp.user_id").
+		Where(conditions)
+
 	var total int
-	if err := r.db.Get(&total, `
-		SELECT COUNT(*)
-		FROM factory_profiles fp
-		INNER JOIN users u ON u.user_id = fp.user_id
-		WHERE `+condition, args...); err != nil {
+	countSQL, countArgs, err := countQuery.ToSql()
+	if err != nil {
 		return nil, 0, err
 	}
-	args = append(args, pageSize, (page-1)*pageSize)
+	if err := r.db.Get(&total, countSQL, countArgs...); err != nil {
+		return nil, 0, err
+	}
+
+	query := sq.Select(
+		"fp.user_id AS factory_id",
+		"fp.factory_name",
+		"u.email",
+		"NULLIF(u.phone, '') AS phone",
+		"NULLIF(fp.tax_id, '') AS tax_id",
+		"ft.type_name AS factory_type_name",
+		"p.name_th AS province_name",
+		"COALESCE(fp.approval_status, 'PE') AS approval_status",
+		"COALESCE(fp.is_verified, FALSE) AS is_verified",
+		"fp.submitted_at",
+		"fp.verified_at",
+		"fp.verified_by",
+		"fp.rejection_reason",
+		"u.created_at",
+	).
+		From("factory_profiles fp").
+		InnerJoin("users u ON u.user_id = fp.user_id").
+		LeftJoin("lbi_factory_types ft ON ft.factory_type_id = fp.factory_type_id").
+		LeftJoin("lbi_provinces p ON p.row_id = fp.province_id").
+		Where(conditions).
+		OrderBy("fp.submitted_at DESC NULLS LAST", "u.created_at DESC", "fp.user_id DESC").
+		Limit(uint64(pageSize)).
+		Offset(uint64(offset))
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, 0, err
+	}
+
 	items := []domain.AdminFactoryListItem{}
-	query := `
-		SELECT
-			fp.user_id AS factory_id,
-			fp.factory_name,
-			u.email,
-			NULLIF(u.phone, '') AS phone,
-			NULLIF(fp.tax_id, '') AS tax_id,
-			ft.type_name AS factory_type_name,
-			p.name_th AS province_name,
-			COALESCE(fp.approval_status, 'PE') AS approval_status,
-			COALESCE(fp.is_verified, FALSE) AS is_verified,
-			fp.submitted_at,
-			fp.verified_at,
-			fp.verified_by,
-			fp.rejection_reason,
-			u.created_at
-		FROM factory_profiles fp
-		INNER JOIN users u ON u.user_id = fp.user_id
-		LEFT JOIN lbi_factory_types ft ON ft.factory_type_id = fp.factory_type_id
-		LEFT JOIN lbi_provinces p ON p.row_id = fp.province_id
-		WHERE ` + condition + `
-		ORDER BY fp.submitted_at DESC NULLS LAST, u.created_at DESC, fp.user_id DESC
-		LIMIT $` + fmt.Sprint(len(args)-1) + ` OFFSET $` + fmt.Sprint(len(args))
-	if err := r.db.Select(&items, query, args...); err != nil {
+	if err := r.db.Select(&items, sql, args...); err != nil {
 		return nil, 0, err
 	}
+
 	return items, total, nil
 }
 

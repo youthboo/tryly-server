@@ -84,7 +84,7 @@ func (h *AdminConfigHandler) CreateExemption(c *fiber.Ctx) error {
 	}
 	v := domain.NewValidationCollector()
 	v.AddIf(req.UserID <= 0, "user_id", "is required")
-	v.AddIf(strings.TrimSpace(req.Reason) == "", "reason", "is required")
+	v.AddIf(helper.DereferenceString(&req.Reason, "") == "", "reason", "is required")
 	if err := helper.ValidateRequest(c, v); err != nil {
 		return err
 	}
@@ -100,7 +100,7 @@ func (h *AdminConfigHandler) CreateExemption(c *fiber.Ctx) error {
 		}
 	}
 	actorID := helper.OptionalActorID(c)
-	item := &domain.CommissionExemption{FactoryID: req.UserID, Reason: strings.TrimSpace(req.Reason), ExpiresAt: expiresAt, CreatedBy: actorID}
+	item := &domain.CommissionExemption{FactoryID: req.UserID, Reason: helper.DereferenceString(&req.Reason, ""), ExpiresAt: expiresAt, CreatedBy: actorID}
 	if err := h.commission.CreateExemption(item); err != nil {
 		return helper.JSONInternal(c, "failed to create commission exemption")
 	}

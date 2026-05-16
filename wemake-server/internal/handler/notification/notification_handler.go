@@ -19,8 +19,9 @@ func (h *NotificationHandler) List(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	page, limit := helper.PageLimit(c, helper.DefaultPageSize)
-	unreadOnly := c.QueryBool("unread", false)
+	query := helper.QueryParams(c)
+	page, limit := query.PageLimit(helper.DefaultPageSize)
+	unreadOnly := query.Bool("unread", false)
 	items, total, unreadCount, err := h.service.ListPaginated(userID, page, limit, unreadOnly)
 	if err != nil {
 		return helper.JSONInternal(c, "failed to fetch notifications")

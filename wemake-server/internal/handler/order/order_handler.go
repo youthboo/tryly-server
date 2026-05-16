@@ -1,7 +1,6 @@
 package order
 
 import (
-	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -226,7 +225,7 @@ func (h *OrderHandler) VerifyPayment(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	txID := strings.TrimSpace(c.Params("tx_id"))
+	txID := helper.ParamString(c, "tx_id")
 	if txID == "" {
 		return helper.BadRequestError(c, "invalid tx_id")
 	}
@@ -255,7 +254,7 @@ func (h *OrderHandler) ConfirmReceipt(c *fiber.Ctx) error {
 		return err
 	}
 	var receivedAt *time.Time
-	if req.ReceivedAt != nil && strings.TrimSpace(*req.ReceivedAt) != "" {
+	if helper.DereferenceString(req.ReceivedAt, "") != "" {
 		t, parseErr := helper.ParseOptionalRFC3339Value(req.ReceivedAt, "received_at")
 		if parseErr != nil {
 			return helper.BadRequestError(c, "received_at must be RFC3339 datetime")

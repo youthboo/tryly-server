@@ -1,8 +1,6 @@
 package quotation
 
 import (
-	"strings"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/dbutil"
 	"github.com/yourusername/wemake/internal/domain"
@@ -209,14 +207,14 @@ func (h *QuotationHandler) CreateDetailed(c *fiber.Ctx) error {
 		FactoryHighlight:     req.FactoryHighlight,
 	}
 	helper.AssignIfNotNil(&item.LeadTimeDays, req.LeadTimeDays)
-	if req.ProductionStartDate != nil && strings.TrimSpace(*req.ProductionStartDate) != "" {
+	if helper.DereferenceString(req.ProductionStartDate, "") != "" {
 		d, err := helper.ParseDate(*req.ProductionStartDate, "production_start_date")
 		if err != nil {
 			return helper.BadRequestError(c, "production_start_date must be YYYY-MM-DD")
 		}
 		item.ProductionStartDate = &d
 	}
-	if req.DeliveryDate != nil && strings.TrimSpace(*req.DeliveryDate) != "" {
+	if helper.DereferenceString(req.DeliveryDate, "") != "" {
 		d, err := helper.ParseDate(*req.DeliveryDate, "delivery_date")
 		if err != nil {
 			return helper.BadRequestError(c, "delivery_date must be YYYY-MM-DD")

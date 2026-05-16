@@ -40,22 +40,6 @@ func DerefInt(v *int) int {
 	return domainutil.IntValue(v)
 }
 
-func DerefFloat64(v *float64) float64 {
-	return domainutil.Float64Value(v)
-}
-
-func NullableInt(v *int) interface{} {
-	return domainutil.NullableInt(v)
-}
-
-func NullableInt64(v *int64) interface{} {
-	return domainutil.NullableInt64(v)
-}
-
-func NullableString(v *string) interface{} {
-	return domainutil.NullableString(v)
-}
-
 func MaxInt64(a, b int64) int64 {
 	if a > b {
 		return a
@@ -68,42 +52,11 @@ func FormatThaiShortDate(t time.Time) string {
 	return fmt.Sprintf("%d %s %02d", t.Day(), months[int(t.Month())-1], (t.Year()+543)%100)
 }
 
-func NormalizeString(s string) string {
-	return strings.TrimSpace(s)
-}
-
-func NormalizeEmail(s string) string {
-	return domainutil.NormalizeLower(s)
-}
-
-func NormalizeRole(s string) string {
-	return domainutil.NormalizeStatus(s)
-}
-
-func NormalizePhone(s string) string {
-	return strings.TrimSpace(s)
-}
-
-func NormalizeName(s string) string {
-	return strings.TrimSpace(s)
-}
-
-func IsEmptyString(s string) bool {
-	return strings.TrimSpace(s) == ""
-}
-
 func DereferenceString(ptr *string, defaultVal string) string {
 	if ptr == nil {
 		return defaultVal
 	}
 	return strings.TrimSpace(*ptr)
-}
-
-func DereferenceInt64(ptr *int64, defaultVal int64) int64 {
-	if ptr == nil {
-		return defaultVal
-	}
-	return *ptr
 }
 
 func DereferenceInt(ptr *int, defaultVal int) int {
@@ -117,52 +70,4 @@ func AssignIfNotNil[T any](target *T, ptr *T) {
 	if ptr != nil {
 		*target = *ptr
 	}
-}
-
-func AssignStringIfNotNil(target *string, ptr *string) {
-	if ptr != nil {
-		trimmed := strings.TrimSpace(*ptr)
-		*target = trimmed
-	}
-}
-
-func MergePointerString(target **string, ptr *string) {
-	if ptr != nil {
-		trimmed := strings.TrimSpace(*ptr)
-		*target = &trimmed
-	}
-}
-
-func MergePointerValue[T any](target **T, ptr *T) {
-	if ptr != nil {
-		*target = ptr
-	}
-}
-
-func ValidatePointerInt64(ptr *int64, fieldName string) error {
-	if ptr == nil || *ptr <= 0 {
-		return fmt.Errorf("%s is required and must be positive", fieldName)
-	}
-	return nil
-}
-
-func ValidatePointerInt(ptr *int, fieldName string) error {
-	if ptr == nil || *ptr <= 0 {
-		return fmt.Errorf("%s is required and must be positive", fieldName)
-	}
-	return nil
-}
-
-func ValidatePointerString(ptr *string, fieldName string) error {
-	if ptr == nil || strings.TrimSpace(*ptr) == "" {
-		return fmt.Errorf("%s is required", fieldName)
-	}
-	return nil
-}
-
-func ValidatePointerBool(ptr *bool, fieldName string) error {
-	if ptr == nil {
-		return fmt.Errorf("%s is required", fieldName)
-	}
-	return nil
 }

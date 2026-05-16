@@ -2,7 +2,6 @@ package payment
 
 import (
 	"database/sql"
-	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
@@ -44,7 +43,7 @@ func (h *PaymentScheduleHandler) Create(c *fiber.Ctx) error {
 	}
 	v := domain.NewValidationCollector()
 	v.AddIf(req.InstallmentNo <= 0, "installment_no", "is required")
-	v.AddIf(strings.TrimSpace(req.DueDate) == "", "due_date", "is required")
+	v.AddIf(helper.DereferenceString(&req.DueDate, "") == "", "due_date", "is required")
 	v.AddIf(req.Amount <= 0, "amount", "must be positive")
 	if err := helper.ValidateRequest(c, v); err != nil {
 		return err

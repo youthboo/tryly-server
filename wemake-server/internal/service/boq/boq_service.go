@@ -397,7 +397,7 @@ func (s *BOQService) Update(rfqID, actorUserID int64, input BOQInput) (*domain.B
 		    unread_customer = COALESCE(unread_customer, 0) + 1,
 		    updated_at = NOW()
 		WHERE conv_id = $1
-	`, helper.NullableInt64(rfq.SourceConvID)); err != nil {
+	`, domainutil.Nullable(rfq.SourceConvID)); err != nil {
 			return err
 		}
 		return nil

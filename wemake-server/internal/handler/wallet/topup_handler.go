@@ -36,7 +36,7 @@ func (h *TopupHandler) CreateIntent(c *fiber.Ctx) error {
 
 // GET /wallets/topup/:intent_id
 func (h *TopupHandler) GetIntent(c *fiber.Ctx) error {
-	intentID := c.Params("intent_id")
+	intentID := helper.ParamString(c, "intent_id")
 	if intentID == "" {
 		return helper.BadRequestError(c, "invalid intent_id")
 	}
@@ -49,7 +49,7 @@ func (h *TopupHandler) GetIntent(c *fiber.Ctx) error {
 
 // POST /wallets/topup/:intent_id/confirm
 func (h *TopupHandler) ConfirmIntent(c *fiber.Ctx) error {
-	intentID := c.Params("intent_id")
+	intentID := helper.ParamString(c, "intent_id")
 	if intentID == "" {
 		return helper.BadRequestError(c, "invalid intent_id")
 	}

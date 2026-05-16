@@ -73,9 +73,9 @@ func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
 		return err
 	}
 
-	details := strings.TrimSpace(req.Details)
+	details := helper.DereferenceString(&req.Details, "")
 	if details == "" {
-		details = strings.TrimSpace(req.Description)
+		details = helper.DereferenceString(&req.Description, "")
 	}
 
 	rfq := &domain.RFQ{
@@ -101,7 +101,7 @@ func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
 	if rfq.DeliveryAddressID == nil {
 		rfq.DeliveryAddressID = &rfq.AddressID
 	}
-	if req.RequiredDeliveryDate != nil && strings.TrimSpace(*req.RequiredDeliveryDate) != "" {
+	if helper.DereferenceString(req.RequiredDeliveryDate, "") != "" {
 		d, err := helper.ParseDate(*req.RequiredDeliveryDate, "required_delivery_date")
 		if err != nil {
 			return helper.BadRequestError(c, "required_delivery_date must be YYYY-MM-DD")
@@ -169,7 +169,7 @@ func (h *RFQHandler) PatchRFQ(c *fiber.Ctx) error {
 	if req.ReferenceImages != nil {
 		rfq.ReferenceImages = pq.StringArray(req.ReferenceImages)
 	}
-	if req.RequiredDeliveryDate != nil && strings.TrimSpace(*req.RequiredDeliveryDate) != "" {
+	if helper.DereferenceString(req.RequiredDeliveryDate, "") != "" {
 		d, err := helper.ParseDate(*req.RequiredDeliveryDate, "required_delivery_date")
 		if err != nil {
 			return helper.BadRequestError(c, "required_delivery_date must be YYYY-MM-DD")

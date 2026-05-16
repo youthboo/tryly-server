@@ -602,10 +602,10 @@ func (h *ShowcaseHandler) BulkReplaceSpecs(c *fiber.Ctx) error {
 		return err
 	}
 	for _, s := range req.Specs {
-		if strings.TrimSpace(s.SpecKey) == "" {
+		if helper.DereferenceString(&s.SpecKey, "") == "" {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "spec_key is required"})
 		}
-		if strings.TrimSpace(s.SpecValue) == "" {
+		if helper.DereferenceString(&s.SpecValue, "") == "" {
 			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "spec_value is required"})
 		}
 	}

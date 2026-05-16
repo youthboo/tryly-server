@@ -1,8 +1,6 @@
 package wallet
 
 import (
-	"strings"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
@@ -63,8 +61,8 @@ func (h *TransactionHandler) ListTransactions(c *fiber.Ctx) error {
 }
 
 func (h *TransactionHandler) PatchTransactionStatus(c *fiber.Ctx) error {
-	txID := c.Params("tx_id")
-	if strings.TrimSpace(txID) == "" {
+	txID := helper.ParamString(c, "tx_id")
+	if txID == "" {
 		return helper.BadRequestError(c, "invalid tx_id")
 	}
 

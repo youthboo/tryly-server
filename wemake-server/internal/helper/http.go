@@ -15,8 +15,6 @@ import (
 
 var (
 	ErrNotFound            = sql.ErrNoRows
-	ErrDivisionByZero      = errors.New("division by zero")
-	ErrInvalidSortColumn   = errors.New("invalid sort column")
 	ErrRoleRequired        = errors.New("role required")
 	ErrFactoryRoleRequired = errors.New("factory role required")
 )
@@ -301,6 +299,14 @@ func QueryString(c *fiber.Ctx, name string) string {
 	return strings.TrimSpace(c.Query(name))
 }
 
+func ParamString(c *fiber.Ctx, name string) string {
+	return strings.TrimSpace(c.Params(name))
+}
+
+func HeaderString(c *fiber.Ctx, name string) string {
+	return strings.TrimSpace(c.Get(name))
+}
+
 func QuerySelfOrID(c *fiber.Ctx, name string) (*int64, error) {
 	raw := QueryString(c, name)
 	if raw == "" {
@@ -346,18 +352,6 @@ func RequireQueryMatchingSelfOrID(c *fiber.Ctx, name string, expectedID int64, r
 		return 0, BadRequest(c, requiredMessage)
 	}
 	return *value, nil
-}
-
-func ParseOptionalPositiveInt64Value(raw string, name string) (*int64, error) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return nil, nil
-	}
-	value, err := ParsePositiveInt64Value(raw, name)
-	if err != nil {
-		return nil, err
-	}
-	return &value, nil
 }
 
 func ParseRequiredPositiveInt64Query(c *fiber.Ctx, name string) (int64, error) {
@@ -486,14 +480,6 @@ func NotFoundCase(err error, message string) ServiceErrorCase {
 	return ServiceErrorCase{Err: err, Status: fiber.StatusNotFound, Message: message}
 }
 
-func UnprocessableCase(err error) ServiceErrorCase {
-	return ServiceErrorCase{Err: err, Status: fiber.StatusUnprocessableEntity, Message: err.Error()}
-}
-
-func ForbiddenCase(err error) ServiceErrorCase {
-	return ServiceErrorCase{Err: err, Status: fiber.StatusForbidden, Message: err.Error()}
-}
-
 func MaxInt(a, b int) int {
 	if a > b {
 		return a
@@ -516,10 +502,6 @@ func ClampInt(v, min, max int) int {
 		return max
 	}
 	return v
-}
-
-func NormalizePageSize(size int) int {
-	return NormalizePageSizeWithDefault(size, DefaultPageSize)
 }
 
 func NormalizePageSizeWithDefault(size int, defaultSize int) int {
@@ -576,6 +558,13 @@ func (p *QueryParser) Int(name string, fallback int) int {
 		return fallback
 	}
 	return p.c.QueryInt(name, fallback)
+}
+
+func (p *QueryParser) Bool(name string, fallback bool) bool {
+	if p == nil || p.c == nil {
+		return fallback
+	}
+	return p.c.QueryBool(name, fallback)
 }
 
 func (p *QueryParser) OptionalPositiveInt64(name string) *int64 {
@@ -654,7 +643,7 @@ func RequirePathID(c *fiber.Ctx, name string) (int64, error) {
 
 // RequireStringParam อ่าน path parameter เป็น string (ต้องไม่เป็นค่าว่าง)
 func RequireStringParam(c *fiber.Ctx, name string) (string, error) {
-	val := strings.TrimSpace(c.Params(name))
+	val := ParamString(c, name)
 	if val == "" {
 		return "", fiber.NewError(fiber.StatusBadRequest, name+" is required")
 	}
@@ -663,7 +652,7 @@ func RequireStringParam(c *fiber.Ctx, name string) (string, error) {
 
 // OptionalInt64Param อ่าน path parameter เป็น int64 (ถ้าว่างกลับ nil)
 func OptionalInt64Param(c *fiber.Ctx, name string) (*int64, error) {
-	val := strings.TrimSpace(c.Params(name))
+	val := ParamString(c, name)
 	if val == "" {
 		return nil, nil
 	}
@@ -754,17 +743,6 @@ func WriteListResponse(c *fiber.Ctx, data interface{}, total int) error {
 	})
 }
 
-func WritePaginatedResponse(c *fiber.Ctx, items interface{}, total int, page int, limit int) error {
-	totalPages := (total + limit - 1) / limit
-	return c.JSON(PaginatedListResponse{
-		Items:      items,
-		Total:      total,
-		Page:       page,
-		Limit:      limit,
-		TotalPages: totalPages,
-	})
-}
-
 func WriteSuccess(c *fiber.Ctx, message string, data interface{}) error {
 	return c.JSON(SuccessResponse{
 		Message: message,
@@ -772,49 +750,9 @@ func WriteSuccess(c *fiber.Ctx, message string, data interface{}) error {
 	})
 }
 
-type PaginationParams struct {
-	Page  int
-	Limit int
-}
-
-type SortParams struct {
-	SortBy    string
-	SortOrder string
-}
-
-// Default: page=1, limit=20; Max limit: 100
-func ParsePaginationQuery(c *fiber.Ctx) PaginationParams {
-	page, limit := PageLimit(c, DefaultPageSize)
-	return PaginationParams{Page: page, Limit: limit}
-}
-
-func ParseSortQuery(c *fiber.Ctx) SortParams {
-	sortBy := strings.TrimSpace(c.Query("sort_by", "id"))
-	sortOrder := domainutil.NormalizeLower(c.Query("sort_order", "asc"))
-
-	if sortBy == "" {
-		sortBy = "id"
-	}
-	if sortOrder != "asc" && sortOrder != "desc" {
-		sortOrder = "asc"
-	}
-
-	return SortParams{
-		SortBy:    sortBy,
-		SortOrder: sortOrder,
-	}
-}
-
 func CalculateOffset(page, limit int) int {
 	if page < 1 {
 		page = 1
 	}
 	return (page - 1) * limit
-}
-
-func CalculateTotalPages(total, limit int) int {
-	if limit <= 0 {
-		return 0
-	}
-	return (total + limit - 1) / limit
 }

@@ -68,7 +68,7 @@ func (h *ProductionHandler) CreateUpdate(c *fiber.Ctx) error {
 		Description:            description,
 		ImageURLs:              req.ImageURLs,
 		ConfirmPaymentTrigger:  progressPercent > 0,
-		HeaderPaymentConfirmed: strings.EqualFold(strings.TrimSpace(c.Get("X-Confirm-Payment-Trigger")), "true"),
+		HeaderPaymentConfirmed: strings.EqualFold(helper.HeaderString(c, "X-Confirm-Payment-Trigger"), "true"),
 	})
 	if err != nil {
 		return productionServiceError(c, err)

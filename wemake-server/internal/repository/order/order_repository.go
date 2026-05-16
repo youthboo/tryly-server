@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 	"github.com/yourusername/wemake/internal/domain"
@@ -192,27 +193,46 @@ func (row *orderRow) toDomain() *domain.Order {
 
 func (r *OrderRepository) ListByUserID(userID int64, status string) ([]domain.Order, error) {
 	var rows []orderRow
-	query := `
-		SELECT order_id, quote_id, customer_id AS user_id, factory_id, total_amount, deposit_amount, status,
-		       estimated_delivery, tracking_no, courier, NULL::timestamp AS shipped_at, created_at, updated_at
-		FROM orders
-		WHERE customer_id = $1
-	`
-	args := []interface{}{userID}
+
+	query := sq.Select(
+		"order_id",
+		"quote_id",
+		"customer_id AS user_id",
+		"factory_id",
+		"total_amount",
+		"deposit_amount",
+		"status",
+		"estimated_delivery",
+		"tracking_no",
+		"courier",
+		"NULL::timestamp AS shipped_at",
+		"created_at",
+		"updated_at",
+	).
+		From("orders").
+		Where(sq.Eq{"customer_id": userID})
+
 	statuses := splitOrderStatuses(status)
-	if len(statuses) == 1 {
-		query += " AND status = $2"
-		args = append(args, statuses[0])
-	} else if len(statuses) > 1 {
-		placeholders := make([]string, 0, len(statuses))
-		for _, st := range statuses {
-			placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)+1))
-			args = append(args, st)
+	if len(statuses) > 0 {
+		if len(statuses) == 1 {
+			query = query.Where(sq.Eq{"status": statuses[0]})
+		} else {
+			statusInterfaces := make([]interface{}, len(statuses))
+			for i, s := range statuses {
+				statusInterfaces[i] = s
+			}
+			query = query.Where(sq.Eq{"status": statusInterfaces})
 		}
-		query += " AND status IN (" + strings.Join(placeholders, ", ") + ")"
 	}
-	query += " ORDER BY created_at DESC"
-	err := r.db.Select(&rows, query, args...)
+
+	query = query.OrderBy("created_at DESC")
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	err = r.db.Select(&rows, sql, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -436,27 +456,46 @@ func (r *OrderRepository) UpdateStatusTx(tx *sqlx.Tx, orderID int64, status stri
 
 func (r *OrderRepository) ListByFactoryID(factoryID int64, status string) ([]domain.Order, error) {
 	var rows []orderRow
-	query := `
-		SELECT order_id, quote_id, customer_id AS user_id, factory_id, total_amount, deposit_amount, status,
-		       estimated_delivery, tracking_no, courier, NULL::timestamp AS shipped_at, created_at, updated_at
-		FROM orders
-		WHERE factory_id = $1
-	`
-	args := []interface{}{factoryID}
+
+	query := sq.Select(
+		"order_id",
+		"quote_id",
+		"customer_id AS user_id",
+		"factory_id",
+		"total_amount",
+		"deposit_amount",
+		"status",
+		"estimated_delivery",
+		"tracking_no",
+		"courier",
+		"NULL::timestamp AS shipped_at",
+		"created_at",
+		"updated_at",
+	).
+		From("orders").
+		Where(sq.Eq{"factory_id": factoryID})
+
 	statuses := splitOrderStatuses(status)
-	if len(statuses) == 1 {
-		query += " AND status = $2"
-		args = append(args, statuses[0])
-	} else if len(statuses) > 1 {
-		placeholders := make([]string, 0, len(statuses))
-		for _, st := range statuses {
-			placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)+1))
-			args = append(args, st)
+	if len(statuses) > 0 {
+		if len(statuses) == 1 {
+			query = query.Where(sq.Eq{"status": statuses[0]})
+		} else {
+			statusInterfaces := make([]interface{}, len(statuses))
+			for i, s := range statuses {
+				statusInterfaces[i] = s
+			}
+			query = query.Where(sq.Eq{"status": statusInterfaces})
 		}
-		query += " AND status IN (" + strings.Join(placeholders, ", ") + ")"
 	}
-	query += " ORDER BY created_at DESC"
-	err := r.db.Select(&rows, query, args...)
+
+	query = query.OrderBy("created_at DESC")
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	err = r.db.Select(&rows, sql, args...)
 	if err != nil {
 		return nil, err
 	}

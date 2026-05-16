@@ -1,10 +1,9 @@
 package admin
 
 import (
-	"fmt"
-	"strings"
 	"time"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
@@ -20,71 +19,82 @@ func NewAdminOrderRepository(db *sqlx.DB) *AdminOrderRepository {
 
 func (r *AdminOrderRepository) ListAdmin(filter domain.AdminOrderFilter) ([]domain.AdminOrderListItem, int, error) {
 	page, pageSize := normalizePage(filter.Page, filter.PageSize)
-	where := []string{"1=1"}
-	args := []interface{}{}
-	arg := func(v interface{}) string {
-		args = append(args, v)
-		return fmt.Sprintf("$%d", len(args))
-	}
+	offset := (page - 1) * pageSize
+
+	conditions := sq.And{}
 	if filter.Status != "" {
-		where = append(where, "o.status = "+arg(domainutil.NormalizeStatus(filter.Status)))
+		conditions = append(conditions, sq.Eq{"o.status": domainutil.NormalizeStatus(filter.Status)})
 	}
 	if filter.FactoryID != nil {
-		where = append(where, "o.factory_id = "+arg(*filter.FactoryID))
+		conditions = append(conditions, sq.Eq{"o.factory_id": *filter.FactoryID})
 	}
 	if filter.UserID != nil {
-		where = append(where, "o.user_id = "+arg(*filter.UserID))
+		conditions = append(conditions, sq.Eq{"o.user_id": *filter.UserID})
 	}
 	if filter.DateFrom != nil {
-		where = append(where, "o.created_at >= "+arg(*filter.DateFrom))
+		conditions = append(conditions, sq.GtOrEq{"o.created_at": *filter.DateFrom})
 	}
 	if filter.DateTo != nil {
-		where = append(where, "o.created_at < "+arg(filter.DateTo.Add(24*time.Hour)))
+		conditions = append(conditions, sq.Lt{"o.created_at": filter.DateTo.Add(24 * time.Hour)})
 	}
 	if filter.Search != "" {
-		where = append(where, "LOWER(r.title) LIKE "+arg("%"+domainutil.NormalizeLower(filter.Search)+"%"))
+		searchTerm := "%" + domainutil.NormalizeLower(filter.Search) + "%"
+		conditions = append(conditions, sq.Like{"LOWER(r.title)": searchTerm})
 	}
-	condition := strings.Join(where, " AND ")
+
+	countQuery := sq.Select("COUNT(*)").
+		From("orders o").
+		InnerJoin("quotations q ON q.quote_id = o.quote_id").
+		InnerJoin("rfqs r ON r.rfq_id = q.rfq_id").
+		Where(conditions)
+
 	var total int
-	if err := r.db.Get(&total, `
-		SELECT COUNT(*)
-		FROM orders o
-		INNER JOIN quotations q ON q.quote_id = o.quote_id
-		INNER JOIN rfqs r ON r.rfq_id = q.rfq_id
-		WHERE `+condition, args...); err != nil {
+	countSQL, countArgs, err := countQuery.ToSql()
+	if err != nil {
 		return nil, 0, err
 	}
-	args = append(args, pageSize, (page-1)*pageSize)
+	if err := r.db.Get(&total, countSQL, countArgs...); err != nil {
+		return nil, 0, err
+	}
+
+	query := sq.Select(
+		"o.order_id",
+		"o.quote_id",
+		"r.rfq_id",
+		"COALESCE(r.title, '') AS rfq_title",
+		"o.factory_id",
+		"COALESCE(fp.factory_name, 'Factory #' || o.factory_id::text) AS factory_name",
+		"o.user_id",
+		"COALESCE(NULLIF(TRIM(CONCAT(cu.first_name, ' ', cu.last_name)), ''), 'ลูกค้า #' || o.user_id::text) AS customer_name",
+		"o.status",
+		"o.total_amount",
+		"COALESCE(q.platform_commission_amount, 0)::float8 AS platform_commission_amount",
+		"COALESCE(q.vat_amount, 0)::float8 AS vat_amount",
+		"COALESCE(q.factory_net_receivable, 0)::float8 AS factory_net_receivable",
+		"o.payment_type",
+		"o.estimated_delivery",
+		"o.created_at",
+	).
+		From("orders o").
+		InnerJoin("quotations q ON q.quote_id = o.quote_id").
+		InnerJoin("rfqs r ON r.rfq_id = q.rfq_id").
+		LeftJoin("factory_profiles fp ON fp.user_id = o.factory_id").
+		LeftJoin("customers cu ON cu.user_id = o.user_id").
+		Where(conditions).
+		OrderBy("o.created_at DESC", "o.order_id DESC").
+		Limit(uint64(pageSize)).
+		Offset(uint64(offset))
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, 0, err
+	}
+
 	items := []domain.AdminOrderListItem{}
-	query := `
-		SELECT
-			o.order_id,
-			o.quote_id,
-			r.rfq_id,
-			COALESCE(r.title, '') AS rfq_title,
-			o.factory_id,
-			COALESCE(fp.factory_name, 'Factory #' || o.factory_id::text) AS factory_name,
-			o.user_id,
-			COALESCE(NULLIF(TRIM(CONCAT(cu.first_name, ' ', cu.last_name)), ''), 'ลูกค้า #' || o.user_id::text) AS customer_name,
-			o.status,
-			o.total_amount,
-			COALESCE(q.platform_commission_amount, 0)::float8 AS platform_commission_amount,
-			COALESCE(q.vat_amount, 0)::float8 AS vat_amount,
-			COALESCE(q.factory_net_receivable, 0)::float8 AS factory_net_receivable,
-			o.payment_type,
-			o.estimated_delivery,
-			o.created_at
-		FROM orders o
-		INNER JOIN quotations q ON q.quote_id = o.quote_id
-		INNER JOIN rfqs r ON r.rfq_id = q.rfq_id
-		LEFT JOIN factory_profiles fp ON fp.user_id = o.factory_id
-		LEFT JOIN customers cu ON cu.user_id = o.user_id
-		WHERE ` + condition + `
-		ORDER BY o.created_at DESC, o.order_id DESC
-		LIMIT $` + fmt.Sprint(len(args)-1) + ` OFFSET $` + fmt.Sprint(len(args))
-	if err := r.db.Select(&items, query, args...); err != nil {
+	if err := r.db.Select(&items, sql, args...); err != nil {
 		return nil, 0, err
 	}
+
 	return items, total, nil
 }
 

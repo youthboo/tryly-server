@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
-	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
@@ -56,8 +55,8 @@ func (h *AddressHandler) CreateAddress(c *fiber.Ctx) error {
 	}
 
 	v := domain.NewValidationCollector()
-	v.AddIf(strings.TrimSpace(req.AddressType) == "", "address_type", "is required")
-	v.AddIf(strings.TrimSpace(req.AddressDetail) == "", "address_detail", "is required")
+	v.AddIf(helper.DereferenceString(&req.AddressType, "") == "", "address_type", "is required")
+	v.AddIf(helper.DereferenceString(&req.AddressDetail, "") == "", "address_detail", "is required")
 	if v.HasErrors() {
 		return helper.WriteAPIError(c, helper.BadRequestAPIError("MISSING_FIELDS", "address_type and address_detail are required"))
 	}
@@ -69,11 +68,11 @@ func (h *AddressHandler) CreateAddress(c *fiber.Ctx) error {
 	address := &domain.Address{
 		UserID:        userID,
 		AddressType:   addressType,
-		AddressDetail: strings.TrimSpace(req.AddressDetail),
+		AddressDetail: helper.DereferenceString(&req.AddressDetail, ""),
 		SubDistrictID: req.SubDistrictID,
 		DistrictID:    req.DistrictID,
 		ProvinceID:    req.ProvinceID,
-		ZipCode:       strings.TrimSpace(req.ZipCode),
+		ZipCode:       helper.DereferenceString(&req.ZipCode, ""),
 		IsDefault:     req.IsDefault,
 	}
 

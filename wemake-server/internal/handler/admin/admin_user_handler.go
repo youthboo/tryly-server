@@ -1,8 +1,6 @@
 package admin
 
 import (
-	"strings"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
@@ -34,8 +32,8 @@ func (h *AdminUserHandler) Create(c *fiber.Ctx) error {
 	}
 	displayName := req.FirstName + " " + req.LastName
 	item, err := h.authService.RegisterAdmin(authservice.RegisterAdminInput{
-		Role:        strings.TrimSpace(req.Role),
-		Email:       strings.TrimSpace(req.Email),
+		Role:        helper.DereferenceString(&req.Role, ""),
+		Email:       helper.DereferenceString(&req.Email, ""),
 		Password:    req.Password,
 		DisplayName: displayName,
 		Department:  nil,
