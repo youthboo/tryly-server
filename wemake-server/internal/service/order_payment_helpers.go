@@ -1,0 +1,198 @@
+package service
+
+import (
+	"encoding/json"
+	"fmt"
+	"math"
+	"strings"
+	"time"
+
+	"github.com/jmoiron/sqlx"
+	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/repository"
+)
+
+func expectedPaymentAmount(order *domain.Order, paymentType string) (float64, error) {
+	switch paymentType {
+	case "DP":
+		return order.DepositAmount, nil
+	case "FP":
+		return order.TotalAmount - order.DepositAmount, nil
+	default:
+		return 0, ErrPaymentTypeInvalid
+	}
+}
+
+func (s *OrderService) depositPaidAt(orderID int64) *time.Time {
+	txType := "DP"
+	status := "PT"
+	items, err := s.txLedger.List(repository.TransactionFilters{OrderID: &orderID, Type: &txType, Status: &status})
+	if err != nil || len(items) == 0 {
+		return nil
+	}
+	paidAt := items[0].UpdatedAt.In(thailandLocation)
+	return &paidAt
+}
+
+func (s *OrderService) finalPaymentPaidAt(orderID int64) *time.Time {
+	txType := "FP"
+	status := "PT"
+	items, err := s.txLedger.List(repository.TransactionFilters{OrderID: &orderID, Type: &txType, Status: &status})
+	if err != nil || len(items) == 0 {
+		return nil
+	}
+	paidAt := items[0].UpdatedAt.In(thailandLocation)
+	return &paidAt
+}
+
+func deriveDepositDueDate(row *repository.OrderDetailRow) *time.Time {
+	if row.DepositScheduleDue != nil && !row.DepositScheduleDue.IsZero() {
+		due := row.DepositScheduleDue.In(thailandLocation)
+		due = time.Date(due.Year(), due.Month(), due.Day(), 23, 59, 59, 0, thailandLocation)
+		return &due
+	}
+	due := deriveDefaultDepositDueTimestamp(row.CreatedAt)
+	return &due
+}
+
+func buildNextAction(row *repository.OrderDetailRow, status string, depositDueDate, depositPaidAt, finalPaidAt *time.Time, nowTH time.Time) *domain.OrderNextAction {
+	switch status {
+	case "PP":
+		return &domain.OrderNextAction{
+			Actor:      "CUSTOMER",
+			Type:       "PAY_FULL_AMOUNT",
+			Amount:     row.TotalAmount,
+			Currency:   "THB",
+			DueDate:    depositDueDate,
+			CTAURL:     fmt.Sprintf("/orders/%d/payment?stage=full", row.OrderID),
+			CTALabelTH: "ชำระเงินเต็มจำนวน",
+		}
+	case "PE", "PR", "QC", "SH", "CP", "CN", "CC":
+		return nil
+	}
+	return nil
+}
+
+func buildPaymentSchedule(row *repository.OrderDetailRow, status string, depositDueDate, depositPaidAt, finalPaidAt *time.Time) []domain.OrderPaymentScheduleItem {
+	total := row.TotalAmount
+	paidStatus := "PENDING"
+	if depositPaidAt != nil || finalPaidAt != nil ||
+		status == "PD" || status == "PR" || status == "QC" || status == "SH" || status == "CP" {
+		paidStatus = "PAID"
+	} else if status == "PE" {
+		paidStatus = "OVERDUE"
+	}
+
+	return []domain.OrderPaymentScheduleItem{
+		{
+			Stage:   domain.PaymentStageFullPayment,
+			Percent: 100,
+			Amount:  total,
+			Status:  paidStatus,
+			DueDate: depositDueDate,
+			PaidAt:  depositPaidAt,
+		},
+	}
+}
+
+func normalizeOrderStatus(status string) string {
+	switch strings.ToUpper(strings.TrimSpace(status)) {
+	case "CC":
+		return "CN"
+	default:
+		return strings.ToUpper(strings.TrimSpace(status))
+	}
+}
+
+func orderStatusLabelTH(status string) string {
+	switch status {
+	case "PP":
+		return "รอชำระเงิน"
+	case "PE":
+		return "หมดกำหนดชำระ"
+	case "PD":
+		return "ชำระเงินแล้ว รอเริ่มผลิต"
+	case "PR":
+		return "กำลังผลิต"
+	case "QC":
+		return "ตรวจสอบคุณภาพ"
+	case "SH":
+		return "จัดส่งแล้ว"
+	case "CP":
+		return "เสร็จสิ้น"
+	case "CN":
+		return "ยกเลิก"
+	default:
+		return status
+	}
+}
+
+func roundCurrency(v float64) float64 {
+	return math.Round(v*100) / 100
+}
+
+func percentOf(amount, total float64) float64 {
+	if total <= 0 {
+		return 0
+	}
+	return roundCurrency((amount / total) * 100)
+}
+
+func timePtrInTH(v *time.Time) *time.Time {
+	if v == nil {
+		return nil
+	}
+	t := v.In(thailandLocation)
+	return &t
+}
+
+func (s *OrderService) ensureDepositPayable(order *domain.Order) error {
+	status := normalizeOrderStatus(order.Status)
+	if status == "PD" || status == "PR" || status == "QC" || status == "SH" || status == "CP" {
+		return ErrDepositAlreadyPaid
+	}
+	if status == "PE" {
+		return ErrDepositExpired
+	}
+	dueDate := s.lookupDepositDueDate(order)
+	if dueDate != nil && time.Now().In(thailandLocation).After(*dueDate) {
+		return ErrDepositExpired
+	}
+	return nil
+}
+
+func (s *OrderService) lookupDepositDueDate(order *domain.Order) *time.Time {
+	if s.schedules != nil {
+		items, err := s.schedules.ListByOrderID(order.OrderID)
+		if err == nil {
+			for _, item := range items {
+				if item.InstallmentNo == 1 {
+					due := item.DueDate.In(thailandLocation)
+					due = time.Date(due.Year(), due.Month(), due.Day(), 23, 59, 59, 0, thailandLocation)
+					return &due
+				}
+			}
+		}
+	}
+	detailRow := &repository.OrderDetailRow{Order: *order}
+	return deriveDepositDueDate(detailRow)
+}
+
+func deriveDefaultDepositScheduleDate(createdAt time.Time) time.Time {
+	due := createdAt.In(thailandLocation).AddDate(0, 0, 3)
+	return time.Date(due.Year(), due.Month(), due.Day(), 0, 0, 0, 0, thailandLocation)
+}
+
+func deriveDefaultDepositDueTimestamp(createdAt time.Time) time.Time {
+	due := deriveDefaultDepositScheduleDate(createdAt)
+	return time.Date(due.Year(), due.Month(), due.Day(), 23, 59, 59, 0, thailandLocation)
+}
+
+func insertDomainEventTx(tx *sqlx.Tx, eventType string, payload interface{}) error {
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`INSERT INTO domain_events (event_type, payload) VALUES ($1, $2)`, eventType, b)
+	return err
+}

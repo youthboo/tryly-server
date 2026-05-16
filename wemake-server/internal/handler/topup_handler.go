@@ -19,18 +19,17 @@ func NewTopupHandler(svc *service.TopupService) *TopupHandler {
 // POST /wallets/topup
 func (h *TopupHandler) CreateIntent(c *fiber.Ctx) error {
 	type reqBody struct {
-		Amount float64 `json:"amount"`
+		Amount float64 `json:"amount" validate:"gt=0"`
 	}
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
-	}
-	if req.Amount <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "amount must be greater than 0"})
+	if err := parseAndValidateBody(c, &req, map[string]string{
+		"Amount": "amount must be greater than 0",
+	}); err != nil {
+		return err
 	}
 	intent, err := h.service.CreateIntent(userID, req.Amount)
 	if err != nil {

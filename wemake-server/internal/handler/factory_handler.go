@@ -168,15 +168,15 @@ func (h *FactoryHandler) ListCategories(c *fiber.Ctx) error {
 }
 
 type addFactoryCategoryBody struct {
-	CategoryID int64 `json:"category_id"`
+	CategoryID int64 `json:"category_id" validate:"gt=0"`
 }
 
 type replaceFactoryCategoriesBody struct {
-	CategoryIDs []int64 `json:"category_ids"`
+	CategoryIDs []int64 `json:"category_ids" validate:"min=1,dive,gt=0"`
 }
 
 type replaceFactorySubCategoriesBody struct {
-	SubCategoryIDs []int64 `json:"sub_category_ids"`
+	SubCategoryIDs []int64 `json:"sub_category_ids" validate:"omitempty,dive,gt=0"`
 }
 
 func validatePositiveUniqueIDs(ids []int64) ([]int64, bool) {
@@ -211,7 +211,9 @@ func (h *FactoryHandler) AddCategory(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
 	}
 	var body addFactoryCategoryBody
-	if err := c.BodyParser(&body); err != nil || body.CategoryID <= 0 {
+	if err := parseAndValidateBody(c, &body, map[string]string{
+		"CategoryID": "body must include category_id (positive integer)",
+	}); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "body must include category_id (positive integer)"})
 	}
 	err = h.service.AddFactoryCategory(int64(factoryID), body.CategoryID)
@@ -272,6 +274,11 @@ func (h *FactoryHandler) ReplaceCategories(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
 	}
+	if err := validateStruct(c, &body, map[string]string{
+		"CategoryIDs": "body must include category_ids with at least one positive integer",
+	}); err != nil {
+		return err
+	}
 	categoryIDs, ok := validatePositiveUniqueIDs(body.CategoryIDs)
 	if !ok {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "body must include category_ids with at least one positive integer"})
@@ -312,7 +319,7 @@ func (h *FactoryHandler) ListSubCategories(c *fiber.Ctx) error {
 }
 
 type addFactorySubCategoryBody struct {
-	SubCategoryID int64 `json:"sub_category_id"`
+	SubCategoryID int64 `json:"sub_category_id" validate:"gt=0"`
 }
 
 func (h *FactoryHandler) AddSubCategory(c *fiber.Ctx) error {
@@ -328,7 +335,9 @@ func (h *FactoryHandler) AddSubCategory(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
 	}
 	var body addFactorySubCategoryBody
-	if err := c.BodyParser(&body); err != nil || body.SubCategoryID <= 0 {
+	if err := parseAndValidateBody(c, &body, map[string]string{
+		"SubCategoryID": "body must include sub_category_id (positive integer)",
+	}); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "body must include sub_category_id (positive integer)"})
 	}
 	err = h.service.AddFactorySubCategory(int64(factoryID), body.SubCategoryID)
@@ -388,6 +397,11 @@ func (h *FactoryHandler) ReplaceSubCategories(c *fiber.Ctx) error {
 	var body replaceFactorySubCategoriesBody
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
+	}
+	if err := validateStruct(c, &body, map[string]string{
+		"SubCategoryIDs": "sub_category_ids must contain only positive integers",
+	}); err != nil {
+		return err
 	}
 
 	subCategoryIDs := make([]int64, 0, len(body.SubCategoryIDs))

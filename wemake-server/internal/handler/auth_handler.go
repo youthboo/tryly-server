@@ -2,7 +2,6 @@ package handler
 
 import (
 	"log"
-	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/service"
@@ -17,10 +16,10 @@ func NewAuthHandler(service *service.AuthService) *AuthHandler {
 }
 
 type registerRequest struct {
-	Role          string `json:"role"`
-	Email         string `json:"email"`
+	Role          string `json:"role" validate:"notblank"`
+	Email         string `json:"email" validate:"notblank"`
 	Phone         string `json:"phone"`
-	Password      string `json:"password"`
+	Password      string `json:"password" validate:"notblank"`
 	FirstName     string `json:"first_name"`
 	LastName      string `json:"last_name"`
 	FactoryName   string `json:"factory_name"`
@@ -30,27 +29,27 @@ type registerRequest struct {
 }
 
 type loginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email    string `json:"email" validate:"notblank"`
+	Password string `json:"password" validate:"notblank"`
 }
 
 type forgotPasswordRequest struct {
-	Email string `json:"email"`
+	Email string `json:"email" validate:"notblank"`
 }
 
 type resetPasswordRequest struct {
-	Token       string `json:"token"`
-	NewPassword string `json:"new_password"`
+	Token       string `json:"token" validate:"notblank"`
+	NewPassword string `json:"new_password" validate:"notblank"`
 }
 
 func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	var req registerRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
-	}
-
-	if strings.TrimSpace(req.Email) == "" || strings.TrimSpace(req.Password) == "" || strings.TrimSpace(req.Role) == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "role, email, and password are required"})
+	if err := parseAndValidateBody(c, &req, map[string]string{
+		"Role":     "role, email, and password are required",
+		"Email":    "role, email, and password are required",
+		"Password": "role, email, and password are required",
+	}); err != nil {
+		return err
 	}
 
 	result, err := h.service.Register(service.RegisterInput{
@@ -85,12 +84,11 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 
 func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	var req loginRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
-	}
-
-	if strings.TrimSpace(req.Email) == "" || strings.TrimSpace(req.Password) == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "email and password are required"})
+	if err := parseAndValidateBody(c, &req, map[string]string{
+		"Email":    "email and password are required",
+		"Password": "email and password are required",
+	}); err != nil {
+		return err
 	}
 
 	result, err := h.service.Login(req.Email, req.Password)
@@ -110,12 +108,10 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 func (h *AuthHandler) ForgotPassword(c *fiber.Ctx) error {
 	var req forgotPasswordRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
-	}
-
-	if strings.TrimSpace(req.Email) == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "email is required"})
+	if err := parseAndValidateBody(c, &req, map[string]string{
+		"Email": "email is required",
+	}); err != nil {
+		return err
 	}
 
 	token, err := h.service.ForgotPassword(req.Email)
@@ -135,12 +131,11 @@ func (h *AuthHandler) ForgotPassword(c *fiber.Ctx) error {
 
 func (h *AuthHandler) ResetPassword(c *fiber.Ctx) error {
 	var req resetPasswordRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
-	}
-
-	if strings.TrimSpace(req.Token) == "" || strings.TrimSpace(req.NewPassword) == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "token and new_password are required"})
+	if err := parseAndValidateBody(c, &req, map[string]string{
+		"Token":       "token and new_password are required",
+		"NewPassword": "token and new_password are required",
+	}); err != nil {
+		return err
 	}
 
 	if err := h.service.ResetPassword(req.Token, req.NewPassword); err != nil {

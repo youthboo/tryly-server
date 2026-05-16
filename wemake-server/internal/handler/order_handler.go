@@ -23,29 +23,30 @@ func NewOrderHandler(orderService *service.OrderService, authService *service.Au
 
 func (h *OrderHandler) CreateOrder(c *fiber.Ctx) error {
 	type reqBody struct {
-		QuotationID int64 `json:"quote_id"`
+		QuotationID int64 `json:"quote_id" validate:"gt=0"`
 	}
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
-	}
-	if req.QuotationID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "quote_id is required"})
+	if err := parseAndValidateBody(c, &req, map[string]string{
+		"QuotationID": "quote_id is required",
+	}); err != nil {
+		return err
 	}
 	order, err := h.service.CreateFromQuotation(req.QuotationID, userID)
 	if err != nil {
-		if errors.Is(err, service.ErrQuotationRejected) || errors.Is(err, service.ErrQuotationInvalidState) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-		}
-		if errors.Is(err, service.ErrInsufficientGoodFund) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-		}
-		if errors.Is(err, service.ErrOrderAlreadyExistsForQuote) {
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error()})
+		if errors.Is(err, service.ErrQuotationRejected) ||
+			errors.Is(err, service.ErrQuotationInvalidState) ||
+			errors.Is(err, service.ErrInsufficientGoodFund) ||
+			errors.Is(err, service.ErrOrderAlreadyExistsForQuote) {
+			return writeServiceError(c, err, "failed to create order",
+				badRequestCase(service.ErrQuotationRejected),
+				badRequestCase(service.ErrQuotationInvalidState),
+				badRequestCase(service.ErrInsufficientGoodFund),
+				conflictCase(service.ErrOrderAlreadyExistsForQuote),
+			)
 		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error":  "failed to create order",
@@ -153,13 +154,7 @@ func (h *OrderHandler) GetOrder(c *fiber.Ctx) error {
 	}
 	detail, err := h.service.GetDetailByID(int64(orderID), userID, u.Role)
 	if err != nil {
-		if errors.Is(err, domain.ErrForbidden) {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
-		}
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "order not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch order"})
+		return writeServiceError(c, err, "failed to fetch order")
 	}
 	return c.JSON(detail)
 }
@@ -178,13 +173,7 @@ func (h *OrderHandler) ListActivity(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
 	}
 	if _, err := h.service.GetByID(int64(orderID), userID, u.Role); err != nil {
-		if errors.Is(err, domain.ErrForbidden) {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
-		}
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "order not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to verify order"})
+		return writeServiceError(c, err, "failed to verify order")
 	}
 	items, err := h.service.ListActivity(int64(orderID))
 	if err != nil {
@@ -195,7 +184,7 @@ func (h *OrderHandler) ListActivity(c *fiber.Ctx) error {
 
 func (h *OrderHandler) PatchOrderStatus(c *fiber.Ctx) error {
 	type reqBody struct {
-		Status string `json:"status"`
+		Status string `json:"status" validate:"notblank"`
 	}
 	uid, authErr := getUserIDFromHeader(c)
 	var actor *int64
@@ -207,8 +196,10 @@ func (h *OrderHandler) PatchOrderStatus(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := parseAndValidateBody(c, &req, map[string]string{
+		"Status": "status must be PP, PR, WF, QC, SH, DL, AC, CP, or CC",
+	}); err != nil {
+		return err
 	}
 	status := strings.TrimSpace(strings.ToUpper(req.Status))
 	validOrderStatuses := map[string]struct{}{
@@ -237,13 +228,7 @@ func (h *OrderHandler) CancelOrder(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
 	}
 	if err := h.service.Cancel(int64(orderID), userID, u.Role); err != nil {
-		if errors.Is(err, service.ErrOrderCannotBeCancelled) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-		}
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "order not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to cancel order"})
+		return writeServiceError(c, err, "failed to cancel order", badRequestCase(service.ErrOrderCannotBeCancelled))
 	}
 	return c.JSON(fiber.Map{"message": "order cancelled"})
 }
@@ -269,17 +254,11 @@ func (h *OrderHandler) MarkShipped(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	if err := h.service.MarkShipped(int64(orderID), userID, req.TrackingNo, req.Courier); err != nil {
-		if errors.Is(err, service.ErrShipOrderInvalid) {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-		}
-		if repository.IsNotFoundError(err) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "order not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to mark order as shipped"})
+		return writeServiceError(c, err, "failed to mark order as shipped", badRequestCase(service.ErrShipOrderInvalid))
 	}
 	item, err := h.service.GetByID(int64(orderID), userID, u.Role)
 	if err != nil {
@@ -306,8 +285,8 @@ func (h *OrderHandler) CreatePayment(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	item, err := h.service.CreatePayment(int64(orderID), userID, u.Role, req.Type, req.Amount)
 	if err != nil {
@@ -391,8 +370,8 @@ func (h *OrderHandler) ConfirmReceipt(c *fiber.Ctx) error {
 		ReceivedAt *string `json:"received_at"`
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	var receivedAt *time.Time
 	if req.ReceivedAt != nil && strings.TrimSpace(*req.ReceivedAt) != "" {
@@ -408,18 +387,10 @@ func (h *OrderHandler) ConfirmReceipt(c *fiber.Ctx) error {
 		ReceivedAt: receivedAt,
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, domain.ErrForbidden):
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
-		case errors.Is(err, service.ErrConfirmReceiptInvalidStatus):
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error()})
-		case errors.Is(err, service.ErrConfirmReceiptNotAllowed):
-			return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
-		case repository.IsNotFoundError(err):
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "order not found"})
-		default:
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to confirm receipt"})
-		}
+		return writeServiceError(c, err, "failed to confirm receipt",
+			conflictCase(service.ErrConfirmReceiptInvalidStatus),
+			unprocessableCase(service.ErrConfirmReceiptNotAllowed),
+		)
 	}
 	return c.JSON(result)
 }
@@ -439,14 +410,7 @@ func (h *OrderHandler) GetReviewState(c *fiber.Ctx) error {
 	}
 	item, err := h.service.GetReviewState(int64(orderID), userID, u.Role)
 	if err != nil {
-		switch {
-		case errors.Is(err, domain.ErrForbidden):
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
-		case repository.IsNotFoundError(err):
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "order not found"})
-		default:
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch review state"})
-		}
+		return writeServiceError(c, err, "failed to fetch review state")
 	}
 	return c.JSON(item)
 }
@@ -470,8 +434,8 @@ func (h *OrderHandler) CreateReview(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	item, err := h.service.CreateReview(int64(orderID), userID, u.Role, service.CreateOrderReviewInput{
 		Rating:    req.Rating,
@@ -479,20 +443,13 @@ func (h *OrderHandler) CreateReview(c *fiber.Ctx) error {
 		ImageURLs: req.ImageURLs,
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, domain.ErrForbidden):
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
-		case errors.Is(err, service.ErrReviewRatingInvalid), errors.Is(err, service.ErrReviewCommentInvalid), errors.Is(err, service.ErrReviewImagesInvalid):
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
-		case errors.Is(err, service.ErrReviewOrderNotCompleted):
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error()})
-		case errors.Is(err, service.ErrReviewAlreadyExists):
-			return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": err.Error()})
-		case repository.IsNotFoundError(err):
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "order not found"})
-		default:
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create review"})
-		}
+		return writeServiceError(c, err, "failed to create review",
+			badRequestCase(service.ErrReviewRatingInvalid),
+			badRequestCase(service.ErrReviewCommentInvalid),
+			badRequestCase(service.ErrReviewImagesInvalid),
+			conflictCase(service.ErrReviewOrderNotCompleted),
+			conflictCase(service.ErrReviewAlreadyExists),
+		)
 	}
 	return c.Status(fiber.StatusCreated).JSON(item)
 }

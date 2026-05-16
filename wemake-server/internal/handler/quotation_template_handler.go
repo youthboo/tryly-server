@@ -3,7 +3,6 @@ package handler
 import (
 	"database/sql"
 	"errors"
-	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
@@ -38,11 +37,10 @@ func (h *QuotationTemplateHandler) Create(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 	var req domain.QuotationTemplate
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
-	}
-	if req.TemplateName == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "template_name is required"})
+	if err := parseAndValidateBody(c, &req, map[string]string{
+		"TemplateName": "template_name is required",
+	}); err != nil {
+		return err
 	}
 	req.FactoryID = userID
 	if err := h.service.Create(&req); err != nil {
@@ -57,13 +55,13 @@ func (h *QuotationTemplateHandler) Patch(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	templateID, err := strconv.ParseInt(c.Params("template_id"), 10, 64)
-	if err != nil || templateID <= 0 {
+	templateID, err := parsePositiveInt64Param(c, "template_id")
+	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid template_id"})
 	}
 	var req domain.QuotationTemplate
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	req.TemplateID = templateID
 	req.FactoryID = userID
@@ -82,8 +80,8 @@ func (h *QuotationTemplateHandler) Delete(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	templateID, err := strconv.ParseInt(c.Params("template_id"), 10, 64)
-	if err != nil || templateID <= 0 {
+	templateID, err := parsePositiveInt64Param(c, "template_id")
+	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid template_id"})
 	}
 	if err := h.service.Delete(templateID, userID); err != nil {

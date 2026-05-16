@@ -92,7 +92,7 @@ type Dispute struct {
 type QuotationTemplate struct {
 	TemplateID       int64     `db:"template_id" json:"template_id"`
 	FactoryID        int64     `db:"factory_id" json:"factory_id"`
-	TemplateName     string    `db:"template_name" json:"template_name"`
+	TemplateName     string    `db:"template_name" json:"template_name" validate:"notblank"`
 	PricePerPiece    *float64  `db:"price_per_piece" json:"price_per_piece,omitempty"`
 	MoldCost         *float64  `db:"mold_cost" json:"mold_cost,omitempty"`
 	LeadTimeDays     *int      `db:"lead_time_days" json:"lead_time_days,omitempty"`

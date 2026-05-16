@@ -20,18 +20,19 @@ func NewTransactionHandler(service *service.TransactionService) *TransactionHand
 
 func (h *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 	type reqBody struct {
-		WalletID int64   `json:"wallet_id"`
+		WalletID int64   `json:"wallet_id" validate:"gt=0"`
 		OrderID  *int64  `json:"order_id"`
-		Type     string  `json:"type"`
+		Type     string  `json:"type" validate:"notblank"`
 		Amount   float64 `json:"amount"`
-		Status   string  `json:"status"`
+		Status   string  `json:"status" validate:"notblank"`
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
-	}
-	if req.WalletID <= 0 || strings.TrimSpace(req.Type) == "" || strings.TrimSpace(req.Status) == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "wallet_id, type, status are required"})
+	if err := parseAndValidateBody(c, &req, map[string]string{
+		"WalletID": "wallet_id, type, status are required",
+		"Type":     "wallet_id, type, status are required",
+		"Status":   "wallet_id, type, status are required",
+	}); err != nil {
+		return err
 	}
 
 	item := &domain.Transaction{
@@ -88,8 +89,8 @@ func (h *TransactionHandler) PatchTransactionStatus(c *fiber.Ctx) error {
 	}
 
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 
 	status := strings.TrimSpace(strings.ToUpper(req.Status))

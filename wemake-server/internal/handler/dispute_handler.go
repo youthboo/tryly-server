@@ -2,8 +2,6 @@ package handler
 
 import (
 	"errors"
-	"strconv"
-	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/repository"
@@ -21,7 +19,7 @@ func NewDisputeHandler(svc *service.DisputeService) *DisputeHandler {
 // POST /orders/:order_id/disputes
 func (h *DisputeHandler) Create(c *fiber.Ctx) error {
 	type reqBody struct {
-		Reason string `json:"reason"`
+		Reason string `json:"reason" validate:"notblank"`
 	}
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
@@ -32,11 +30,10 @@ func (h *DisputeHandler) Create(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
-	}
-	if strings.TrimSpace(req.Reason) == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "reason is required"})
+	if err := parseAndValidateBody(c, &req, map[string]string{
+		"Reason": "reason is required",
+	}); err != nil {
+		return err
 	}
 	item, err := h.service.Create(int64(orderID), userID, req.Reason)
 	if err != nil {
@@ -67,13 +64,13 @@ func (h *DisputeHandler) PatchStatus(c *fiber.Ctx) error {
 		Status     string  `json:"status"`
 		Resolution *string `json:"resolution"`
 	}
-	disputeID, err := strconv.ParseInt(c.Params("dispute_id"), 10, 64)
-	if err != nil || disputeID <= 0 {
+	disputeID, err := parsePositiveInt64Param(c, "dispute_id")
+	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid dispute_id"})
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	if err := h.service.UpdateStatus(disputeID, req.Status, req.Resolution); err != nil {
 		if errors.Is(err, service.ErrInvalidDisputeStatus) {

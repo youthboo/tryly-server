@@ -2,8 +2,6 @@ package handler
 
 import (
 	"errors"
-	"strconv"
-	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/repository"
@@ -21,24 +19,23 @@ func NewWithdrawalHandler(svc *service.WithdrawalService) *WithdrawalHandler {
 // POST /wallets/withdraw
 func (h *WithdrawalHandler) Create(c *fiber.Ctx) error {
 	type reqBody struct {
-		Amount        float64 `json:"amount"`
-		BankAccountNo string  `json:"bank_account_no"`
-		BankName      string  `json:"bank_name"`
-		AccountName   string  `json:"account_name"`
+		Amount        float64 `json:"amount" validate:"gt=0"`
+		BankAccountNo string  `json:"bank_account_no" validate:"notblank"`
+		BankName      string  `json:"bank_name" validate:"notblank"`
+		AccountName   string  `json:"account_name" validate:"notblank"`
 	}
 	userID, err := getUserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
-	}
-	if req.Amount <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "amount must be greater than 0"})
-	}
-	if strings.TrimSpace(req.BankAccountNo) == "" || strings.TrimSpace(req.BankName) == "" || strings.TrimSpace(req.AccountName) == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "bank_account_no, bank_name, and account_name are required"})
+	if err := parseAndValidateBody(c, &req, map[string]string{
+		"Amount":        "amount must be greater than 0",
+		"BankAccountNo": "bank_account_no, bank_name, and account_name are required",
+		"BankName":      "bank_account_no, bank_name, and account_name are required",
+		"AccountName":   "bank_account_no, bank_name, and account_name are required",
+	}); err != nil {
+		return err
 	}
 	item, err := h.service.Create(userID, req.Amount, req.BankAccountNo, req.BankName, req.AccountName)
 	if err != nil {
@@ -72,13 +69,13 @@ func (h *WithdrawalHandler) PatchStatus(c *fiber.Ctx) error {
 		Status string  `json:"status"`
 		Note   *string `json:"note"`
 	}
-	requestID, err := strconv.ParseInt(c.Params("request_id"), 10, 64)
-	if err != nil || requestID <= 0 {
+	requestID, err := parsePositiveInt64Param(c, "request_id")
+	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request_id"})
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	if err := h.service.UpdateStatus(requestID, req.Status, req.Note); err != nil {
 		if errors.Is(err, service.ErrInvalidWithdrawalStatus) {

@@ -23,13 +23,13 @@ func NewQuotationHandler(quotationService *service.QuotationService, authService
 
 func (h *QuotationHandler) CreateQuotation(c *fiber.Ctx) error {
 	type reqBody struct {
-		FactoryID        int64              `json:"factory_id"`
-		PricePerPiece    float64            `json:"price_per_piece"`
+		FactoryID        int64              `json:"factory_id" validate:"gt=0"`
+		PricePerPiece    float64            `json:"price_per_piece" validate:"gte=0"`
 		MoldCost         float64            `json:"mold_cost"`
 		ToolingMoldCost  float64            `json:"tooling_mold_cost"`
 		ShippingCost     float64            `json:"shipping_cost"`
 		PackagingCost    float64            `json:"packaging_cost"`
-		LeadTimeDays     int64              `json:"lead_time_days"`
+		LeadTimeDays     int64              `json:"lead_time_days" validate:"gt=0"`
 		ValidityDays     int                `json:"validity_days"`
 		ShippingMethodID int64              `json:"shipping_method_id"`
 		PaymentTerms     *string            `json:"payment_terms"`
@@ -48,12 +48,12 @@ func (h *QuotationHandler) CreateQuotation(c *fiber.Ctx) error {
 	}
 
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
-	}
-
-	if req.FactoryID <= 0 || req.PricePerPiece < 0 || req.LeadTimeDays <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "factory_id and lead_time_days are required; price_per_piece must be >= 0"})
+	if err := parseAndValidateBody(c, &req, map[string]string{
+		"FactoryID":     "factory_id and lead_time_days are required; price_per_piece must be >= 0",
+		"PricePerPiece": "factory_id and lead_time_days are required; price_per_piece must be >= 0",
+		"LeadTimeDays":  "factory_id and lead_time_days are required; price_per_piece must be >= 0",
+	}); err != nil {
+		return err
 	}
 	if req.FactoryID != userID {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "factory_id must match authenticated user"})
@@ -234,8 +234,8 @@ func (h *QuotationHandler) Preview(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	item, err := h.service.Preview(req.Items, req.DiscountAmount, req.ShippingCost, req.PackagingCost, req.ToolingMoldCost, &userID)
 	if err != nil {
@@ -267,8 +267,8 @@ func (h *QuotationHandler) CreateDetailed(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	item := &domain.Quotation{
 		RFQID:                req.RFQID,
@@ -339,8 +339,8 @@ func (h *QuotationHandler) CreateRevision(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	item := &domain.Quotation{
 		FactoryID:            userID,
@@ -419,8 +419,8 @@ func (h *QuotationHandler) PatchQuotation(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid quotation_id"})
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	// tooling_mold_cost takes precedence over legacy mold_cost
 	moldCost := req.MoldCost
@@ -471,7 +471,7 @@ func (h *QuotationHandler) PatchQuotation(c *fiber.Ctx) error {
 
 func (h *QuotationHandler) PatchQuotationStatus(c *fiber.Ctx) error {
 	type reqBody struct {
-		Status string `json:"status"`
+		Status string `json:"status" validate:"notblank"`
 	}
 	userID, err := getUserIDFromHeader(c)
 	var editor *int64
@@ -483,8 +483,10 @@ func (h *QuotationHandler) PatchQuotationStatus(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid quotation_id"})
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := parseAndValidateBody(c, &req, map[string]string{
+		"Status": "status must be PD, AC, RJ or EX",
+	}); err != nil {
+		return err
 	}
 	status := strings.TrimSpace(strings.ToUpper(req.Status))
 	if status != "AC" && status != "RJ" && status != "PD" && status != "EX" {

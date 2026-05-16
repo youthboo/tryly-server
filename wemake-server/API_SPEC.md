@@ -312,10 +312,12 @@ Request
   "category_id": 1,
   "title": "New RFQ",
   "quantity": 1000,
-  "unit_id": 1,
-  "budget_per_piece": 42.5,
   "details": "Project details",
-  "address_id": 1
+  "address_id": 1,
+  "target_unit_price": 42500,
+  "reference_images": [
+    "https://example.com/rfq-1.png"
+  ]
 }
 ```
 

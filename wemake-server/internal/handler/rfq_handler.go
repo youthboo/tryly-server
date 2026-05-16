@@ -23,14 +23,14 @@ func NewRFQHandler(rfqService *service.RFQService, authService *service.AuthServ
 
 func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
 	type createRFQRequest struct {
-		CategoryID             int64    `json:"category_id"`
+		CategoryID             int64    `json:"category_id" validate:"gt=0"`
 		SubCategoryID          *int64   `json:"sub_category_id"`
-		Title                  string   `json:"title"`
+		Title                  string   `json:"title" validate:"notblank"`
 		Description            string   `json:"description"`
-		Quantity               int64    `json:"quantity"`
+		Quantity               int64    `json:"quantity" validate:"gt=0"`
 		Unit                   string   `json:"unit"`
 		Details                string   `json:"details"`
-		AddressID              int64    `json:"address_id"`
+		AddressID              int64    `json:"address_id" validate:"gt=0"`
 		ShippingMethodID       *int64   `json:"shipping_method_id"`
 		MaterialGrade          *string  `json:"material_grade"`
 		TargetPrice            *float64 `json:"target_price"`
@@ -51,17 +51,18 @@ func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
 	}
 
 	var req createRFQRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := parseAndValidateBody(c, &req, map[string]string{
+		"CategoryID": "category_id, title, quantity, and address_id are required",
+		"Title":      "category_id, title, quantity, and address_id are required",
+		"Quantity":   "category_id, title, quantity, and address_id are required",
+		"AddressID":  "category_id, title, quantity, and address_id are required",
+	}); err != nil {
+		return err
 	}
 
 	details := strings.TrimSpace(req.Details)
 	if details == "" {
 		details = strings.TrimSpace(req.Description)
-	}
-
-	if req.CategoryID <= 0 || req.AddressID <= 0 || req.Quantity <= 0 || strings.TrimSpace(req.Title) == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "category_id, title, quantity, and address_id are required"})
 	}
 
 	rfq := &domain.RFQ{
@@ -137,8 +138,8 @@ func (h *RFQHandler) PatchRFQ(c *fiber.Ctx) error {
 		RequestKind            string   `json:"request_kind"`
 	}
 	var req patchRFQRequest
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	details := strings.TrimSpace(req.Details)
 	if details == "" {

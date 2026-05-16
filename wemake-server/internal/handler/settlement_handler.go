@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -36,8 +35,8 @@ func (h *SettlementHandler) GetByID(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	settlementID, err := strconv.ParseInt(c.Params("settlement_id"), 10, 64)
-	if err != nil || settlementID <= 0 {
+	settlementID, err := parsePositiveInt64Param(c, "settlement_id")
+	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid settlement_id"})
 	}
 	item, err := h.service.GetByID(settlementID, userID)
@@ -54,7 +53,7 @@ func (h *SettlementHandler) GetByID(c *fiber.Ctx) error {
 func (h *SettlementHandler) Create(c *fiber.Ctx) error {
 	type reqBody struct {
 		OrderID *int64  `json:"order_id"`
-		Amount  float64 `json:"amount"`
+		Amount  float64 `json:"amount" validate:"gt=0"`
 		Note    *string `json:"note"`
 	}
 	userID, err := getUserIDFromHeader(c)
@@ -62,11 +61,10 @@ func (h *SettlementHandler) Create(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
-	}
-	if req.Amount <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "amount must be greater than 0"})
+	if err := parseAndValidateBody(c, &req, map[string]string{
+		"Amount": "amount must be greater than 0",
+	}); err != nil {
+		return err
 	}
 	item, err := h.service.Create(userID, req.OrderID, req.Amount, req.Note)
 	if err != nil {
@@ -80,13 +78,13 @@ func (h *SettlementHandler) PatchStatus(c *fiber.Ctx) error {
 	type reqBody struct {
 		Status string `json:"status"`
 	}
-	settlementID, err := strconv.ParseInt(c.Params("settlement_id"), 10, 64)
-	if err != nil || settlementID <= 0 {
+	settlementID, err := parsePositiveInt64Param(c, "settlement_id")
+	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid settlement_id"})
 	}
 	var req reqBody
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request payload"})
+	if err := requireBody(c, &req); err != nil {
+		return err
 	}
 	status := strings.ToUpper(strings.TrimSpace(req.Status))
 	if status != "PR" && status != "CP" && status != "FL" {
