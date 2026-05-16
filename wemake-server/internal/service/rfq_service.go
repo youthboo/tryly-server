@@ -163,7 +163,7 @@ func (s *RFQService) PreviewFactories(kind string, categoryID int64, subCategory
 		return nil, ErrInvalidCategory
 	}
 	var categoryExists bool
-	if err := s.repo.DB().Get(&categoryExists, `SELECT EXISTS(SELECT 1 FROM categories WHERE category_id = $1)`, categoryID); err != nil {
+	if err := s.repo.DB().Get(&categoryExists, `SELECT EXISTS(SELECT 1 FROM lbi_categories WHERE category_id = $1)`, categoryID); err != nil {
 		return nil, err
 	}
 	if !categoryExists {

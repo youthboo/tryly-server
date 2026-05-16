@@ -18,7 +18,7 @@ func NewCatalogRepository(db *sqlx.DB) *CatalogRepository {
 func (r *CatalogRepository) GetCategories(scope string) ([]domain.Category, error) {
 	var categories []domain.Category
 	scope = strings.TrimSpace(strings.ToUpper(scope))
-	query := "SELECT category_id, name, COALESCE(scope, 'PD') AS scope FROM categories"
+	query := "SELECT category_id, name, COALESCE(scope, 'PD') AS scope FROM lbi_categories"
 	args := []interface{}{}
 	if scope == "" {
 		scope = "PD"

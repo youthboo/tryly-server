@@ -245,7 +245,7 @@ func (r *RFQRepository) CategoryScope(categoryID int64) (string, bool, error) {
 	var scope sql.NullString
 	err := r.db.Get(&scope, `
 		SELECT COALESCE(scope, 'PD') AS scope
-		FROM categories
+		FROM lbi_categories
 		WHERE category_id = $1
 	`, categoryID)
 	if err == sql.ErrNoRows {
@@ -378,7 +378,7 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 				AND EXISTS (
 					SELECT 1
 					FROM factory_showcases fs
-					INNER JOIN categories cat ON cat.category_id = fs.category_id
+					INNER JOIN lbi_categories cat ON cat.category_id = fs.category_id
 					WHERE fs.factory_id = $1
 					  AND fs.content_type = 'MT'
 					  AND fs.status = 'AC'
@@ -447,7 +447,7 @@ func (r *RFQRepository) ListMatchingFactoryIDsForKind(kind string, categoryID in
 		query := `
 			SELECT DISTINCT fs.factory_id
 			FROM factory_showcases fs
-			INNER JOIN categories cat ON cat.category_id = fs.category_id
+			INNER JOIN lbi_categories cat ON cat.category_id = fs.category_id
 			LEFT JOIN factory_profiles fp ON fp.user_id = fs.factory_id
 			WHERE fs.content_type = 'MT'
 			  AND fs.status = 'AC'
@@ -490,7 +490,7 @@ func (r *RFQRepository) enrichRFQLookups(rfq *domain.RFQ) error {
 	}
 
 	var categoryName sql.NullString
-	if err := r.db.Get(&categoryName, `SELECT name FROM categories WHERE category_id = $1`, rfq.CategoryID); err != nil {
+	if err := r.db.Get(&categoryName, `SELECT name FROM lbi_categories WHERE category_id = $1`, rfq.CategoryID); err != nil {
 		if err != sql.ErrNoRows {
 			return err
 		}

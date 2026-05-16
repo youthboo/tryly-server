@@ -59,7 +59,7 @@ func (r *RFQRepository) ListAdmin(filter domain.AdminRFQFilter) ([]domain.AdminR
 		FROM rfqs r
 		INNER JOIN users u ON u.user_id = r.user_id
 		LEFT JOIN customers cu ON cu.user_id = r.user_id
-		LEFT JOIN categories c ON c.category_id = r.category_id
+		LEFT JOIN lbi_categories c ON c.category_id = r.category_id
 		LEFT JOIN lbi_sub_categories sc ON sc.sub_category_id = r.sub_category_id
 		LEFT JOIN quotations q ON q.rfq_id = r.rfq_id
 		WHERE ` + condition + `

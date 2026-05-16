@@ -456,7 +456,7 @@ func (r *OrderRepository) GetDetailByParticipant(orderID, userID int64, role str
 		FROM orders o
 		INNER JOIN quotations q ON q.quote_id = o.quote_id
 		INNER JOIN rfqs r ON r.rfq_id = q.rfq_id
-		LEFT JOIN categories cat ON cat.category_id = r.category_id
+		LEFT JOIN lbi_categories cat ON cat.category_id = r.category_id
 		LEFT JOIN factory_profiles fp ON fp.user_id = o.factory_id
 		WHERE o.order_id = $1
 	`

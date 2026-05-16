@@ -187,7 +187,7 @@ func (r *FrontendRepository) GetCurrentUser(userID int64) (*FrontendCurrentUserR
 
 func (r *FrontendRepository) ListCategories() ([]FrontendCategoryRow, error) {
 	var items []FrontendCategoryRow
-	query := `SELECT category_id AS id, name FROM categories ORDER BY name`
+	query := `SELECT category_id AS id, name FROM lbi_categories ORDER BY name`
 	err := r.db.Select(&items, query)
 	return items, err
 }
@@ -314,7 +314,7 @@ func (r *FrontendRepository) ListRFQsByUserID(userID int64) ([]FrontendRFQRow, e
 			TO_CHAR(r.created_at, 'YYYY-MM-DD') AS created_at,
 			COALESCE(r.details, '') AS description
 		FROM rfqs r
-		INNER JOIN categories c ON c.category_id = r.category_id
+		INNER JOIN lbi_categories c ON c.category_id = r.category_id
 		LEFT JOIN quotations q ON q.rfq_id = r.rfq_id
 		WHERE r.user_id = $1
 		GROUP BY r.rfq_id, r.title, c.name, r.status, r.target_price, r.quantity, r.created_at, r.details
@@ -338,7 +338,7 @@ func (r *FrontendRepository) GetRFQByUserID(userID, rfqID int64) (*FrontendRFQRo
 			TO_CHAR(r.created_at, 'YYYY-MM-DD') AS created_at,
 			COALESCE(r.details, '') AS description
 		FROM rfqs r
-		INNER JOIN categories c ON c.category_id = r.category_id
+		INNER JOIN lbi_categories c ON c.category_id = r.category_id
 		LEFT JOIN quotations q ON q.rfq_id = r.rfq_id
 		WHERE r.user_id = $1 AND r.rfq_id = $2
 		GROUP BY r.rfq_id, r.title, c.name, r.status, r.target_price, r.quantity, r.created_at, r.details

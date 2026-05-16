@@ -63,7 +63,7 @@ func (r *MasterRepository) GetProductCategories(parentID *int64) ([]domain.LBIPr
 		       NULL::bigint AS parent_category_id,
 		       c.name AS name,
 		       '1' AS status
-		FROM categories c
+		FROM lbi_categories c
 		ORDER BY c.category_id
 	`
 	err := r.db.Select(&items, query)

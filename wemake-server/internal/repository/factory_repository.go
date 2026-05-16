@@ -214,7 +214,7 @@ func (r *FactoryRepository) selectFactoryCategories(factoryID int64) ([]domain.F
 	q := `
 		SELECT c.category_id, c.name
 		FROM map_factory_categories mfc
-		INNER JOIN categories c ON mfc.category_id = c.category_id
+		INNER JOIN lbi_categories c ON mfc.category_id = c.category_id
 		WHERE mfc.factory_id = $1
 		ORDER BY c.category_id
 	`
@@ -236,7 +236,7 @@ func (r *FactoryRepository) selectFactorySubCategories(factoryID int64) ([]domai
 		       sc.name AS sub_category_name
 		FROM map_factory_sub_categories mfs
 		INNER JOIN lbi_sub_categories sc ON mfs.sub_category_id = sc.sub_category_id
-		LEFT JOIN categories cat ON cat.category_id = sc.category_id
+		LEFT JOIN lbi_categories cat ON cat.category_id = sc.category_id
 		WHERE mfs.factory_id = $1
 		ORDER BY sc.category_id, sc.sort_order, sc.sub_category_id
 	`

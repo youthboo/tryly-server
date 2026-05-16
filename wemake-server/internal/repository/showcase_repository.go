@@ -48,7 +48,7 @@ const showcaseExploreBaseSQL = `
 		sc.name AS sub_category_name
 	FROM factory_showcases fs
 	INNER JOIN factory_profiles fp ON fs.factory_id = fp.user_id
-	LEFT JOIN categories c ON fs.category_id = c.category_id
+	LEFT JOIN lbi_categories c ON fs.category_id = c.category_id
 	LEFT JOIN lbi_sub_categories sc ON fs.sub_category_id = sc.sub_category_id
 `
 
@@ -182,7 +182,7 @@ func (r *ShowcaseRepository) GetShowcasesByFactory(factoryID int64, contentType 
 			c.name  AS category_name,
 			` + subCategoryNameExpr + `
 		FROM factory_showcases fs
-		LEFT JOIN categories c         ON fs.category_id     = c.category_id
+		LEFT JOIN lbi_categories c         ON fs.category_id     = c.category_id
 		` + subCategoryJoin + `
 		WHERE ` + strings.Join(clauses, " AND ") + `
 		ORDER BY fs.created_at DESC`
@@ -296,7 +296,7 @@ func (r *ShowcaseRepository) GetDetail(showcaseID int64) (*domain.ShowcaseDetail
 			sc.name              AS sub_category_name
 		FROM factory_showcases fs
 		INNER JOIN factory_profiles fp       ON fs.factory_id      = fp.user_id
-		LEFT JOIN  categories c              ON fs.category_id     = c.category_id
+		LEFT JOIN lbi_categories c              ON fs.category_id     = c.category_id
 		LEFT JOIN  lbi_sub_categories sc     ON fs.sub_category_id = sc.sub_category_id
 		LEFT JOIN  lbi_provinces p           ON fp.province_id     = p.row_id
 		WHERE fs.showcase_id = $1
@@ -476,7 +476,7 @@ func (r *ShowcaseRepository) UpdateStatus(showcaseID, factoryID int64, status st
 
 func (r *ShowcaseRepository) CategoryExists(categoryID int64) (bool, error) {
 	var ok bool
-	err := r.db.Get(&ok, `SELECT EXISTS(SELECT 1 FROM categories WHERE category_id = $1)`, categoryID)
+	err := r.db.Get(&ok, `SELECT EXISTS(SELECT 1 FROM lbi_categories WHERE category_id = $1)`, categoryID)
 	return ok, err
 }
 

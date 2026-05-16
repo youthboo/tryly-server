@@ -125,7 +125,7 @@ func getShippingDays(db *sqlx.DB) int {
 	var cfg struct {
 		Value string `db:"value"`
 	}
-	err := db.Get(&cfg, `SELECT value FROM platform_configs WHERE key = 'shipping_days'`)
+	err := db.Get(&cfg, `SELECT value FROM tconfig WHERE key = 'shipping_days'`)
 	if err == nil && cfg.Value != "" {
 		if n, err := strconv.Atoi(cfg.Value); err == nil && n > 0 {
 			return n

@@ -36,3 +36,4 @@ bin/
 dist/
 docs/
 uploads/
+.gocache/
