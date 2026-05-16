@@ -2,6 +2,7 @@ package user
 
 import (
 	"database/sql"
+	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
@@ -45,7 +46,7 @@ func (h *ReviewHandler) Create(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_id"})
 	}
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -67,7 +68,7 @@ func (h *ReviewHandler) Create(c *fiber.Ctx) error {
 }
 
 func (h *ReviewHandler) UpdateByUser(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -97,7 +98,7 @@ func (h *ReviewHandler) UpdateByUser(c *fiber.Ctx) error {
 }
 
 func (h *ReviewHandler) DeleteByUser(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}

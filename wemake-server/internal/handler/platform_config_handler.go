@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"github.com/yourusername/wemake/internal/helper"
 	"strconv"
 	"strings"
 	"time"
@@ -54,7 +55,7 @@ func (h *PlatformConfigHandler) Create(c *fiber.Ctx) error {
 		VatRate               float64  `json:"vat_rate"`
 		CurrencyCode          string   `json:"currency_code"`
 	}
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -95,7 +96,7 @@ func (h *PlatformConfigHandler) Create(c *fiber.Ctx) error {
 }
 
 func (h *PlatformConfigHandler) CreateConfig(c *fiber.Ctx) error {
-	actorID, err := getUserIDFromHeader(c)
+	actorID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -119,7 +120,7 @@ func (h *PlatformConfigHandler) UpdateConfig(c *fiber.Ctx) error {
 	if err != nil || configID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid config_id"})
 	}
-	actorID, err := getUserIDFromHeader(c)
+	actorID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -147,7 +148,7 @@ func (h *PlatformConfigHandler) DeleteConfig(c *fiber.Ctx) error {
 	if err != nil || configID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid config_id"})
 	}
-	actorID, err := getUserIDFromHeader(c)
+	actorID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}

@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"errors"
+	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/repository"
@@ -21,7 +22,7 @@ func (h *DisputeHandler) Create(c *fiber.Ctx) error {
 	type reqBody struct {
 		Reason string `json:"reason" validate:"notblank"`
 	}
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -30,7 +31,7 @@ func (h *DisputeHandler) Create(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
 	}
 	var req reqBody
-	if err := parseAndValidateBody(c, &req, map[string]string{
+	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"Reason": "reason is required",
 	}); err != nil {
 		return err
@@ -64,12 +65,12 @@ func (h *DisputeHandler) PatchStatus(c *fiber.Ctx) error {
 		Status     string  `json:"status"`
 		Resolution *string `json:"resolution"`
 	}
-	disputeID, err := parsePositiveInt64Param(c, "dispute_id")
+	disputeID, err := helper.ParsePositiveInt64Param(c, "dispute_id")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid dispute_id"})
 	}
 	var req reqBody
-	if err := requireBody(c, &req); err != nil {
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	if err := h.service.UpdateStatus(disputeID, req.Status, req.Resolution); err != nil {

@@ -12,7 +12,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/domainutil"
+	"github.com/yourusername/wemake/internal/helper"
 	conversationrepo "github.com/yourusername/wemake/internal/repository/conversation"
 	quotationrepo "github.com/yourusername/wemake/internal/repository/quotation"
 	rfqrepo "github.com/yourusername/wemake/internal/repository/rfq"
@@ -75,9 +75,7 @@ func NewBOQService(
 	}
 }
 
-func roundMoney(v float64) float64 {
-	return domainutil.RoundMoney(v)
-}
+var roundMoney = helper.RoundMoney
 
 func computeBOQTotals(items []domain.RFQItem, discountAmount float64, vatPercent float64) (float64, float64, float64) {
 	subtotal := 0.0

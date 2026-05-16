@@ -2,6 +2,7 @@ package admin
 
 import (
 	"encoding/json"
+	"github.com/yourusername/wemake/internal/helper"
 	"strconv"
 	"strings"
 	"time"
@@ -22,9 +23,9 @@ func NewAdminConfigHandler(commission *walletrepo.CommissionRepository, audit *a
 }
 
 func (h *AdminConfigHandler) ListRules(c *fiber.Ctx) error {
-	factoryID, err := parseOptionalPositiveInt64Query(c, "factory_id")
+	factoryID, err := helper.ParseOptionalPositiveInt64Query(c, "factory_id")
 	if err != nil {
-		return badRequest(c, "invalid factory_id")
+		return helper.BadRequest(c, "invalid factory_id")
 	}
 	items, err := h.commission.ListRules(factoryID, !strings.EqualFold(c.Query("active_only", "true"), "false"))
 	if err != nil {
@@ -41,23 +42,23 @@ func (h *AdminConfigHandler) CreateRule(c *fiber.Ctx) error {
 		EffectiveTo   *string `json:"effective_to"`
 		Note          *string `json:"note"`
 	}
-	if err := requireBody(c, &req); err != nil {
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	if req.FactoryID <= 0 || req.RatePercent < 0 || req.RatePercent > 100 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid commission rule payload"})
 	}
 	from := time.Now().UTC()
-	if parsedFrom, err := parseOptionalRFC3339Value(req.EffectiveFrom, "effective_from"); err != nil {
-		return badRequest(c, "effective_from must be RFC3339")
+	if parsedFrom, err := helper.ParseOptionalRFC3339Value(req.EffectiveFrom, "effective_from"); err != nil {
+		return helper.BadRequest(c, "effective_from must be RFC3339")
 	} else if parsedFrom != nil {
 		from = *parsedFrom
 	}
-	to, err := parseOptionalRFC3339Value(req.EffectiveTo, "effective_to")
+	to, err := helper.ParseOptionalRFC3339Value(req.EffectiveTo, "effective_to")
 	if err != nil {
-		return badRequest(c, "effective_to must be RFC3339")
+		return helper.BadRequest(c, "effective_to must be RFC3339")
 	}
-	actorID, _ := getUserIDFromHeader(c)
+	actorID, _ := helper.UserIDFromHeader(c)
 	factoryID := req.FactoryID
 	item := &domain.CommissionRule{FactoryID: &factoryID, RatePercent: req.RatePercent, EffectiveFrom: from, EffectiveTo: to, Note: req.Note, CreatedBy: actorID}
 	if err := h.commission.CreateRule(item); err != nil {
@@ -68,15 +69,15 @@ func (h *AdminConfigHandler) CreateRule(c *fiber.Ctx) error {
 }
 
 func (h *AdminConfigHandler) DeleteRule(c *fiber.Ctx) error {
-	ruleID, err := parsePositiveInt64Param(c, "rule_id")
+	ruleID, err := helper.ParsePositiveInt64Param(c, "rule_id")
 	if err != nil {
-		return badRequest(c, "invalid rule_id")
+		return helper.BadRequest(c, "invalid rule_id")
 	}
 	item, err := h.commission.DeactivateRule(ruleID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to deactivate commission rule"})
 	}
-	actorID, _ := getUserIDFromHeader(c)
+	actorID, _ := helper.UserIDFromHeader(c)
 	h.insertAudit(actorID, "COMMISSION_RULE_DEACTIVATE", "commission_rule", ruleID, item, c.IP())
 	return c.JSON(fiber.Map{"rule_id": ruleID, "effective_to": item.EffectiveTo})
 }
@@ -95,7 +96,7 @@ func (h *AdminConfigHandler) CreateExemption(c *fiber.Ctx) error {
 		Reason    string  `json:"reason"`
 		ExpiresAt *string `json:"expires_at"`
 	}
-	if err := requireBody(c, &req); err != nil {
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	if req.FactoryID <= 0 || strings.TrimSpace(req.Reason) == "" {
@@ -104,11 +105,11 @@ func (h *AdminConfigHandler) CreateExemption(c *fiber.Ctx) error {
 	if exists, _ := h.commission.ActiveExemptionExists(req.FactoryID); exists {
 		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "factory already has an active exemption"})
 	}
-	expiresAt, err := parseOptionalRFC3339Value(req.ExpiresAt, "expires_at")
+	expiresAt, err := helper.ParseOptionalRFC3339Value(req.ExpiresAt, "expires_at")
 	if err != nil {
-		return badRequest(c, "expires_at must be RFC3339")
+		return helper.BadRequest(c, "expires_at must be RFC3339")
 	}
-	actorID, _ := getUserIDFromHeader(c)
+	actorID, _ := helper.UserIDFromHeader(c)
 	item := &domain.CommissionExemption{FactoryID: req.FactoryID, Reason: strings.TrimSpace(req.Reason), ExpiresAt: expiresAt, CreatedBy: actorID}
 	if err := h.commission.CreateExemption(item); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create commission exemption"})
@@ -118,11 +119,11 @@ func (h *AdminConfigHandler) CreateExemption(c *fiber.Ctx) error {
 }
 
 func (h *AdminConfigHandler) DeleteExemption(c *fiber.Ctx) error {
-	exemptionID, err := parsePositiveInt64Param(c, "exemption_id")
+	exemptionID, err := helper.ParsePositiveInt64Param(c, "exemption_id")
 	if err != nil {
-		return badRequest(c, "invalid exemption_id")
+		return helper.BadRequest(c, "invalid exemption_id")
 	}
-	actorID, _ := getUserIDFromHeader(c)
+	actorID, _ := helper.UserIDFromHeader(c)
 	item, err := h.commission.RevokeExemption(exemptionID, actorID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to revoke commission exemption"})
@@ -138,26 +139,26 @@ func (h *AdminConfigHandler) ListAuditLog(c *fiber.Ctx) error {
 		Page:       c.QueryInt("page", 1),
 		PageSize:   c.QueryInt("page_size", 20),
 	}
-	actorID, err := parseOptionalPositiveInt64Query(c, "actor_id")
+	actorID, err := helper.ParseOptionalPositiveInt64Query(c, "actor_id")
 	if err != nil {
-		return badRequest(c, "invalid actor_id")
+		return helper.BadRequest(c, "invalid actor_id")
 	}
 	filter.ActorID = actorID
-	dateFrom, err := parseOptionalDateQuery(c, "date_from")
+	dateFrom, err := helper.ParseOptionalDateQuery(c, "date_from")
 	if err != nil {
-		return badRequest(c, "date_from must be YYYY-MM-DD")
+		return helper.BadRequest(c, "date_from must be YYYY-MM-DD")
 	}
 	filter.DateFrom = dateFrom
-	dateTo, err := parseOptionalDateQuery(c, "date_to")
+	dateTo, err := helper.ParseOptionalDateQuery(c, "date_to")
 	if err != nil {
-		return badRequest(c, "date_to must be YYYY-MM-DD")
+		return helper.BadRequest(c, "date_to must be YYYY-MM-DD")
 	}
 	filter.DateTo = dateTo
 	items, total, err := h.audit.List(filter)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch audit log"})
 	}
-	return c.JSON(fiber.Map{"data": items, "pagination": domain.Pagination{Page: maxInt(filter.Page, 1), PageSize: normalizePageSize(filter.PageSize), Total: total}})
+	return c.JSON(fiber.Map{"data": items, "pagination": domain.Pagination{Page: helper.MaxInt(filter.Page, 1), PageSize: helper.NormalizePageSize(filter.PageSize), Total: total}})
 }
 
 func (h *AdminConfigHandler) insertAudit(actorID int64, action, targetType string, targetID int64, payload interface{}, ip string) {

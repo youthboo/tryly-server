@@ -3,6 +3,7 @@ package user
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/helper"
 	userservice "github.com/yourusername/wemake/internal/service/user"
 )
 
@@ -15,9 +16,9 @@ func NewFavoriteHandler(service *userservice.FavoriteService) *FavoriteHandler {
 }
 
 func (h *FavoriteHandler) List(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
-		return unauthorized(c)
+		return helper.Unauthorized(c)
 	}
 	items, err := h.service.ListByUserID(userID)
 	if err != nil {
@@ -27,13 +28,13 @@ func (h *FavoriteHandler) List(c *fiber.Ctx) error {
 }
 
 func (h *FavoriteHandler) Add(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
-		return unauthorized(c)
+		return helper.Unauthorized(c)
 	}
 
 	var req domain.Favorite
-	if err := requireBody(c, &req); err != nil {
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	req.UserID = userID
@@ -45,13 +46,13 @@ func (h *FavoriteHandler) Add(c *fiber.Ctx) error {
 }
 
 func (h *FavoriteHandler) Remove(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
-		return unauthorized(c)
+		return helper.Unauthorized(c)
 	}
 	showcaseID, err := c.ParamsInt("showcase_id")
 	if err != nil {
-		return badRequest(c, "invalid showcase_id")
+		return helper.BadRequest(c, "invalid showcase_id")
 	}
 	if err := h.service.Remove(userID, int64(showcaseID)); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to remove favorite"})

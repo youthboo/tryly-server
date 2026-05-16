@@ -2,6 +2,7 @@ package admin
 
 import (
 	"errors"
+	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -34,17 +35,17 @@ func (h *AdminFactoryHandler) List(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch factories"})
 	}
-	return c.JSON(fiber.Map{"data": items, "pagination": domain.Pagination{Page: maxInt(filter.Page, 1), PageSize: normalizePageSize(filter.PageSize), Total: total}})
+	return c.JSON(fiber.Map{"data": items, "pagination": domain.Pagination{Page: helper.MaxInt(filter.Page, 1), PageSize: helper.NormalizePageSize(filter.PageSize), Total: total}})
 }
 
 func (h *AdminFactoryHandler) GetByID(c *fiber.Ctx) error {
-	factoryID, err := parsePositiveInt64Param(c, "factory_id")
+	factoryID, err := helper.ParsePositiveInt64Param(c, "factory_id")
 	if err != nil {
-		return badRequest(c, "invalid factory_id")
+		return helper.BadRequest(c, "invalid factory_id")
 	}
 	item, err := h.service.HydrateAdminDetail(factoryID)
 	if err != nil {
-		return writeServiceError(c, err, "failed to fetch factory", notFoundCase(errNotFound, "factory not found"))
+		return helper.WriteServiceError(c, err, "failed to fetch factory", helper.NotFoundCase(helper.ErrNotFound, "factory not found"))
 	}
 	return c.JSON(item)
 }
@@ -74,7 +75,7 @@ func (h *AdminFactoryHandler) PatchVerification(c *fiber.Ctx) error {
 		IsVerified bool   `json:"is_verified"`
 		Note       string `json:"note"`
 	}
-	if err := requireBody(c, &req); err != nil {
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	ip := c.IP()
@@ -92,13 +93,13 @@ func (h *AdminFactoryHandler) PatchVerification(c *fiber.Ctx) error {
 }
 
 func (h *AdminFactoryHandler) GetFactoryConfig(c *fiber.Ctx) error {
-	factoryID, err := parsePositiveInt64Param(c, "factory_id")
+	factoryID, err := helper.ParsePositiveInt64Param(c, "factory_id")
 	if err != nil {
-		return badRequest(c, "invalid factory_id")
+		return helper.BadRequest(c, "invalid factory_id")
 	}
 	item, err := h.service.GetFactoryConfig(factoryID)
 	if err != nil {
-		return writeServiceError(c, err, "failed to fetch factory config", notFoundCase(adminservice.ErrFactoryNotFound, "factory not found"))
+		return helper.WriteServiceError(c, err, "failed to fetch factory config", helper.NotFoundCase(adminservice.ErrFactoryNotFound, "factory not found"))
 	}
 	return c.JSON(item)
 }
@@ -114,7 +115,7 @@ func (h *AdminFactoryHandler) AssignFactoryConfig(c *fiber.Ctx) error {
 		return c.Status(status).JSON(fiber.Map{"error": err.Error()})
 	}
 	var req domain.AssignFactoryConfigRequest
-	if err := requireBody(c, &req); err != nil {
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	ip := c.IP()
@@ -140,7 +141,7 @@ func (h *AdminFactoryHandler) mutateFactoryState(c *fiber.Ctx, fn func(int64, in
 	var req struct {
 		Note string `json:"note"`
 	}
-	if err := requireBody(c, &req); err != nil {
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	ip := c.IP()
@@ -159,7 +160,7 @@ func (h *AdminFactoryHandler) mutateFactoryReasonState(c *fiber.Ctx, fn func(int
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	if err := requireBody(c, &req); err != nil {
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	ip := c.IP()
@@ -171,11 +172,11 @@ func (h *AdminFactoryHandler) mutateFactoryReasonState(c *fiber.Ctx, fn func(int
 }
 
 func parseFactoryActor(c *fiber.Ctx) (int64, int64, error) {
-	factoryID, err := parsePositiveInt64Param(c, "factory_id")
+	factoryID, err := helper.ParsePositiveInt64Param(c, "factory_id")
 	if err != nil || factoryID <= 0 {
 		return 0, 0, fiber.NewError(fiber.StatusBadRequest, "invalid factory_id")
 	}
-	actorID, err := getUserIDFromHeader(c)
+	actorID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return 0, 0, fiber.NewError(fiber.StatusUnauthorized, "unauthorized")
 	}

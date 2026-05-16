@@ -2,6 +2,7 @@ package factory
 
 import (
 	"errors"
+	"github.com/yourusername/wemake/internal/helper"
 	"strconv"
 	"strings"
 
@@ -25,7 +26,7 @@ func NewFactoryHandler(service *factoryservice.FactoryService, authService *serv
 }
 
 func (h *FactoryHandler) GetMe(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user context"})
 	}
@@ -79,7 +80,7 @@ func (h *FactoryHandler) PatchProfile(c *fiber.Ctx) error {
 		BackgroundImageURL *string `json:"background_image_url"`
 	}
 
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -201,7 +202,7 @@ func validatePositiveUniqueIDs(ids []int64) ([]int64, bool) {
 }
 
 func (h *FactoryHandler) AddCategory(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -213,7 +214,7 @@ func (h *FactoryHandler) AddCategory(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
 	}
 	var body addFactoryCategoryBody
-	if err := parseAndValidateBody(c, &body, map[string]string{
+	if err := helper.ParseAndValidateBody(c, &body, map[string]string{
 		"CategoryID": "body must include category_id (positive integer)",
 	}); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "body must include category_id (positive integer)"})
@@ -235,7 +236,7 @@ func (h *FactoryHandler) AddCategory(c *fiber.Ctx) error {
 }
 
 func (h *FactoryHandler) RemoveCategory(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -261,7 +262,7 @@ func (h *FactoryHandler) RemoveCategory(c *fiber.Ctx) error {
 }
 
 func (h *FactoryHandler) ReplaceCategories(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -276,7 +277,7 @@ func (h *FactoryHandler) ReplaceCategories(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
 	}
-	if err := validateStruct(c, &body, map[string]string{
+	if err := helper.ValidateStruct(c, &body, map[string]string{
 		"CategoryIDs": "body must include category_ids with at least one positive integer",
 	}); err != nil {
 		return err
@@ -325,7 +326,7 @@ type addFactorySubCategoryBody struct {
 }
 
 func (h *FactoryHandler) AddSubCategory(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -337,7 +338,7 @@ func (h *FactoryHandler) AddSubCategory(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "forbidden"})
 	}
 	var body addFactorySubCategoryBody
-	if err := parseAndValidateBody(c, &body, map[string]string{
+	if err := helper.ParseAndValidateBody(c, &body, map[string]string{
 		"SubCategoryID": "body must include sub_category_id (positive integer)",
 	}); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "body must include sub_category_id (positive integer)"})
@@ -359,7 +360,7 @@ func (h *FactoryHandler) AddSubCategory(c *fiber.Ctx) error {
 }
 
 func (h *FactoryHandler) RemoveSubCategory(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -385,7 +386,7 @@ func (h *FactoryHandler) RemoveSubCategory(c *fiber.Ctx) error {
 }
 
 func (h *FactoryHandler) ReplaceSubCategories(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -400,7 +401,7 @@ func (h *FactoryHandler) ReplaceSubCategories(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid payload"})
 	}
-	if err := validateStruct(c, &body, map[string]string{
+	if err := helper.ValidateStruct(c, &body, map[string]string{
 		"SubCategoryIDs": "sub_category_ids must contain only positive integers",
 	}); err != nil {
 		return err
@@ -433,7 +434,7 @@ func (h *FactoryHandler) ReplaceSubCategories(c *fiber.Ctx) error {
 
 // GET /factories/me/analytics
 func (h *FactoryHandler) GetAnalytics(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user context"})
 	}
@@ -452,7 +453,7 @@ func (h *FactoryHandler) GetAnalytics(c *fiber.Ctx) error {
 }
 
 func (h *FactoryHandler) GetDashboard(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user context"})
 	}

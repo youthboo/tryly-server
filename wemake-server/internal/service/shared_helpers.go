@@ -2,30 +2,15 @@ package service
 
 import (
 	"errors"
-	"strings"
-	"time"
 
-	"github.com/yourusername/wemake/internal/domainutil"
+	"github.com/yourusername/wemake/internal/helper"
 )
 
 var ErrReviewImagesInvalid = errors.New("image_urls must contain at most 5 unique urls")
 
-var thailandLocation = time.FixedZone("Asia/Bangkok", 7*60*60)
-
-func roundCurrency(v float64) float64 {
-	return domainutil.RoundMoney(v)
-}
-
-func percentOf(amount, total float64) float64 {
-	if total <= 0 {
-		return 0
-	}
-	return roundCurrency((amount / total) * 100)
-}
-
-func derefString(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return strings.TrimSpace(*value)
-}
+var (
+	thailandLocation = helper.ThailandLocation
+	roundCurrency    = helper.RoundCurrency
+	percentOf        = helper.PercentOf
+	derefString      = helper.DerefString
+)

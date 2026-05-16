@@ -1,6 +1,7 @@
 package wallet
 
 import (
+	"github.com/yourusername/wemake/internal/helper"
 	"strconv"
 	"strings"
 
@@ -27,7 +28,7 @@ func (h *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
 		Status   string  `json:"status" validate:"notblank"`
 	}
 	var req reqBody
-	if err := parseAndValidateBody(c, &req, map[string]string{
+	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"WalletID": "wallet_id, type, status are required",
 		"Type":     "wallet_id, type, status are required",
 		"Status":   "wallet_id, type, status are required",
@@ -89,7 +90,7 @@ func (h *TransactionHandler) PatchTransactionStatus(c *fiber.Ctx) error {
 	}
 
 	var req reqBody
-	if err := requireBody(c, &req); err != nil {
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 

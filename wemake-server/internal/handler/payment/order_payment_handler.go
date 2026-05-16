@@ -3,6 +3,7 @@ package payment
 import (
 	"database/sql"
 	"errors"
+	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/repository"
@@ -25,7 +26,7 @@ func (h *OrderPaymentHandler) PayDeposit(c *fiber.Ctx) error {
 		IdempotencyKey string  `json:"idempotency_key"`
 	}
 
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}

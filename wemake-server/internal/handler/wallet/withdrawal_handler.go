@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"errors"
+	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/repository"
@@ -24,12 +25,12 @@ func (h *WithdrawalHandler) Create(c *fiber.Ctx) error {
 		BankName      string  `json:"bank_name" validate:"notblank"`
 		AccountName   string  `json:"account_name" validate:"notblank"`
 	}
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 	var req reqBody
-	if err := parseAndValidateBody(c, &req, map[string]string{
+	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"Amount":        "amount must be greater than 0",
 		"BankAccountNo": "bank_account_no, bank_name, and account_name are required",
 		"BankName":      "bank_account_no, bank_name, and account_name are required",
@@ -52,7 +53,7 @@ func (h *WithdrawalHandler) Create(c *fiber.Ctx) error {
 
 // GET /wallets/withdraw
 func (h *WithdrawalHandler) List(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -69,12 +70,12 @@ func (h *WithdrawalHandler) PatchStatus(c *fiber.Ctx) error {
 		Status string  `json:"status"`
 		Note   *string `json:"note"`
 	}
-	requestID, err := parsePositiveInt64Param(c, "request_id")
+	requestID, err := helper.ParsePositiveInt64Param(c, "request_id")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request_id"})
 	}
 	var req reqBody
-	if err := requireBody(c, &req); err != nil {
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	if err := h.service.UpdateStatus(requestID, req.Status, req.Note); err != nil {

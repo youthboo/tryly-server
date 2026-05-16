@@ -1,6 +1,7 @@
 package wallet
 
 import (
+	"github.com/yourusername/wemake/internal/helper"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -17,7 +18,7 @@ func NewWalletHandler(service *walletservice.WalletService) *WalletHandler {
 }
 
 func (h *WalletHandler) GetMyWallet(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
@@ -32,7 +33,7 @@ func (h *WalletHandler) GetMyWallet(c *fiber.Ctx) error {
 }
 
 func (h *WalletHandler) ListMyTransactions(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}

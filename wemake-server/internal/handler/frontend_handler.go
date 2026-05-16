@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/logger"
@@ -17,7 +18,7 @@ func NewFrontendHandler(service *service.FrontendService) *FrontendHandler {
 }
 
 func (h *FrontendHandler) GetBootstrap(c *fiber.Ctx) error {
-	userID := getOptionalUserIDFromHeader(c)
+	userID := helper.OptionalUserIDFromHeader(c)
 	logger.Debug("frontend bootstrap requested", "user_id", userID)
 
 	item, err := h.service.GetBootstrap(userID)
@@ -39,14 +40,14 @@ func (h *FrontendHandler) GetBootstrap(c *fiber.Ctx) error {
 }
 
 func (h *FrontendHandler) GetCurrentUser(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
-		return badRequest(c, "invalid user context")
+		return helper.BadRequest(c, "invalid user context")
 	}
 
 	item, err := h.service.GetCurrentUser(userID)
 	if err != nil {
-		return writeServiceError(c, err, "failed to fetch current user", notFoundCase(errNotFound, "user not found"))
+		return helper.WriteServiceError(c, err, "failed to fetch current user", helper.NotFoundCase(helper.ErrNotFound, "user not found"))
 	}
 
 	return c.JSON(item)
@@ -63,56 +64,56 @@ func (h *FrontendHandler) ListFactories(c *fiber.Ctx) error {
 func (h *FrontendHandler) GetFactoryDetail(c *fiber.Ctx) error {
 	factoryID, err := c.ParamsInt("factory_id")
 	if err != nil {
-		return badRequest(c, "invalid factory_id")
+		return helper.BadRequest(c, "invalid factory_id")
 	}
 
 	item, err := h.service.GetFactoryDetail(int64(factoryID))
 	if err != nil {
-		return writeServiceError(c, err, "failed to fetch factory detail", notFoundCase(errNotFound, "factory not found"))
+		return helper.WriteServiceError(c, err, "failed to fetch factory detail", helper.NotFoundCase(helper.ErrNotFound, "factory not found"))
 	}
 	return c.JSON(item)
 }
 
 func (h *FrontendHandler) GetRFQDetail(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
-		return badRequest(c, "invalid user context")
+		return helper.BadRequest(c, "invalid user context")
 	}
 
 	rfqID, err := c.ParamsInt("rfq_id")
 	if err != nil {
-		return badRequest(c, "invalid rfq_id")
+		return helper.BadRequest(c, "invalid rfq_id")
 	}
 
 	item, err := h.service.GetRFQDetail(userID, int64(rfqID))
 	if err != nil {
-		return writeServiceError(c, err, "failed to fetch rfq detail", notFoundCase(errNotFound, "rfq not found"))
+		return helper.WriteServiceError(c, err, "failed to fetch rfq detail", helper.NotFoundCase(helper.ErrNotFound, "rfq not found"))
 	}
 	return c.JSON(item)
 }
 
 func (h *FrontendHandler) GetOrderDetail(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
-		return badRequest(c, "invalid user context")
+		return helper.BadRequest(c, "invalid user context")
 	}
 
 	orderID, err := c.ParamsInt("order_id")
 	if err != nil {
-		return badRequest(c, "invalid order_id")
+		return helper.BadRequest(c, "invalid order_id")
 	}
 
 	item, err := h.service.GetOrderDetail(userID, int64(orderID))
 	if err != nil {
-		return writeServiceError(c, err, "failed to fetch order detail", notFoundCase(errNotFound, "order not found"))
+		return helper.WriteServiceError(c, err, "failed to fetch order detail", helper.NotFoundCase(helper.ErrNotFound, "order not found"))
 	}
 	return c.JSON(item)
 }
 
 func (h *FrontendHandler) ListThreads(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
-		return badRequest(c, "invalid user context")
+		return helper.BadRequest(c, "invalid user context")
 	}
 
 	items, err := h.service.ListThreads(userID)
@@ -123,14 +124,14 @@ func (h *FrontendHandler) ListThreads(c *fiber.Ctx) error {
 }
 
 func (h *FrontendHandler) GetMockData(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
-		return badRequest(c, "invalid user context")
+		return helper.BadRequest(c, "invalid user context")
 	}
 
 	item, err := h.service.GetMockData(userID)
 	if err != nil {
-		return writeServiceError(c, err, "failed to fetch frontend mock data", notFoundCase(errNotFound, "user not found"))
+		return helper.WriteServiceError(c, err, "failed to fetch frontend mock data", helper.NotFoundCase(helper.ErrNotFound, "user not found"))
 	}
 	return c.JSON(item)
 }
@@ -165,7 +166,7 @@ func (h *FrontendHandler) GetPromoCodes(c *fiber.Ctx) error {
 }
 
 func (h *FrontendHandler) GetExplore(c *fiber.Ctx) error {
-	userID := getOptionalUserIDFromHeader(c)
+	userID := helper.OptionalUserIDFromHeader(c)
 	item, err := h.service.GetExploreData(userID)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch explore data"})

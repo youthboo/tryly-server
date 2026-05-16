@@ -3,6 +3,7 @@ package payment
 import (
 	"database/sql"
 	"errors"
+	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -22,7 +23,7 @@ func NewPaymentScheduleHandler(svc *paymentservice.PaymentScheduleService) *Paym
 func (h *PaymentScheduleHandler) List(c *fiber.Ctx) error {
 	orderID, err := c.ParamsInt("order_id")
 	if err != nil || orderID <= 0 {
-		return badRequest(c, "invalid order_id")
+		return helper.BadRequest(c, "invalid order_id")
 	}
 	items, err := h.service.ListByOrderID(int64(orderID))
 	if err != nil {
@@ -40,18 +41,18 @@ func (h *PaymentScheduleHandler) Create(c *fiber.Ctx) error {
 	}
 	orderID, err := c.ParamsInt("order_id")
 	if err != nil || orderID <= 0 {
-		return badRequest(c, "invalid order_id")
+		return helper.BadRequest(c, "invalid order_id")
 	}
 	var req reqBody
-	if err := requireBody(c, &req); err != nil {
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	if req.InstallmentNo <= 0 || strings.TrimSpace(req.DueDate) == "" || req.Amount <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "installment_no, due_date, and amount are required"})
 	}
-	dueDate, err := parseRequiredDateValue(req.DueDate, "due_date")
+	dueDate, err := helper.ParseRequiredDateValue(req.DueDate, "due_date")
 	if err != nil {
-		return badRequest(c, "due_date must be YYYY-MM-DD")
+		return helper.BadRequest(c, "due_date must be YYYY-MM-DD")
 	}
 	item := &domain.PaymentSchedule{
 		OrderID:       int64(orderID),
@@ -70,19 +71,19 @@ func (h *PaymentScheduleHandler) PatchStatus(c *fiber.Ctx) error {
 	type reqBody struct {
 		Status string `json:"status"`
 	}
-	scheduleID, err := parsePositiveInt64Param(c, "schedule_id")
+	scheduleID, err := helper.ParsePositiveInt64Param(c, "schedule_id")
 	if err != nil {
-		return badRequest(c, "invalid schedule_id")
+		return helper.BadRequest(c, "invalid schedule_id")
 	}
 	var req reqBody
-	if err := requireBody(c, &req); err != nil {
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	if err := h.service.PatchStatus(scheduleID, req.Status); err != nil {
 		if errors.Is(err, paymentservice.ErrInvalidScheduleStatus) {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		}
-		return writeServiceError(c, err, "failed to update payment schedule", notFoundCase(sql.ErrNoRows, "payment schedule not found"))
+		return helper.WriteServiceError(c, err, "failed to update payment schedule", helper.NotFoundCase(sql.ErrNoRows, "payment schedule not found"))
 	}
 	return c.JSON(fiber.Map{"message": "payment schedule updated"})
 }

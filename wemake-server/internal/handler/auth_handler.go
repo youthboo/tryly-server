@@ -2,6 +2,7 @@ package handler
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/helper"
 	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/service"
 )
@@ -43,7 +44,7 @@ type resetPasswordRequest struct {
 
 func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	var req registerRequest
-	if err := parseAndValidateBody(c, &req, map[string]string{
+	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"Role":     "role, email, and password are required",
 		"Email":    "role, email, and password are required",
 		"Password": "role, email, and password are required",
@@ -83,7 +84,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 
 func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	var req loginRequest
-	if err := parseAndValidateBody(c, &req, map[string]string{
+	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"Email":    "email and password are required",
 		"Password": "email and password are required",
 	}); err != nil {
@@ -107,7 +108,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
 func (h *AuthHandler) ForgotPassword(c *fiber.Ctx) error {
 	var req forgotPasswordRequest
-	if err := parseAndValidateBody(c, &req, map[string]string{
+	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"Email": "email is required",
 	}); err != nil {
 		return err
@@ -130,7 +131,7 @@ func (h *AuthHandler) ForgotPassword(c *fiber.Ctx) error {
 
 func (h *AuthHandler) ResetPassword(c *fiber.Ctx) error {
 	var req resetPasswordRequest
-	if err := parseAndValidateBody(c, &req, map[string]string{
+	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"Token":       "token and new_password are required",
 		"NewPassword": "token and new_password are required",
 	}); err != nil {

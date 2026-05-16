@@ -8,6 +8,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
+	"github.com/yourusername/wemake/internal/helper"
 	orderrepo "github.com/yourusername/wemake/internal/repository/order"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 )
@@ -127,16 +128,10 @@ func orderStatusLabelTH(status string) string {
 	}
 }
 
-func roundCurrency(v float64) float64 {
-	return domainutil.RoundMoney(v)
-}
-
-func percentOf(amount, total float64) float64 {
-	if total <= 0 {
-		return 0
-	}
-	return roundCurrency((amount / total) * 100)
-}
+var (
+	roundCurrency = helper.RoundCurrency
+	percentOf     = helper.PercentOf
+)
 
 func timePtrInTH(v *time.Time) *time.Time {
 	if v == nil {

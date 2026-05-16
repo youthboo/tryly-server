@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/helper"
 	adminservice "github.com/yourusername/wemake/internal/service/admin"
 )
 
@@ -76,11 +77,11 @@ func parseAdminPeriod(period, rawFrom, rawTo string) (time.Time, time.Time, erro
 		if rawFrom == "" || rawTo == "" {
 			return time.Time{}, time.Time{}, fiber.NewError(fiber.StatusBadRequest, "date_from and date_to are required")
 		}
-		from, err := parseDate(rawFrom, "date_from")
+		from, err := helper.ParseDate(rawFrom, "date_from")
 		if err != nil {
 			return time.Time{}, time.Time{}, fiber.NewError(fiber.StatusBadRequest, "date_from must be YYYY-MM-DD")
 		}
-		to, err := parseDate(rawTo, "date_to")
+		to, err := helper.ParseDate(rawTo, "date_to")
 		if err != nil {
 			return time.Time{}, time.Time{}, fiber.NewError(fiber.StatusBadRequest, "date_to must be YYYY-MM-DD")
 		}

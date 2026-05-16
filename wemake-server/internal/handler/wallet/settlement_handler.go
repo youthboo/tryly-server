@@ -1,6 +1,7 @@
 package wallet
 
 import (
+	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -18,7 +19,7 @@ func NewSettlementHandler(svc *walletservice.SettlementService) *SettlementHandl
 
 // GET /settlements
 func (h *SettlementHandler) List(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -31,11 +32,11 @@ func (h *SettlementHandler) List(c *fiber.Ctx) error {
 
 // GET /settlements/:settlement_id
 func (h *SettlementHandler) GetByID(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	settlementID, err := parsePositiveInt64Param(c, "settlement_id")
+	settlementID, err := helper.ParsePositiveInt64Param(c, "settlement_id")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid settlement_id"})
 	}
@@ -56,12 +57,12 @@ func (h *SettlementHandler) Create(c *fiber.Ctx) error {
 		Amount  float64 `json:"amount" validate:"gt=0"`
 		Note    *string `json:"note"`
 	}
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 	var req reqBody
-	if err := parseAndValidateBody(c, &req, map[string]string{
+	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"Amount": "amount must be greater than 0",
 	}); err != nil {
 		return err
@@ -78,12 +79,12 @@ func (h *SettlementHandler) PatchStatus(c *fiber.Ctx) error {
 	type reqBody struct {
 		Status string `json:"status"`
 	}
-	settlementID, err := parsePositiveInt64Param(c, "settlement_id")
+	settlementID, err := helper.ParsePositiveInt64Param(c, "settlement_id")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid settlement_id"})
 	}
 	var req reqBody
-	if err := requireBody(c, &req); err != nil {
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	status := strings.ToUpper(strings.TrimSpace(req.Status))

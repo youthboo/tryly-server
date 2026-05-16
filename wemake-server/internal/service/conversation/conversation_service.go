@@ -11,6 +11,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
+	"github.com/yourusername/wemake/internal/helper"
 	conversationrepo "github.com/yourusername/wemake/internal/repository/conversation"
 	rfqrepo "github.com/yourusername/wemake/internal/repository/rfq"
 	messageservice "github.com/yourusername/wemake/internal/service/message"
@@ -210,9 +211,7 @@ func mapConversation(row *domain.ConversationRow) domain.ConversationResponse {
 	}
 }
 
-func derefString(value *string) string {
-	return domainutil.StringValue(value)
-}
+var derefString = helper.DerefString
 
 func derefBool(value *bool) bool {
 	return domainutil.BoolValue(value)

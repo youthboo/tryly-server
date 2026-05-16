@@ -3,6 +3,7 @@ package production
 import (
 	"database/sql"
 	"errors"
+	"github.com/yourusername/wemake/internal/helper"
 	"strconv"
 	"strings"
 
@@ -36,7 +37,7 @@ func (h *ProductionHandler) ListSteps(c *fiber.Ctx) error {
 }
 
 func (h *ProductionHandler) ListUpdates(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return productionError(c, fiber.StatusUnauthorized, "UNAUTHORIZED", "unauthorized", nil)
 	}
@@ -52,7 +53,7 @@ func (h *ProductionHandler) ListUpdates(c *fiber.Ctx) error {
 }
 
 func (h *ProductionHandler) CreateUpdate(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return productionError(c, fiber.StatusUnauthorized, "UNAUTHORIZED", "unauthorized", nil)
 	}
@@ -86,7 +87,7 @@ func (h *ProductionHandler) CreateUpdate(c *fiber.Ctx) error {
 }
 
 func (h *ProductionHandler) RejectUpdate(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return productionError(c, fiber.StatusUnauthorized, "UNAUTHORIZED", "unauthorized", nil)
 	}

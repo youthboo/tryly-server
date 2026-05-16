@@ -2,6 +2,7 @@ package profile
 
 import (
 	"context"
+	"github.com/yourusername/wemake/internal/helper"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -27,7 +28,7 @@ func NewProfileHandler(service *profileservice.ProfileService, publicBaseURL str
 }
 
 func (h *ProfileHandler) GetProfile(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -39,11 +40,11 @@ func (h *ProfileHandler) GetProfile(c *fiber.Ctx) error {
 }
 
 func (h *ProfileHandler) UpdateProfile(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	role := getOptionalRoleFromContext(c)
+	role := helper.OptionalRoleFromContext(c)
 	if role == "" {
 		profile, err := h.service.GetProfile(userID)
 		if err != nil {
@@ -103,7 +104,7 @@ func (h *ProfileHandler) UpdateProfile(c *fiber.Ctx) error {
 }
 
 func (h *ProfileHandler) UploadAvatar(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -159,7 +160,7 @@ func (h *ProfileHandler) UploadAvatar(c *fiber.Ctx) error {
 }
 
 func (h *ProfileHandler) ChangePassword(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -181,11 +182,11 @@ func (h *ProfileHandler) ChangePassword(c *fiber.Ctx) error {
 }
 
 func (h *ProfileHandler) GetSummary(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	role := getOptionalRoleFromContext(c)
+	role := helper.OptionalRoleFromContext(c)
 	if role == "" {
 		profile, err := h.service.GetProfile(userID)
 		if err != nil {
@@ -201,11 +202,11 @@ func (h *ProfileHandler) GetSummary(c *fiber.Ctx) error {
 }
 
 func (h *ProfileHandler) ListTransactions(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	page, limit := pageLimit(c, 20)
+	page, limit := helper.PageLimit(c, 20)
 	items, total, totalIn, totalOut, err := h.service.ListTransactions(userID, page, limit, c.Query("type"), c.Query("status"))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch transactions"})
@@ -226,11 +227,11 @@ func (h *ProfileHandler) ListTransactions(c *fiber.Ctx) error {
 }
 
 func (h *ProfileHandler) ListMyReviews(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	page, limit := pageLimit(c, 20)
+	page, limit := helper.PageLimit(c, 20)
 	items, total, err := h.service.ListMyReviews(userID, page, limit)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch reviews"})
@@ -239,12 +240,12 @@ func (h *ProfileHandler) ListMyReviews(c *fiber.Ctx) error {
 }
 
 func (h *ProfileHandler) ListReceivedReviews(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	page, limit := pageLimit(c, 20)
-	role := getOptionalRoleFromContext(c)
+	page, limit := helper.PageLimit(c, 20)
+	role := helper.OptionalRoleFromContext(c)
 	items, total, err := h.service.ListReceivedReviews(userID, role, page, limit)
 	if err != nil {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "factory role required"})
@@ -253,7 +254,7 @@ func (h *ProfileHandler) ListReceivedReviews(c *fiber.Ctx) error {
 }
 
 func (h *ProfileHandler) GetNotifPrefs(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -265,7 +266,7 @@ func (h *ProfileHandler) GetNotifPrefs(c *fiber.Ctx) error {
 }
 
 func (h *ProfileHandler) UpdateNotifPrefs(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}

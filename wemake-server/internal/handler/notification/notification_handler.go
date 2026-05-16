@@ -2,6 +2,7 @@ package notification
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/helper"
 	notificationservice "github.com/yourusername/wemake/internal/service/notification"
 )
 
@@ -14,11 +15,11 @@ func NewNotificationHandler(service *notificationservice.NotificationService) *N
 }
 
 func (h *NotificationHandler) List(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	page, limit := pageLimit(c, 20)
+	page, limit := helper.PageLimit(c, 20)
 	unreadOnly := c.QueryBool("unread", false)
 	items, total, unreadCount, err := h.service.ListPaginated(userID, page, limit, unreadOnly)
 	if err != nil {
@@ -34,7 +35,7 @@ func (h *NotificationHandler) List(c *fiber.Ctx) error {
 }
 
 func (h *NotificationHandler) MarkAsRead(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -49,7 +50,7 @@ func (h *NotificationHandler) MarkAsRead(c *fiber.Ctx) error {
 }
 
 func (h *NotificationHandler) GetUnreadCount(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -61,7 +62,7 @@ func (h *NotificationHandler) GetUnreadCount(c *fiber.Ctx) error {
 }
 
 func (h *NotificationHandler) MarkAllRead(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -73,11 +74,11 @@ func (h *NotificationHandler) MarkAllRead(c *fiber.Ctx) error {
 }
 
 func (h *NotificationHandler) SoftDelete(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	notiID, err := parsePositiveInt64Param(c, "noti_id")
+	notiID, err := helper.ParsePositiveInt64Param(c, "noti_id")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid noti_id"})
 	}

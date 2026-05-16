@@ -2,6 +2,7 @@ package quotation
 
 import (
 	"errors"
+	"github.com/yourusername/wemake/internal/helper"
 	"strconv"
 	"strings"
 	"time"
@@ -38,7 +39,7 @@ func (h *QuotationHandler) CreateQuotation(c *fiber.Ctx) error {
 		FactoryHighlight *string            `json:"factory_highlight"`
 	}
 
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
@@ -49,7 +50,7 @@ func (h *QuotationHandler) CreateQuotation(c *fiber.Ctx) error {
 	}
 
 	var req reqBody
-	if err := parseAndValidateBody(c, &req, map[string]string{
+	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"FactoryID":     "factory_id and lead_time_days are required; price_per_piece must be >= 0",
 		"PricePerPiece": "factory_id and lead_time_days are required; price_per_piece must be >= 0",
 		"LeadTimeDays":  "factory_id and lead_time_days are required; price_per_piece must be >= 0",
@@ -122,7 +123,7 @@ func (h *QuotationHandler) ListQuotationsByRFQ(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) ListMine(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
@@ -142,7 +143,7 @@ func (h *QuotationHandler) ListMine(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) ListCollection(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
@@ -193,7 +194,7 @@ func (h *QuotationHandler) GetQuotation(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) ListHistory(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
@@ -230,12 +231,12 @@ func (h *QuotationHandler) Preview(c *fiber.Ctx) error {
 		PackagingCost   float64                `json:"packaging_cost"`
 		ToolingMoldCost float64                `json:"tooling_mold_cost"`
 	}
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
 	var req reqBody
-	if err := requireBody(c, &req); err != nil {
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	item, err := h.service.Preview(req.Items, req.DiscountAmount, req.ShippingCost, req.PackagingCost, req.ToolingMoldCost, &userID)
@@ -263,12 +264,12 @@ func (h *QuotationHandler) CreateDetailed(c *fiber.Ctx) error {
 		WarrantyPeriodMonths *int                   `json:"warranty_period_months"`
 		FactoryHighlight     *string                `json:"factory_highlight"`
 	}
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
 	var req reqBody
-	if err := requireBody(c, &req); err != nil {
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	item := &domain.Quotation{
@@ -335,12 +336,12 @@ func (h *QuotationHandler) CreateRevision(c *fiber.Ctx) error {
 		ValidityDays         int                    `json:"validity_days"`
 		WarrantyPeriodMonths *int                   `json:"warranty_period_months"`
 	}
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
 	var req reqBody
-	if err := requireBody(c, &req); err != nil {
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	item := &domain.Quotation{
@@ -366,7 +367,7 @@ func (h *QuotationHandler) CreateRevision(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) Accept(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
@@ -382,7 +383,7 @@ func (h *QuotationHandler) Accept(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) Reject(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
@@ -411,7 +412,7 @@ func (h *QuotationHandler) PatchQuotation(c *fiber.Ctx) error {
 		Reason           string             `json:"reason"`
 		ImageURLs        domain.StringArray `json:"image_urls"`
 	}
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
@@ -420,7 +421,7 @@ func (h *QuotationHandler) PatchQuotation(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid quotation_id"})
 	}
 	var req reqBody
-	if err := requireBody(c, &req); err != nil {
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	// tooling_mold_cost takes precedence over legacy mold_cost
@@ -474,7 +475,7 @@ func (h *QuotationHandler) PatchQuotationStatus(c *fiber.Ctx) error {
 	type reqBody struct {
 		Status string `json:"status" validate:"notblank"`
 	}
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	var editor *int64
 	if err == nil {
 		editor = &userID
@@ -484,7 +485,7 @@ func (h *QuotationHandler) PatchQuotationStatus(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid quotation_id"})
 	}
 	var req reqBody
-	if err := parseAndValidateBody(c, &req, map[string]string{
+	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"Status": "status must be PD, AC, RJ or EX",
 	}); err != nil {
 		return err

@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -18,7 +19,7 @@ func NewAdminUserHandler(authService *service.AuthService, authRepo *repository.
 }
 
 func (h *AdminUserHandler) Create(c *fiber.Ctx) error {
-	actorID, err := getUserIDFromHeader(c)
+	actorID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -33,7 +34,7 @@ func (h *AdminUserHandler) Create(c *fiber.Ctx) error {
 		DisplayName string  `json:"display_name"`
 		Department  *string `json:"department"`
 	}
-	if err := requireBody(c, &req); err != nil {
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	item, err := h.authService.RegisterAdmin(service.RegisterAdminInput{

@@ -2,6 +2,7 @@ package boq
 
 import (
 	"errors"
+	"github.com/yourusername/wemake/internal/helper"
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
@@ -30,7 +31,7 @@ type boqPayload struct {
 }
 
 func (h *BOQHandler) Create(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -50,7 +51,7 @@ func (h *BOQHandler) Create(c *fiber.Ctx) error {
 }
 
 func (h *BOQHandler) Get(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -66,7 +67,7 @@ func (h *BOQHandler) Get(c *fiber.Ctx) error {
 }
 
 func (h *BOQHandler) Update(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -86,7 +87,7 @@ func (h *BOQHandler) Update(c *fiber.Ctx) error {
 }
 
 func (h *BOQHandler) Accept(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -109,7 +110,7 @@ func (h *BOQHandler) Accept(c *fiber.Ctx) error {
 }
 
 func (h *BOQHandler) Decline(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -133,7 +134,7 @@ func (h *BOQHandler) Decline(c *fiber.Ctx) error {
 }
 
 func (h *BOQHandler) ListMine(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}

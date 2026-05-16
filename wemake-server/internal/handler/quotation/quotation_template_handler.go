@@ -3,6 +3,7 @@ package quotation
 import (
 	"database/sql"
 	"errors"
+	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
@@ -19,7 +20,7 @@ func NewQuotationTemplateHandler(svc *quotationservice.QuotationTemplateService)
 
 // GET /quotation-templates
 func (h *QuotationTemplateHandler) List(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
@@ -32,12 +33,12 @@ func (h *QuotationTemplateHandler) List(c *fiber.Ctx) error {
 
 // POST /quotation-templates
 func (h *QuotationTemplateHandler) Create(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 	var req domain.QuotationTemplate
-	if err := parseAndValidateBody(c, &req, map[string]string{
+	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"TemplateName": "template_name is required",
 	}); err != nil {
 		return err
@@ -51,16 +52,16 @@ func (h *QuotationTemplateHandler) Create(c *fiber.Ctx) error {
 
 // PATCH /quotation-templates/:template_id
 func (h *QuotationTemplateHandler) Patch(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	templateID, err := parsePositiveInt64Param(c, "template_id")
+	templateID, err := helper.ParsePositiveInt64Param(c, "template_id")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid template_id"})
 	}
 	var req domain.QuotationTemplate
-	if err := requireBody(c, &req); err != nil {
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	req.TemplateID = templateID
@@ -76,11 +77,11 @@ func (h *QuotationTemplateHandler) Patch(c *fiber.Ctx) error {
 
 // DELETE /quotation-templates/:template_id
 func (h *QuotationTemplateHandler) Delete(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	templateID, err := parsePositiveInt64Param(c, "template_id")
+	templateID, err := helper.ParsePositiveInt64Param(c, "template_id")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid template_id"})
 	}

@@ -3,6 +3,7 @@ package user
 import (
 	"database/sql"
 	"errors"
+	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -29,7 +30,7 @@ func normalizeAddressType(raw string) (string, bool) {
 }
 
 func (h *AddressHandler) ListAddresses(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
@@ -52,7 +53,7 @@ func (h *AddressHandler) CreateAddress(c *fiber.Ctx) error {
 		IsDefault     bool   `json:"is_default"`
 	}
 
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
@@ -98,7 +99,7 @@ func (h *AddressHandler) PatchAddress(c *fiber.Ctx) error {
 		IsDefault     *bool   `json:"is_default"`
 	}
 
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
@@ -147,7 +148,7 @@ func (h *AddressHandler) PatchAddress(c *fiber.Ctx) error {
 }
 
 func (h *AddressHandler) DeleteAddress(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}

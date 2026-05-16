@@ -2,6 +2,7 @@ package rfq
 
 import (
 	"database/sql"
+	"github.com/yourusername/wemake/internal/helper"
 	"strconv"
 	"strings"
 	"time"
@@ -46,13 +47,13 @@ func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
 		RequestKind            string   `json:"request_kind"`
 	}
 
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
 
 	var req createRFQRequest
-	if err := parseAndValidateBody(c, &req, map[string]string{
+	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"CategoryID": "category_id, title, quantity, and address_id are required",
 		"Title":      "category_id, title, quantity, and address_id are required",
 		"Quantity":   "category_id, title, quantity, and address_id are required",
@@ -108,7 +109,7 @@ func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
 }
 
 func (h *RFQHandler) PatchRFQ(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
@@ -139,7 +140,7 @@ func (h *RFQHandler) PatchRFQ(c *fiber.Ctx) error {
 		RequestKind            string   `json:"request_kind"`
 	}
 	var req patchRFQRequest
-	if err := requireBody(c, &req); err != nil {
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	details := strings.TrimSpace(req.Details)
@@ -171,7 +172,7 @@ func (h *RFQHandler) PatchRFQ(c *fiber.Ctx) error {
 }
 
 func (h *RFQHandler) ListRFQs(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
@@ -234,7 +235,7 @@ func (h *RFQHandler) PreviewFactories(c *fiber.Ctx) error {
 }
 
 func (h *RFQHandler) ListMatching(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
@@ -258,7 +259,7 @@ func (h *RFQHandler) ListMatching(c *fiber.Ctx) error {
 }
 
 func (h *RFQHandler) DismissRFQ(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
@@ -298,7 +299,7 @@ func (h *RFQHandler) DismissRFQ(c *fiber.Ctx) error {
 }
 
 func (h *RFQHandler) UndismissRFQ(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
@@ -323,7 +324,7 @@ func (h *RFQHandler) UndismissRFQ(c *fiber.Ctx) error {
 }
 
 func (h *RFQHandler) GetRFQ(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
@@ -348,7 +349,7 @@ func (h *RFQHandler) GetRFQ(c *fiber.Ctx) error {
 }
 
 func (h *RFQHandler) CancelRFQ(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
@@ -366,7 +367,7 @@ func (h *RFQHandler) CancelRFQ(c *fiber.Ctx) error {
 // CloseRFQ lets the customer manually close (stop accepting new quotes) an open RFQ.
 // PATCH /rfqs/:rfq_id/close
 func (h *RFQHandler) CloseRFQ(c *fiber.Ctx) error {
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}

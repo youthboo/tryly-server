@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"errors"
+	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/repository"
@@ -21,12 +22,12 @@ func (h *TopupHandler) CreateIntent(c *fiber.Ctx) error {
 	type reqBody struct {
 		Amount float64 `json:"amount" validate:"gt=0"`
 	}
-	userID, err := getUserIDFromHeader(c)
+	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
 	var req reqBody
-	if err := parseAndValidateBody(c, &req, map[string]string{
+	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
 		"Amount": "amount must be greater than 0",
 	}); err != nil {
 		return err

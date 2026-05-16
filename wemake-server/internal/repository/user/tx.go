@@ -1,23 +1,5 @@
 package user
 
-import (
-	"context"
+import "github.com/yourusername/wemake/internal/helper"
 
-	"github.com/jmoiron/sqlx"
-)
-
-func withTx(ctx context.Context, db *sqlx.DB, fn func(*sqlx.Tx) error) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	tx, err := db.BeginTxx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	if err := fn(tx); err != nil {
-		return err
-	}
-	return tx.Commit()
-}
+var withTx = helper.WithTx

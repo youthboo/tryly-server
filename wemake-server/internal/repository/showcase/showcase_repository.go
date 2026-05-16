@@ -6,7 +6,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/domainutil"
+	"github.com/yourusername/wemake/internal/helper"
 )
 
 type ShowcaseRepository struct {
@@ -257,13 +257,10 @@ func aggregateSections(rows []sectionRow) []domain.ShowcaseSection {
 	return sections
 }
 
-func derefString(s *string) string {
-	return domainutil.StringValue(s)
-}
-
-func derefInt(i *int) int {
-	return domainutil.IntValue(i)
-}
+var (
+	derefString = helper.DerefString
+	derefInt    = helper.DerefInt
+)
 
 // GetDetail returns the full showcase detail including images and sections.
 // callerID=0 means unauthenticated public request.

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/helper"
 )
 
 type notificationCreator interface {
@@ -17,21 +17,7 @@ type systemMessageSender interface {
 	AutoSendQuotationCard(context.Context, int64, int64, *domain.Quotation) error
 }
 
-func WithTx(ctx context.Context, db *sqlx.DB, fn func(*sqlx.Tx) error) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	tx, err := db.BeginTxx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	if err := fn(tx); err != nil {
-		return err
-	}
-	return tx.Commit()
-}
+var WithTx = helper.WithTx
 
 func notificationData(payload map[string]interface{}) *domain.JSONB {
 	if len(payload) == 0 {
