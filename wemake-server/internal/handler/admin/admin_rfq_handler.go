@@ -8,6 +8,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/dto"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 )
 
@@ -71,10 +72,7 @@ func (h *AdminRFQHandler) PatchStatus(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.BadRequest(c, "invalid rfq_id")
 	}
-	var req struct {
-		Status string `json:"status"`
-		Reason string `json:"reason"`
-	}
+	var req dto.PatchRFQStatusRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
@@ -86,7 +84,11 @@ func (h *AdminRFQHandler) PatchStatus(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update rfq status"})
 	}
 	actorID, _ := helper.UserIDFromHeader(c)
-	payload, _ := json.Marshal(map[string]interface{}{"status": status, "reason": req.Reason})
+	notes := ""
+	if req.Notes != nil {
+		notes = *req.Notes
+	}
+	payload, _ := json.Marshal(map[string]interface{}{"status": status, "notes": notes})
 	ip := c.IP()
 	_ = h.audit.Insert(&domain.AdminAuditLog{ActorID: actorID, Action: "RFQ_STATUS_CHANGE", TargetType: "rfq", TargetID: strconv.FormatInt(rfqID, 10), Payload: payload, IPAddress: &ip})
 	return c.JSON(fiber.Map{"rfq_id": rfqID, "status": status})

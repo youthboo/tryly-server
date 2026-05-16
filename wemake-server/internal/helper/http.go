@@ -404,3 +404,57 @@ func UnauthorizedAPIError(code string, message string) *APIError {
 func InternalServerError(code string, message string) *APIError {
 	return NewAPIError(fiber.StatusInternalServerError, code, message)
 }
+
+// ============= RESPONSE WRAPPERS =============
+
+// ListResponse wrapper สำหรับ list endpoints
+type ListResponse struct {
+	Data   interface{} `json:"data"`
+	Total  int         `json:"total"`
+	Page   int         `json:"page,omitempty"`
+	Limit  int         `json:"limit,omitempty"`
+	HasMore bool        `json:"has_more,omitempty"`
+}
+
+// PaginatedListResponse wrapper สำหรับ paginated lists
+type PaginatedListResponse struct {
+	Items      interface{} `json:"items"`
+	Total      int         `json:"total"`
+	Page       int         `json:"page"`
+	Limit      int         `json:"limit"`
+	TotalPages int         `json:"total_pages"`
+}
+
+// SuccessResponse wrapper สำหรับ success responses
+type SuccessResponse struct {
+	Message string      `json:"message"`
+	Data    interface{} `json:"data,omitempty"`
+}
+
+// WriteListResponse เขียน list response
+func WriteListResponse(c *fiber.Ctx, data interface{}, total int) error {
+	return c.JSON(ListResponse{
+		Data:  data,
+		Total: total,
+	})
+}
+
+// WritePaginatedResponse เขียน paginated response
+func WritePaginatedResponse(c *fiber.Ctx, items interface{}, total int, page int, limit int) error {
+	totalPages := (total + limit - 1) / limit
+	return c.JSON(PaginatedListResponse{
+		Items:      items,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	})
+}
+
+// WriteSuccess เขียน success response
+func WriteSuccess(c *fiber.Ctx, message string, data interface{}) error {
+	return c.JSON(SuccessResponse{
+		Message: message,
+		Data:    data,
+	})
+}

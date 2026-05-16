@@ -5,6 +5,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 	walletservice "github.com/yourusername/wemake/internal/service/wallet"
@@ -19,28 +20,17 @@ func NewTransactionHandler(service *walletservice.TransactionService) *Transacti
 }
 
 func (h *TransactionHandler) CreateTransaction(c *fiber.Ctx) error {
-	type reqBody struct {
-		WalletID int64   `json:"wallet_id" validate:"gt=0"`
-		OrderID  *int64  `json:"order_id"`
-		Type     string  `json:"type" validate:"notblank"`
-		Amount   float64 `json:"amount"`
-		Status   string  `json:"status" validate:"notblank"`
-	}
-	var req reqBody
-	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
-		"WalletID": "wallet_id, type, status are required",
-		"Type":     "wallet_id, type, status are required",
-		"Status":   "wallet_id, type, status are required",
-	}); err != nil {
+	var req dto.CreateTransactionRequest
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 
 	item := &domain.Transaction{
-		WalletID: req.WalletID,
-		OrderID:  req.OrderID,
+		WalletID: 0,
+		OrderID:  nil,
 		Type:     req.Type,
 		Amount:   req.Amount,
-		Status:   req.Status,
+		Status:   "ST",
 	}
 	if err := h.service.Create(item); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create transaction"})
@@ -80,15 +70,12 @@ func (h *TransactionHandler) ListTransactions(c *fiber.Ctx) error {
 }
 
 func (h *TransactionHandler) PatchTransactionStatus(c *fiber.Ctx) error {
-	type reqBody struct {
-		Status string `json:"status"`
-	}
 	txID := c.Params("tx_id")
 	if strings.TrimSpace(txID) == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid tx_id"})
 	}
 
-	var req reqBody
+	var req dto.PatchTransactionStatusRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}

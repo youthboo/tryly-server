@@ -4,6 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	walletservice "github.com/yourusername/wemake/internal/service/wallet"
 )
@@ -18,26 +19,27 @@ func NewWithdrawalHandler(svc *walletservice.WithdrawalService) *WithdrawalHandl
 
 // POST /wallets/withdraw
 func (h *WithdrawalHandler) Create(c *fiber.Ctx) error {
-	type reqBody struct {
-		Amount        float64 `json:"amount" validate:"gt=0"`
-		BankAccountNo string  `json:"bank_account_no" validate:"notblank"`
-		BankName      string  `json:"bank_name" validate:"notblank"`
-		AccountName   string  `json:"account_name" validate:"notblank"`
-	}
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	var req reqBody
-	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
-		"Amount":        "amount must be greater than 0",
-		"BankAccountNo": "bank_account_no, bank_name, and account_name are required",
-		"BankName":      "bank_account_no, bank_name, and account_name are required",
-		"AccountName":   "bank_account_no, bank_name, and account_name are required",
-	}); err != nil {
+	var req dto.WithdrawalRequest
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
-	item, err := h.service.Create(userID, req.Amount, req.BankAccountNo, req.BankName, req.AccountName)
+	bankAccountNo := ""
+	if req.AccountNumber != nil {
+		bankAccountNo = *req.AccountNumber
+	}
+	bankName := ""
+	if req.BankName != nil {
+		bankName = *req.BankName
+	}
+	accountName := ""
+	if req.AccountHolderName != nil {
+		accountName = *req.AccountHolderName
+	}
+	item, err := h.service.Create(userID, req.Amount, bankAccountNo, bankName, accountName)
 	if err != nil {
 		return helper.MapServiceError(c, err, withdrawalCreateFallback, withdrawalCreateResponses)
 	}
@@ -59,19 +61,15 @@ func (h *WithdrawalHandler) List(c *fiber.Ctx) error {
 
 // PATCH /wallets/withdraw/:request_id/status
 func (h *WithdrawalHandler) PatchStatus(c *fiber.Ctx) error {
-	type reqBody struct {
-		Status string  `json:"status"`
-		Note   *string `json:"note"`
-	}
 	requestID, err := helper.ParsePositiveInt64Param(c, "request_id")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request_id"})
 	}
-	var req reqBody
+	var req dto.PatchWithdrawalStatusRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.UpdateStatus(requestID, req.Status, req.Note); err != nil {
+	if err := h.service.UpdateStatus(requestID, req.Status, req.Comments); err != nil {
 		return helper.MapServiceError(c, err, withdrawalPatchStatusFallback, withdrawalPatchStatusResponses)
 	}
 	return c.JSON(fiber.Map{"message": "withdrawal status updated"})

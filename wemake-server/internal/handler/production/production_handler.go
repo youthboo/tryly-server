@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	productionservice "github.com/yourusername/wemake/internal/service/production"
 )
@@ -59,23 +60,24 @@ func (h *ProductionHandler) CreateUpdate(c *fiber.Ctx) error {
 	if err != nil {
 		return productionError(c, fiber.StatusBadRequest, "INVALID_ORDER_ID", "invalid order_id", nil)
 	}
-	type reqBody struct {
-		StepID                int64    `json:"step_id"`
-		Status                string   `json:"status"`
-		Description           string   `json:"description"`
-		ImageURLs             []string `json:"image_urls"`
-		ConfirmPaymentTrigger bool     `json:"confirm_payment_trigger"`
-	}
-	var req reqBody
+	var req dto.CreateProductionUpdateRequest
 	if err := helper.ParseBody(c, &req, "invalid request payload"); err != nil {
 		return productionError(c, fiber.StatusBadRequest, "INVALID_PAYLOAD", "invalid request payload", nil)
+	}
+	description := ""
+	if req.Notes != nil {
+		description = *req.Notes
+	}
+	progressPercent := 0
+	if req.ProgressPercent != nil {
+		progressPercent = *req.ProgressPercent
 	}
 	result, err := h.service.Upsert(int64(orderID), userID, productionservice.ProductionWriteInput{
 		StepID:                 req.StepID,
 		Status:                 req.Status,
-		Description:            req.Description,
+		Description:            description,
 		ImageURLs:              req.ImageURLs,
-		ConfirmPaymentTrigger:  req.ConfirmPaymentTrigger,
+		ConfirmPaymentTrigger:  progressPercent > 0,
 		HeaderPaymentConfirmed: strings.EqualFold(strings.TrimSpace(c.Get("X-Confirm-Payment-Trigger")), "true"),
 	})
 	if err != nil {
@@ -93,14 +95,11 @@ func (h *ProductionHandler) RejectUpdate(c *fiber.Ctx) error {
 	if err != nil {
 		return productionError(c, fiber.StatusBadRequest, "INVALID_UPDATE_ID", "invalid update_id", nil)
 	}
-	type reqBody struct {
-		RejectedReason string `json:"rejected_reason"`
-	}
-	var req reqBody
+	var req dto.RejectProductionUpdateRequest
 	if err := helper.ParseBody(c, &req, "invalid request payload"); err != nil {
 		return productionError(c, fiber.StatusBadRequest, "INVALID_PAYLOAD", "invalid request payload", nil)
 	}
-	item, err := h.service.Reject(int64(updateID), userID, req.RejectedReason)
+	item, err := h.service.Reject(int64(updateID), userID, req.Reason)
 	if err != nil {
 		return productionServiceError(c, err)
 	}

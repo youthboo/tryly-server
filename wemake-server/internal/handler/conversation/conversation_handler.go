@@ -5,6 +5,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/dto"
 	conversationservice "github.com/yourusername/wemake/internal/service/conversation"
 )
 
@@ -117,9 +118,7 @@ func (h *ConversationHandler) ShareRFQ(c *fiber.Ctx) error {
 	if err != nil || convID <= 0 {
 		return helper.BadRequest(c, "invalid conv_id")
 	}
-	var req struct {
-		RFQID int64 `json:"rfq_id"`
-	}
+	var req dto.ShareRFQRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}

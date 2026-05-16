@@ -9,6 +9,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/dto"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 	orderservice "github.com/yourusername/wemake/internal/service/order"
@@ -83,10 +84,7 @@ func (h *AdminOrderHandler) PatchStatus(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.JSONError(c, fiber.StatusBadRequest, "invalid order_id")
 	}
-	var req struct {
-		Status string `json:"status"`
-		Reason string `json:"reason"`
-	}
+	var req dto.PatchOrderStatusRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
@@ -99,7 +97,11 @@ func (h *AdminOrderHandler) PatchStatus(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update order status"})
 	}
 	actorID, _ := helper.UserIDFromHeader(c)
-	payload, _ := json.Marshal(map[string]interface{}{"status": status, "reason": req.Reason})
+	notes := ""
+	if req.Notes != nil {
+		notes = *req.Notes
+	}
+	payload, _ := json.Marshal(map[string]interface{}{"status": status, "notes": notes})
 	ip := c.IP()
 	_ = h.audit.Insert(&domain.AdminAuditLog{ActorID: actorID, Action: "ORDER_STATUS_CHANGE", TargetType: "order", TargetID: strconv.FormatInt(orderID, 10), Payload: payload, IPAddress: &ip})
 	return c.JSON(fiber.Map{"order_id": orderID, "status": status})
@@ -122,10 +124,7 @@ func (h *AdminOrderHandler) PatchWithdrawal(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.JSONError(c, fiber.StatusBadRequest, "invalid request_id")
 	}
-	var req struct {
-		Status string  `json:"status"`
-		Note   *string `json:"note"`
-	}
+	var req dto.PatchWithdrawalStatusRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
@@ -133,11 +132,11 @@ func (h *AdminOrderHandler) PatchWithdrawal(c *fiber.Ctx) error {
 	if status != "AP" && status != "RJ" && status != "CP" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "status must be AP, RJ, or CP"})
 	}
-	if err := h.withdrawal.UpdateStatus(requestID, status, req.Note); err != nil {
+	if err := h.withdrawal.UpdateStatus(requestID, status, req.Comments); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update withdrawal"})
 	}
 	actorID, _ := helper.UserIDFromHeader(c)
-	payload, _ := json.Marshal(map[string]interface{}{"status": status, "note": req.Note})
+	payload, _ := json.Marshal(map[string]interface{}{"status": status, "comments": req.Comments})
 	ip := c.IP()
 	_ = h.audit.Insert(&domain.AdminAuditLog{ActorID: actorID, Action: "WITHDRAWAL_STATUS_CHANGE", TargetType: "withdrawal", TargetID: strconv.FormatInt(requestID, 10), Payload: payload, IPAddress: &ip})
 	return c.JSON(fiber.Map{"request_id": requestID, "status": status, "processed_at": time.Now().UTC()})
@@ -160,10 +159,7 @@ func (h *AdminOrderHandler) PatchDispute(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.JSONError(c, fiber.StatusBadRequest, "invalid dispute_id")
 	}
-	var req struct {
-		Status     string  `json:"status"`
-		Resolution *string `json:"resolution"`
-	}
+	var req dto.PatchDisputeStatusRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
@@ -171,11 +167,11 @@ func (h *AdminOrderHandler) PatchDispute(c *fiber.Ctx) error {
 	if status != "RS" && status != "CL" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "status must be RS or CL"})
 	}
-	if err := h.dispute.UpdateStatus(disputeID, status, req.Resolution); err != nil {
+	if err := h.dispute.UpdateStatus(disputeID, status, req.Comments); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update dispute"})
 	}
 	actorID, _ := helper.UserIDFromHeader(c)
-	payload, _ := json.Marshal(map[string]interface{}{"status": status, "resolution": req.Resolution})
+	payload, _ := json.Marshal(map[string]interface{}{"status": status, "comments": req.Comments})
 	ip := c.IP()
 	_ = h.audit.Insert(&domain.AdminAuditLog{ActorID: actorID, Action: "DISPUTE_STATUS_CHANGE", TargetType: "dispute", TargetID: strconv.FormatInt(disputeID, 10), Payload: payload, IPAddress: &ip})
 	item, _ := h.dispute.GetByID(disputeID)

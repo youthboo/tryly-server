@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/repository"
 	"github.com/yourusername/wemake/internal/service"
 )
@@ -27,22 +28,17 @@ func (h *AdminUserHandler) Create(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	var req struct {
-		Email       string  `json:"email"`
-		Password    string  `json:"password"`
-		Role        string  `json:"role"`
-		DisplayName string  `json:"display_name"`
-		Department  *string `json:"department"`
-	}
+	var req dto.CreateAdminUserRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
+	displayName := req.FirstName + " " + req.LastName
 	item, err := h.authService.RegisterAdmin(service.RegisterAdminInput{
 		Role:        strings.TrimSpace(req.Role),
 		Email:       strings.TrimSpace(req.Email),
 		Password:    req.Password,
-		DisplayName: strings.TrimSpace(req.DisplayName),
-		Department:  req.Department,
+		DisplayName: displayName,
+		Department:  nil,
 		CreatedBy:   &actorID,
 	}, actor.Role)
 	if err != nil {

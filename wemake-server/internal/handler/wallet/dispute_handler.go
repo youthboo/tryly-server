@@ -4,6 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	walletservice "github.com/yourusername/wemake/internal/service/wallet"
 )
@@ -18,9 +19,6 @@ func NewDisputeHandler(svc *walletservice.DisputeService) *DisputeHandler {
 
 // POST /orders/:order_id/disputes
 func (h *DisputeHandler) Create(c *fiber.Ctx) error {
-	type reqBody struct {
-		Reason string `json:"reason" validate:"notblank"`
-	}
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
@@ -29,13 +27,11 @@ func (h *DisputeHandler) Create(c *fiber.Ctx) error {
 	if err != nil || orderID <= 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
 	}
-	var req reqBody
-	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
-		"Reason": "reason is required",
-	}); err != nil {
+	var req dto.CreateDisputeRequest
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
-	item, err := h.service.Create(int64(orderID), userID, req.Reason)
+	item, err := h.service.Create(int64(orderID), userID, req.Description)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create dispute"})
 	}
@@ -57,19 +53,15 @@ func (h *DisputeHandler) GetByOrderID(c *fiber.Ctx) error {
 
 // PATCH /disputes/:dispute_id
 func (h *DisputeHandler) PatchStatus(c *fiber.Ctx) error {
-	type reqBody struct {
-		Status     string  `json:"status"`
-		Resolution *string `json:"resolution"`
-	}
 	disputeID, err := helper.ParsePositiveInt64Param(c, "dispute_id")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid dispute_id"})
 	}
-	var req reqBody
+	var req dto.PatchDisputeStatusRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
-	if err := h.service.UpdateStatus(disputeID, req.Status, req.Resolution); err != nil {
+	if err := h.service.UpdateStatus(disputeID, req.Status, req.Comments); err != nil {
 		return helper.MapServiceError(c, err, disputePatchStatusFallback, disputePatchStatusResponses)
 	}
 	return c.JSON(fiber.Map{"message": "dispute updated"})

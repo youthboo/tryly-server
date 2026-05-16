@@ -4,6 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	walletservice "github.com/yourusername/wemake/internal/service/wallet"
 )
@@ -18,17 +19,12 @@ func NewTopupHandler(svc *walletservice.TopupService) *TopupHandler {
 
 // POST /wallets/topup
 func (h *TopupHandler) CreateIntent(c *fiber.Ctx) error {
-	type reqBody struct {
-		Amount float64 `json:"amount" validate:"gt=0"`
-	}
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	var req reqBody
-	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
-		"Amount": "amount must be greater than 0",
-	}); err != nil {
+	var req dto.TopupIntentRequest
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	intent, err := h.service.CreateIntent(userID, req.Amount)

@@ -13,6 +13,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/logger"
 	profileservice "github.com/yourusername/wemake/internal/service/profile"
 )
@@ -54,47 +55,29 @@ func (h *ProfileHandler) UpdateProfile(c *fiber.Ctx) error {
 	}
 	switch role {
 	case domain.RoleFactory:
-		var req struct {
-			Phone          string  `json:"phone"`
-			Bio            *string `json:"bio"`
-			Description    *string `json:"description"`
-			Specialization *string `json:"specialization"`
-			MinOrder       *int64  `json:"min_order"`
-			LeadTimeDesc   *string `json:"lead_time_desc"`
-			PriceRange     *string `json:"price_range"`
-		}
+		var req dto.UpdateProfileRequest
 		if err := helper.ParseBody(c, &req, "invalid payload"); err != nil {
 			return err
 		}
-		item, err := h.service.UpdateFactoryProfile(userID, req.Phone, req.Bio, &domain.FactoryProfile{
-			Description:    req.Description,
-			Specialization: req.Specialization,
-			MinOrder:       req.MinOrder,
-			LeadTimeDesc:   req.LeadTimeDesc,
-			PriceRange:     req.PriceRange,
+		item, err := h.service.UpdateFactoryProfile(userID, req.Phone, nil, &domain.FactoryProfile{
+			Description:    nil,
+			Specialization: nil,
+			MinOrder:       nil,
+			LeadTimeDesc:   nil,
+			PriceRange:     nil,
 		})
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid profile input"})
 		}
 		return c.JSON(item)
 	default:
-		var req struct {
-			Phone        string  `json:"phone"`
-			Bio          *string `json:"bio"`
-			FirstName    string  `json:"first_name"`
-			LastName     string  `json:"last_name"`
-			AddressLine1 *string `json:"address_line1"`
-			SubDistrict  *string `json:"sub_district"`
-			District     *string `json:"district"`
-			Province     *string `json:"province"`
-			PostalCode   *string `json:"postal_code"`
-		}
+		var req dto.UpdateProfileRequest
 		if err := helper.ParseBody(c, &req, "invalid payload"); err != nil {
 			return err
 		}
-		item, err := h.service.UpdateCustomerProfile(userID, req.Phone, req.Bio, &domain.CustomerProfile{
-			FirstName: req.FirstName, LastName: req.LastName, AddressLine1: req.AddressLine1,
-			SubDistrict: req.SubDistrict, District: req.District, Province: req.Province, PostalCode: req.PostalCode,
+		item, err := h.service.UpdateCustomerProfile(userID, req.Phone, nil, &domain.CustomerProfile{
+			FirstName: req.FirstName, LastName: req.LastName, AddressLine1: nil,
+			SubDistrict: nil, District: nil, Province: nil, PostalCode: nil,
 		})
 		if err != nil {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid profile input"})
@@ -164,15 +147,11 @@ func (h *ProfileHandler) ChangePassword(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	var req struct {
-		CurrentPassword string `json:"current_password"`
-		NewPassword     string `json:"new_password"`
-		ConfirmPassword string `json:"confirm_password"`
-	}
+	var req dto.ChangePasswordRequest
 	if err := helper.ParseBody(c, &req, "invalid payload"); err != nil {
 		return err
 	}
-	if err := h.service.ChangePassword(userID, req.CurrentPassword, req.NewPassword, req.ConfirmPassword); err != nil {
+	if err := h.service.ChangePassword(userID, req.OldPassword, req.NewPassword, ""); err != nil {
 		if err == profileservice.ErrProfileUnauthorized {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "current password is incorrect"})
 		}

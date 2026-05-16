@@ -9,6 +9,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/dto"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 )
@@ -35,32 +36,16 @@ func (h *AdminConfigHandler) ListRules(c *fiber.Ctx) error {
 }
 
 func (h *AdminConfigHandler) CreateRule(c *fiber.Ctx) error {
-	var req struct {
-		FactoryID     int64   `json:"factory_id"`
-		RatePercent   float64 `json:"rate_percent"`
-		EffectiveFrom *string `json:"effective_from"`
-		EffectiveTo   *string `json:"effective_to"`
-		Note          *string `json:"note"`
-	}
+	var req dto.CreateCommissionRuleRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
-	if req.FactoryID <= 0 || req.RatePercent < 0 || req.RatePercent > 100 {
+	if req.CommissionRate < 0 || req.CommissionRate > 100 {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid commission rule payload"})
 	}
 	from := time.Now().UTC()
-	if parsedFrom, err := helper.ParseOptionalRFC3339Value(req.EffectiveFrom, "effective_from"); err != nil {
-		return helper.BadRequest(c, "effective_from must be RFC3339")
-	} else if parsedFrom != nil {
-		from = *parsedFrom
-	}
-	to, err := helper.ParseOptionalRFC3339Value(req.EffectiveTo, "effective_to")
-	if err != nil {
-		return helper.BadRequest(c, "effective_to must be RFC3339")
-	}
 	actorID, _ := helper.UserIDFromHeader(c)
-	factoryID := req.FactoryID
-	item := &domain.CommissionRule{FactoryID: &factoryID, RatePercent: req.RatePercent, EffectiveFrom: from, EffectiveTo: to, Note: req.Note, CreatedBy: actorID}
+	item := &domain.CommissionRule{RatePercent: req.CommissionRate, EffectiveFrom: from, Note: req.Description, CreatedBy: actorID}
 	if err := h.commission.CreateRule(item); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create commission rule"})
 	}
@@ -91,26 +76,26 @@ func (h *AdminConfigHandler) ListExemptions(c *fiber.Ctx) error {
 }
 
 func (h *AdminConfigHandler) CreateExemption(c *fiber.Ctx) error {
-	var req struct {
-		FactoryID int64   `json:"factory_id"`
-		Reason    string  `json:"reason"`
-		ExpiresAt *string `json:"expires_at"`
-	}
+	var req dto.CreateCommissionExemptionRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
-	if req.FactoryID <= 0 || strings.TrimSpace(req.Reason) == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "factory_id and reason are required"})
+	if req.UserID <= 0 || strings.TrimSpace(req.Reason) == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "user_id and reason are required"})
 	}
-	if exists, _ := h.commission.ActiveExemptionExists(req.FactoryID); exists {
-		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "factory already has an active exemption"})
+	if exists, _ := h.commission.ActiveExemptionExists(req.UserID); exists {
+		return c.Status(fiber.StatusConflict).JSON(fiber.Map{"error": "user already has an active exemption"})
 	}
-	expiresAt, err := helper.ParseOptionalRFC3339Value(req.ExpiresAt, "expires_at")
-	if err != nil {
-		return helper.BadRequest(c, "expires_at must be RFC3339")
+	var expiresAt *time.Time
+	if req.ExemptTo != nil {
+		if parsedTime, err := time.Parse(time.RFC3339, *req.ExemptTo); err != nil {
+			return helper.BadRequest(c, "exempt_to must be RFC3339")
+		} else {
+			expiresAt = &parsedTime
+		}
 	}
 	actorID, _ := helper.UserIDFromHeader(c)
-	item := &domain.CommissionExemption{FactoryID: req.FactoryID, Reason: strings.TrimSpace(req.Reason), ExpiresAt: expiresAt, CreatedBy: actorID}
+	item := &domain.CommissionExemption{FactoryID: req.UserID, Reason: strings.TrimSpace(req.Reason), ExpiresAt: expiresAt, CreatedBy: actorID}
 	if err := h.commission.CreateExemption(item); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create commission exemption"})
 	}

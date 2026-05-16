@@ -7,6 +7,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/dto"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 	adminservice "github.com/yourusername/wemake/internal/service/admin"
 )
@@ -71,15 +72,17 @@ func (h *AdminFactoryHandler) PatchVerification(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
-	var req struct {
-		IsVerified bool   `json:"is_verified"`
-		Note       string `json:"note"`
-	}
+	var req dto.PatchFactoryVerificationRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	ip := c.IP()
-	if err := h.service.ToggleVerification(factoryID, actorID, req.IsVerified, req.Note, &ip); err != nil {
+	isVerified := req.TaxIDVerified != nil && *req.TaxIDVerified
+	note := ""
+	if req.Notes != nil {
+		note = *req.Notes
+	}
+	if err := h.service.ToggleVerification(factoryID, actorID, isVerified, note, &ip); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	item, _ := h.service.HydrateAdminDetail(factoryID)
@@ -138,14 +141,16 @@ func (h *AdminFactoryHandler) mutateFactoryState(c *fiber.Ctx, fn func(int64, in
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
-	var req struct {
-		Note string `json:"note"`
-	}
+	var req dto.ApproveFactoryRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
 	ip := c.IP()
-	if err := fn(factoryID, actorID, req.Note, &ip); err != nil {
+	note := ""
+	if req.Notes != nil {
+		note = *req.Notes
+	}
+	if err := fn(factoryID, actorID, note, &ip); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
 	item, _ := h.service.HydrateAdminDetail(factoryID)
@@ -157,9 +162,7 @@ func (h *AdminFactoryHandler) mutateFactoryReasonState(c *fiber.Ctx, fn func(int
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
-	var req struct {
-		Reason string `json:"reason"`
-	}
+	var req dto.RejectFactoryRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}

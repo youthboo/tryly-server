@@ -7,6 +7,7 @@ import (
 	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/dto"
 	walletservice "github.com/yourusername/wemake/internal/service/wallet"
 )
 
@@ -50,22 +51,15 @@ func (h *SettlementHandler) GetByID(c *fiber.Ctx) error {
 
 // POST /settlements — create a settlement record (factory or system initiated)
 func (h *SettlementHandler) Create(c *fiber.Ctx) error {
-	type reqBody struct {
-		OrderID *int64  `json:"order_id"`
-		Amount  float64 `json:"amount" validate:"gt=0"`
-		Note    *string `json:"note"`
-	}
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	var req reqBody
-	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
-		"Amount": "amount must be greater than 0",
-	}); err != nil {
+	var req dto.CreateSettlementRequest
+	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
-	item, err := h.service.Create(userID, req.OrderID, req.Amount, req.Note)
+	item, err := h.service.Create(userID, nil, req.Amount, req.Notes)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to create settlement"})
 	}
@@ -74,14 +68,11 @@ func (h *SettlementHandler) Create(c *fiber.Ctx) error {
 
 // PATCH /settlements/:settlement_id/status
 func (h *SettlementHandler) PatchStatus(c *fiber.Ctx) error {
-	type reqBody struct {
-		Status string `json:"status"`
-	}
 	settlementID, err := helper.ParsePositiveInt64Param(c, "settlement_id")
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid settlement_id"})
 	}
-	var req reqBody
+	var req dto.PatchSettlementStatusRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
