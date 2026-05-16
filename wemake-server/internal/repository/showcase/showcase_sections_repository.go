@@ -2,6 +2,7 @@ package showcase
 
 import (
 	"database/sql"
+	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
@@ -46,7 +47,7 @@ func (r *ShowcaseRepository) BulkReplaceSections(showcaseID, factoryID int64, in
 		return domain.ErrForbidden
 	}
 
-	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
 		if _, err := tx.Exec(`DELETE FROM showcase_sections WHERE showcase_id = $1`, showcaseID); err != nil {
 			return err
 		}
@@ -106,7 +107,7 @@ func (r *ShowcaseRepository) BulkReplaceSpecs(showcaseID, factoryID int64, input
 		return domain.ErrForbidden
 	}
 
-	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
 		if _, err := tx.Exec(`DELETE FROM showcase_specs WHERE showcase_id = $1`, showcaseID); err != nil {
 			return err
 		}

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 	"time"
 
@@ -80,7 +81,7 @@ func (s *OrderService) CreatePayment(orderID, userID int64, role, paymentType st
 	}
 
 	var item *domain.Transaction
-	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		walletID, err := s.wallets.EnsureWallet(tx, userID)
 		if err != nil {
 			return err
@@ -119,7 +120,7 @@ func (s *OrderService) VerifyPayment(orderID, userID int64, role, txID string) (
 
 	var paymentTx *domain.Transaction
 	var now time.Time
-	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		var err error
 		paymentTx, err = s.txLedger.GetByIDForUpdate(tx, strings.TrimSpace(txID))
 		if err != nil {
@@ -278,7 +279,7 @@ func (s *OrderService) confirmReceiptTx(orderID int64, actorUserID *int64, note 
 	var statusBefore string
 	var completedAt time.Time
 	var settlement ConfirmReceiptSettlement
-	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		var err error
 		order, err = s.repo.GetByIDForUpdateTx(tx, orderID)
 		if err != nil {
@@ -326,7 +327,7 @@ func (s *OrderService) confirmReceiptTx(orderID int64, actorUserID *int64, note 
 		if err != nil {
 			return err
 		}
-		movedAmount := roundCurrency(order.TotalAmount)
+		movedAmount := helper.RoundCurrency(order.TotalAmount)
 		if movedAmount < 0 {
 			movedAmount = 0
 		}
@@ -338,9 +339,9 @@ func (s *OrderService) confirmReceiptTx(orderID int64, actorUserID *int64, note 
 			WalletID:      factoryWallet.WalletID,
 			MovedAmount:   movedAmount,
 			PendingBefore: factoryWallet.PendingFund,
-			PendingAfter:  roundCurrency(factoryWallet.PendingFund - movedAmount),
+			PendingAfter:  helper.RoundCurrency(factoryWallet.PendingFund - movedAmount),
 			GoodBefore:    factoryWallet.GoodFund,
-			GoodAfter:     roundCurrency(factoryWallet.GoodFund + movedAmount),
+			GoodAfter:     helper.RoundCurrency(factoryWallet.GoodFund + movedAmount),
 		}
 
 		// Settle the factory's pending SC receivables for this order: PT -> ST.

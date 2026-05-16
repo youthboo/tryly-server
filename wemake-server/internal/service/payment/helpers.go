@@ -6,7 +6,6 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domainutil"
-	"github.com/yourusername/wemake/internal/helper"
 )
 
 var (
@@ -23,8 +22,6 @@ func normalizeOrderStatus(status string) string {
 		return domainutil.NormalizeStatus(status)
 	}
 }
-
-var roundCurrency = helper.RoundCurrency
 
 func insertDomainEventTx(tx *sqlx.Tx, eventType string, payload interface{}) error {
 	b, err := json.Marshal(payload)

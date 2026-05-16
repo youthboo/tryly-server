@@ -3,6 +3,7 @@ package profile
 import (
 	"database/sql"
 	"fmt"
+	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 	"time"
 
@@ -82,7 +83,7 @@ func (r *ProfileRepository) GetProfile(userID int64) (*domain.ProfileResponse, e
 }
 
 func (r *ProfileRepository) UpdateCustomerProfile(userID int64, user *domain.User, customer *domain.CustomerProfile) error {
-	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
 		if _, err := tx.Exec(`
 			UPDATE users SET phone = $1, updated_at = NOW()
 			WHERE user_id = $2
@@ -101,7 +102,7 @@ func (r *ProfileRepository) UpdateCustomerProfile(userID int64, user *domain.Use
 }
 
 func (r *ProfileRepository) UpdateFactoryProfile(userID int64, user *domain.User, factory *domain.FactoryProfile) error {
-	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
 		if _, err := tx.Exec(`
 			UPDATE users SET phone = $1, updated_at = NOW()
 			WHERE user_id = $2

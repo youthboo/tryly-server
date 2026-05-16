@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"database/sql"
+	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 
 	"github.com/jmoiron/sqlx"
@@ -52,7 +53,7 @@ func (s *ReviewService) DeleteByUser(reviewID, userID int64) error {
 	if err != nil {
 		return err
 	}
-	return WithTx(context.Background(), s.repo.DB(), func(tx *sqlx.Tx) error {
+	return helper.WithTx(context.Background(), s.repo.DB(), func(tx *sqlx.Tx) error {
 		return s.repo.SyncFactoryAggregateTx(tx, item.FactoryID)
 	})
 }

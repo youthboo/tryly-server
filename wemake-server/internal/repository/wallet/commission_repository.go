@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"database/sql"
+	"github.com/yourusername/wemake/internal/helper"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -41,7 +42,7 @@ func (r *CommissionRepository) ListRules(factoryID *int64, activeOnly bool) ([]d
 }
 
 func (r *CommissionRepository) CreateRule(rule *domain.CommissionRule) error {
-	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
 		if rule.FactoryID != nil {
 			if _, err := tx.Exec(`
 				UPDATE commission_rules

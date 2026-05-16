@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"github.com/yourusername/wemake/internal/helper"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -44,7 +45,7 @@ func (r *AuthRepository) GetUserByEmail(email string) (*domain.User, error) {
 }
 
 func (r *AuthRepository) CreateCustomerUser(user *domain.User, customer *domain.CustomerProfile) error {
-	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
 		const userInsert = `
 			INSERT INTO users (role, email, phone, password_hash, is_active, created_at, updated_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -75,7 +76,7 @@ func (r *AuthRepository) CreateCustomerUser(user *domain.User, customer *domain.
 }
 
 func (r *AuthRepository) CreateFactoryUser(user *domain.User, factory *domain.FactoryProfile) error {
-	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
 		const userInsert = `
 			INSERT INTO users (role, email, phone, password_hash, is_active, created_at, updated_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -110,7 +111,7 @@ func (r *AuthRepository) CreateFactoryUser(user *domain.User, factory *domain.Fa
 }
 
 func (r *AuthRepository) CreateAdminUser(user *domain.User, profile *domain.AdminProfile) error {
-	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
 		if err := tx.QueryRow(`
 			INSERT INTO users (role, email, phone, password_hash, is_active, created_at, updated_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -181,7 +182,7 @@ func (r *AuthRepository) GetValidPasswordResetToken(token string) (*domain.Passw
 }
 
 func (r *AuthRepository) ResetPassword(userID int64, tokenID int64, passwordHash string, now time.Time) error {
-	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
 		const updateUser = "UPDATE users SET password_hash = $1, updated_at = $2 WHERE user_id = $3"
 		if _, err := tx.Exec(updateUser, passwordHash, now, userID); err != nil {
 			return err

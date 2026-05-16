@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 	"time"
 
@@ -48,7 +49,7 @@ func (s *OrderService) CreateFromQuotation(quotationID, userID int64) (*domain.O
 	var total float64
 	var deposit float64
 	var now time.Time
-	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		var err error
 		src, err = s.repo.GetOrderSourceByQuotationIDTx(tx, quotationID, userID)
 		if err != nil {
@@ -84,7 +85,7 @@ func (s *OrderService) CreateFromQuotation(quotationID, userID int64) (*domain.O
 		// Fall back to legacy formula only when grand_total was not yet calculated (old quotations).
 		total = src.GrandTotal
 		if total <= 0 {
-			total = roundCurrency((src.PricePerPiece * float64(src.Quantity)) + src.MoldCost)
+			total = helper.RoundCurrency((src.PricePerPiece * float64(src.Quantity)) + src.MoldCost)
 		}
 		if total < 0 {
 			return errors.New("invalid order total")
@@ -192,7 +193,7 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 
 	now := time.Now()
 	orders := make([]domain.Order, 0, len(quoteIDs))
-	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		type lockedRFQ struct {
 			RFQID  int64  `db:"rfq_id"`
 			UserID int64  `db:"user_id"`
@@ -282,7 +283,7 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 			}
 			total := q.GrandTotal
 			if total <= 0 {
-				total = roundCurrency((q.PricePerPiece * float64(q.Quantity)) + q.MoldCost)
+				total = helper.RoundCurrency((q.PricePerPiece * float64(q.Quantity)) + q.MoldCost)
 			}
 			if total < 0 {
 				return errors.New("invalid order total")

@@ -75,19 +75,17 @@ func NewBOQService(
 	}
 }
 
-var roundMoney = helper.RoundMoney
-
 func computeBOQTotals(items []domain.RFQItem, discountAmount float64, vatPercent float64) (float64, float64, float64) {
 	subtotal := 0.0
 	for i := range items {
-		line := roundMoney(items[i].Qty * items[i].UnitPrice * (1 - items[i].DiscountPct/100))
+		line := helper.RoundMoney(items[i].Qty * items[i].UnitPrice * (1 - items[i].DiscountPct/100))
 		items[i].LineTotal = line
 		subtotal += line
 	}
-	vatBase := roundMoney(subtotal - discountAmount)
-	vatAmount := roundMoney(vatBase * vatPercent / 100)
-	grandTotal := roundMoney(vatBase + vatAmount)
-	return roundMoney(subtotal), vatAmount, grandTotal
+	vatBase := helper.RoundMoney(subtotal - discountAmount)
+	vatAmount := helper.RoundMoney(vatBase * vatPercent / 100)
+	grandTotal := helper.RoundMoney(vatBase + vatAmount)
+	return helper.RoundMoney(subtotal), vatAmount, grandTotal
 }
 
 func normalizeBOQInput(in BOQInput) BOQInput {
@@ -102,13 +100,13 @@ func normalizeBOQInput(in BOQInput) BOQInput {
 	if in.VatPercent < 0 {
 		in.VatPercent = 0
 	}
-	note := strings.TrimSpace(derefString(in.Note))
+	note := strings.TrimSpace(helper.DerefString(in.Note))
 	if note == "" {
 		in.Note = nil
 	} else {
 		in.Note = &note
 	}
-	paymentTerms := strings.TrimSpace(derefString(in.PaymentTerms))
+	paymentTerms := strings.TrimSpace(helper.DerefString(in.PaymentTerms))
 	if paymentTerms == "" {
 		in.PaymentTerms = nil
 	} else {
@@ -203,8 +201,8 @@ func (s *BOQService) Create(convID, actorUserID int64, input BOQInput) (*domain.
 
 	primaryCategoryID, _ := s.lookupFactoryPrimaryCategory(actorUserID)
 	now := time.Now()
-	title := fmt.Sprintf("BOQ - %s - %s", derefString(conv.FactoryName), now.Format("2006-01-02"))
-	details := derefString(input.Note)
+	title := fmt.Sprintf("BOQ - %s - %s", helper.DerefString(conv.FactoryName), now.Format("2006-01-02"))
+	details := helper.DerefString(input.Note)
 	if details == "" {
 		details = input.Items[0].Description
 	}
@@ -237,7 +235,7 @@ func (s *BOQService) Create(convID, actorUserID int64, input BOQInput) (*domain.
 		BOQSentAt:         &now,
 	}
 
-	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		if err := s.rfqs.CreateTx(tx, rfq); err != nil {
 			return err
 		}
@@ -262,7 +260,7 @@ func (s *BOQService) Create(convID, actorUserID int64, input BOQInput) (*domain.
 		return nil, nil, err
 	}
 
-	quoteDataStr, _ := s.buildBOQQuoteDataString(rfq, input.Items, derefString(conv.FactoryName))
+	quoteDataStr, _ := s.buildBOQQuoteDataString(rfq, input.Items, helper.DerefString(conv.FactoryName))
 	msg := &domain.Message{
 		SenderID:    actorUserID,
 		ReceiverID:  conv.CustomerID,
@@ -281,7 +279,7 @@ func (s *BOQService) Create(convID, actorUserID int64, input BOQInput) (*domain.
 			UserID:      conv.CustomerID,
 			Type:        "BQ",
 			Title:       "โรงงานส่ง BOQ มาแล้ว",
-			Message:     fmt.Sprintf("%s ส่ง BOQ มูลค่า ฿%.2f มาให้คุณ", derefString(conv.FactoryName), grandTotal),
+			Message:     fmt.Sprintf("%s ส่ง BOQ มูลค่า ฿%.2f มาให้คุณ", helper.DerefString(conv.FactoryName), grandTotal),
 			LinkTo:      fmt.Sprintf("/chat/%d", convID),
 			ReferenceID: &rfq.RFQID,
 		})
@@ -336,7 +334,7 @@ func (s *BOQService) Update(rfqID, actorUserID int64, input BOQInput) (*domain.B
 	}
 	subtotal, vatAmount, grandTotal := computeBOQTotals(input.Items, input.DiscountAmount, input.VatPercent)
 	now := time.Now()
-	details := derefString(input.Note)
+	details := helper.DerefString(input.Note)
 	if details == "" {
 		details = input.Items[0].Description
 	}
@@ -362,7 +360,7 @@ func (s *BOQService) Update(rfqID, actorUserID int64, input BOQInput) (*domain.B
 	rfq.BOQNote = input.Note
 	rfq.BOQSentAt = &now
 
-	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		if _, err := tx.Exec(`
 		UPDATE rfqs
 		SET quantity = $2,
@@ -387,7 +385,7 @@ func (s *BOQService) Update(rfqID, actorUserID int64, input BOQInput) (*domain.B
 		    unread_customer = COALESCE(unread_customer, 0) + 1,
 		    updated_at = NOW()
 		WHERE conv_id = $1
-	`, nullableBOQInt64(rfq.SourceConvID)); err != nil {
+	`, helper.NullableInt64(rfq.SourceConvID)); err != nil {
 			return err
 		}
 		return nil
@@ -441,8 +439,8 @@ func (s *BOQService) Accept(rfqID, buyerUserID int64) (*domain.Order, int64, err
 	if err != nil {
 		return nil, 0, err
 	}
-	discountAmount := derefFloat64(rfq.BOQDiscountAmount)
-	commissionRate, configID, commissionAmount, factoryNet, err := s.resolveBOQCommission(*rfq.FactoryUserID, items, discountAmount, derefFloat64(rfq.BOQGrandTotal))
+	discountAmount := helper.DerefFloat64(rfq.BOQDiscountAmount)
+	commissionRate, configID, commissionAmount, factoryNet, err := s.resolveBOQCommission(*rfq.FactoryUserID, items, discountAmount, helper.DerefFloat64(rfq.BOQGrandTotal))
 	if err != nil {
 		return nil, 0, err
 	}
@@ -450,23 +448,23 @@ func (s *BOQService) Accept(rfqID, buyerUserID int64) (*domain.Order, int64, err
 	if rfq.BOQValidityDays != nil && *rfq.BOQValidityDays > 0 {
 		validityDays = *rfq.BOQValidityDays
 	}
-	pricePerPiece := derefFloat64(rfq.BOQGrandTotal) / float64(maxInt64(rfq.Quantity, 1))
+	pricePerPiece := helper.DerefFloat64(rfq.BOQGrandTotal) / float64(helper.MaxInt64(rfq.Quantity, 1))
 	now := time.Now()
 	quotation := &domain.Quotation{
 		RFQID:                    rfq.RFQID,
 		FactoryID:                *rfq.FactoryUserID,
 		PricePerPiece:            pricePerPiece,
 		MoldCost:                 0,
-		LeadTimeDays:             int64(derefInt(rfq.BOQLeadTimeDays)),
+		LeadTimeDays:             int64(helper.DerefInt(rfq.BOQLeadTimeDays)),
 		ShippingMethodID:         shippingMethodID,
 		Status:                   "PD",
 		CreateTime:               now,
 		LogTimestamp:             now,
-		Subtotal:                 derefFloat64(rfq.BOQSubtotal),
+		Subtotal:                 helper.DerefFloat64(rfq.BOQSubtotal),
 		DiscountAmount:           discountAmount,
-		VatRate:                  derefFloat64(rfq.BOQVatPercent),
-		VatAmount:                derefFloat64(rfq.BOQVatAmount),
-		GrandTotal:               derefFloat64(rfq.BOQGrandTotal),
+		VatRate:                  helper.DerefFloat64(rfq.BOQVatPercent),
+		VatAmount:                helper.DerefFloat64(rfq.BOQVatAmount),
+		GrandTotal:               helper.DerefFloat64(rfq.BOQGrandTotal),
 		PlatformCommissionRate:   commissionRate,
 		PlatformCommissionAmount: commissionAmount,
 		FactoryNetReceivable:     factoryNet,
@@ -477,7 +475,7 @@ func (s *BOQService) Accept(rfqID, buyerUserID int64) (*domain.Order, int64, err
 		RevisionNo:               1,
 	}
 
-	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		if err := s.quotations.CreateTx(tx, quotation); err != nil {
 			return err
 		}
@@ -510,7 +508,7 @@ func (s *BOQService) Accept(rfqID, buyerUserID int64) (*domain.Order, int64, err
 }
 
 func (s *BOQService) finalizeAcceptedBOQ(rfq *domain.RFQ, order *domain.Order) error {
-	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		if _, err := tx.Exec(`
 		UPDATE rfqs
 		SET updated_at = NOW()
@@ -553,7 +551,7 @@ func (s *BOQService) finalizeAcceptedBOQ(rfq *domain.RFQ, order *domain.Order) e
 	if rfq.SourceConvID != nil {
 		_ = s.messages.Create(&domain.Message{
 			SenderID:    rfq.UserID,
-			ReceiverID:  derefInt64(rfq.FactoryUserID),
+			ReceiverID:  helper.DerefInt64(rfq.FactoryUserID),
 			Content:     fmt.Sprintf("ยืนยัน BOQ แล้ว — คำสั่งซื้อ #%d ถูกสร้างแล้ว", order.OrderID),
 			ConvID:      rfq.SourceConvID,
 			MessageType: "TX",
@@ -590,7 +588,7 @@ func (s *BOQService) Decline(rfqID, buyerUserID int64, reason *string) (*domain.
 	}
 	now := time.Now()
 
-	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		if _, err := tx.Exec(`
 		UPDATE rfqs
 		SET status = 'CC',
@@ -623,7 +621,7 @@ func (s *BOQService) Decline(rfqID, buyerUserID int64, reason *string) (*domain.
 	if rfq.SourceConvID != nil {
 		_ = s.messages.Create(&domain.Message{
 			SenderID:    buyerUserID,
-			ReceiverID:  derefInt64(rfq.FactoryUserID),
+			ReceiverID:  helper.DerefInt64(rfq.FactoryUserID),
 			Content:     "ลูกค้าปฏิเสธ BOQ",
 			ConvID:      rfq.SourceConvID,
 			MessageType: "TX",
@@ -729,7 +727,7 @@ func statusFilterMatches(status string, item *domain.BOQSummary) bool {
 }
 
 func (s *BOQService) buildBOQDetail(rfq *domain.RFQ, items []domain.RFQItem) (*domain.BOQDetail, error) {
-	factoryName, imageURL, err := s.lookupFactorySummary(derefInt64(rfq.FactoryUserID))
+	factoryName, imageURL, err := s.lookupFactorySummary(helper.DerefInt64(rfq.FactoryUserID))
 	if err != nil {
 		return nil, err
 	}
@@ -747,15 +745,15 @@ func (s *BOQService) buildBOQDetail(rfq *domain.RFQ, items []domain.RFQItem) (*d
 		BOQDeclineReason:  rfq.BOQDeclineReason,
 		BOQSentAt:         rfq.BOQSentAt,
 		BOQRespondedAt:    rfq.BOQRespondedAt,
-		BOQValidityDays:   maxInt(derefInt(rfq.BOQValidityDays), 14),
+		BOQValidityDays:   helper.MaxInt(helper.DerefInt(rfq.BOQValidityDays), 14),
 		BOQExpiresAt:      expiresAt,
 		IsExpired:         boqIsExpired(rfq),
-		BOQGrandTotal:     derefFloat64(rfq.BOQGrandTotal),
-		BOQCurrency:       derefString(rfq.BOQCurrency),
-		BOQSubtotal:       derefFloat64(rfq.BOQSubtotal),
-		BOQDiscountAmount: derefFloat64(rfq.BOQDiscountAmount),
-		BOQVatPercent:     derefFloat64(rfq.BOQVatPercent),
-		BOQVatAmount:      derefFloat64(rfq.BOQVatAmount),
+		BOQGrandTotal:     helper.DerefFloat64(rfq.BOQGrandTotal),
+		BOQCurrency:       helper.DerefString(rfq.BOQCurrency),
+		BOQSubtotal:       helper.DerefFloat64(rfq.BOQSubtotal),
+		BOQDiscountAmount: helper.DerefFloat64(rfq.BOQDiscountAmount),
+		BOQVatPercent:     helper.DerefFloat64(rfq.BOQVatPercent),
+		BOQVatAmount:      helper.DerefFloat64(rfq.BOQVatAmount),
 		BOQMOQ:            rfq.BOQMOQ,
 		BOQLeadTimeDays:   rfq.BOQLeadTimeDays,
 		BOQPaymentTerms:   rfq.BOQPaymentTerms,
@@ -763,7 +761,7 @@ func (s *BOQService) buildBOQDetail(rfq *domain.RFQ, items []domain.RFQItem) (*d
 		SourceConvID:      rfq.SourceConvID,
 		SourceShowcaseID:  rfq.SourceShowcaseID,
 		Factory: domain.BOQFactorySummary{
-			FactoryID:   derefInt64(rfq.FactoryUserID),
+			FactoryID:   helper.DerefInt64(rfq.FactoryUserID),
 			FactoryName: factoryName,
 			ImageURL:    imageURL,
 		},
@@ -779,27 +777,27 @@ func (s *BOQService) buildBOQQuoteDataString(rfq *domain.RFQ, items []domain.RFQ
 	expiresAt := boqExpiresAt(rfq)
 	var validUntil *string
 	if expiresAt != nil {
-		v := formatThaiShortDate(*expiresAt)
+		v := helper.FormatThaiShortDate(*expiresAt)
 		validUntil = &v
 	}
 	data := domain.BOQQuoteData{
 		BOQRFQID:       rfq.RFQID,
 		FactoryName:    factoryName,
 		Items:          items,
-		Currency:       derefString(rfq.BOQCurrency),
-		Subtotal:       derefFloat64(rfq.BOQSubtotal),
-		DiscountAmount: derefFloat64(rfq.BOQDiscountAmount),
-		VatPercent:     derefFloat64(rfq.BOQVatPercent),
-		VatAmount:      derefFloat64(rfq.BOQVatAmount),
-		GrandTotal:     derefFloat64(rfq.BOQGrandTotal),
+		Currency:       helper.DerefString(rfq.BOQCurrency),
+		Subtotal:       helper.DerefFloat64(rfq.BOQSubtotal),
+		DiscountAmount: helper.DerefFloat64(rfq.BOQDiscountAmount),
+		VatPercent:     helper.DerefFloat64(rfq.BOQVatPercent),
+		VatAmount:      helper.DerefFloat64(rfq.BOQVatAmount),
+		GrandTotal:     helper.DerefFloat64(rfq.BOQGrandTotal),
 		MOQ:            rfq.BOQMOQ,
 		LeadTimeDays:   rfq.BOQLeadTimeDays,
 		PaymentTerms:   rfq.BOQPaymentTerms,
-		ValidityDays:   maxInt(derefInt(rfq.BOQValidityDays), 14),
+		ValidityDays:   helper.MaxInt(helper.DerefInt(rfq.BOQValidityDays), 14),
 		ExpiresAt:      expiresAt,
 		Note:           rfq.BOQNote,
 		Status:         boqCardStatus(rfq),
-		Price:          derefFloat64(rfq.BOQGrandTotal),
+		Price:          helper.DerefFloat64(rfq.BOQGrandTotal),
 		LeadTime:       rfq.BOQLeadTimeDays,
 		ValidUntil:     validUntil,
 	}
@@ -870,8 +868,8 @@ func (s *BOQService) resolveBOQCommission(factoryID int64, items []domain.RFQIte
 	if err != nil {
 		return 0, 0, 0, 0, err
 	}
-	commissionAmount := roundMoney((breakdown.Subtotal * breakdown.PlatformCommissionRate) / 100)
-	factoryNet := roundMoney(grandTotal - commissionAmount)
+	commissionAmount := helper.RoundMoney((breakdown.Subtotal * breakdown.PlatformCommissionRate) / 100)
+	factoryNet := helper.RoundMoney(grandTotal - commissionAmount)
 	return breakdown.PlatformCommissionRate, breakdown.PlatformConfigID, commissionAmount, factoryNet, nil
 }
 

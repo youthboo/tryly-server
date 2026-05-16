@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/yourusername/wemake/internal/helper"
 	"net/url"
 	"strings"
 	"time"
@@ -488,8 +489,8 @@ func deriveProductionLockReason(status string) string {
 }
 
 func buildProductionLockContext(order *productionrepo.ProductionOrderContext, reason string) map[string]interface{} {
-	depositAmount := roundCurrency(orderDepositAmountFallback(order))
-	depositPercent := percentOf(depositAmount, order.TotalAmount)
+	depositAmount := helper.RoundCurrency(orderDepositAmountFallback(order))
+	depositPercent := helper.PercentOf(depositAmount, order.TotalAmount)
 	switch reason {
 	case "PENDING_DEPOSIT":
 		dueDate := depositDueDateForProduction(order)
@@ -509,7 +510,7 @@ func buildProductionLockContext(order *productionrepo.ProductionOrderContext, re
 			"contact_factory_url": fmt.Sprintf("/chat?factory_id=%d&order_id=%d", order.FactoryID, order.OrderID),
 		}
 	case "ORDER_CANCELLED":
-		cancelledAt := order.CreatedAt.In(thailandLocation)
+		cancelledAt := order.CreatedAt.In(helper.ThailandLocation)
 		return map[string]interface{}{
 			"cancelled_at":       cancelledAt,
 			"cancelled_by_actor": "SYSTEM",
@@ -524,19 +525,19 @@ func buildProductionLockContext(order *productionrepo.ProductionOrderContext, re
 func depositDueDateForProduction(order *productionrepo.ProductionOrderContext) time.Time {
 	// ใช้ due_date จาก payment_schedules ถ้ามี (ตรงกับ order_service.lookupDepositDueDate)
 	if order.DepositDueDate != nil {
-		d := order.DepositDueDate.In(thailandLocation)
-		return time.Date(d.Year(), d.Month(), d.Day(), 23, 59, 59, 0, thailandLocation)
+		d := order.DepositDueDate.In(helper.ThailandLocation)
+		return time.Date(d.Year(), d.Month(), d.Day(), 23, 59, 59, 0, helper.ThailandLocation)
 	}
 	// fallback: created_at + 3 วัน
-	due := order.CreatedAt.In(thailandLocation).AddDate(0, 0, 3)
-	return time.Date(due.Year(), due.Month(), due.Day(), 23, 59, 59, 0, thailandLocation)
+	due := order.CreatedAt.In(helper.ThailandLocation).AddDate(0, 0, 3)
+	return time.Date(due.Year(), due.Month(), due.Day(), 23, 59, 59, 0, helper.ThailandLocation)
 }
 
 func orderDepositAmountFallback(order *productionrepo.ProductionOrderContext) float64 {
 	if order.DepositAmount > 0 {
 		return order.DepositAmount
 	}
-	return roundCurrency(order.TotalAmount * 0.3)
+	return helper.RoundCurrency(order.TotalAmount * 0.3)
 }
 
 func AsProductionRuleError(err error) (*ProductionRuleError, bool) {

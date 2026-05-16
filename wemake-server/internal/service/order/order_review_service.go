@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 	"time"
 
@@ -101,7 +102,7 @@ func (s *OrderService) CreateReview(orderID, userID int64, role string, input Cr
 		Comment:   comment,
 		ImageURLs: imageURLs,
 	}
-	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		if err := s.reviews.CreateForOrderTx(tx, review); err != nil {
 			if errors.Is(err, userrepo.ErrReviewAlreadyExists) {
 				return ErrReviewAlreadyExists

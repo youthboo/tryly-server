@@ -2,6 +2,7 @@ package user
 
 import (
 	"errors"
+	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
@@ -23,7 +24,7 @@ func (r *FavoriteRepository) ListByUserID(userID int64) ([]domain.Favorite, erro
 }
 
 func (r *FavoriteRepository) Add(fav *domain.Favorite) error {
-	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
 		query := `
 			INSERT INTO favorites (user_id, showcase_id)
 			VALUES (:user_id, :showcase_id)
@@ -55,7 +56,7 @@ func (r *FavoriteRepository) Add(fav *domain.Favorite) error {
 }
 
 func (r *FavoriteRepository) Remove(userID, showcaseID int64) error {
-	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
 		res, err := tx.Exec(`DELETE FROM favorites WHERE user_id = $1 AND showcase_id = $2`, userID, showcaseID)
 		if err != nil {
 			return err

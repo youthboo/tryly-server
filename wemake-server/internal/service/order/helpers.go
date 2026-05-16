@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/helper"
 )
 
 type notificationCreator interface {
@@ -16,8 +15,6 @@ type notificationCreator interface {
 type systemMessageSender interface {
 	AutoSendSystemMessage(context.Context, int64, int64, int64, string) error
 }
-
-var WithTx = helper.WithTx
 
 func notificationData(payload map[string]interface{}) *domain.JSONB {
 	if len(payload) == 0 {

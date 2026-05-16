@@ -3,6 +3,7 @@ package conversation
 import (
 	"database/sql"
 	"errors"
+	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
@@ -125,7 +126,7 @@ func (r *ConversationRepository) GetFactoryIDByShowcaseID(showcaseID int64) (int
 // MarkAsRead marks all messages in a conversation as read for the given user
 // and resets that user's unread counter on the conversation row.
 func (r *ConversationRepository) MarkAsRead(convID, userID int64) error {
-	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
 		var conv domain.Conversation
 		query := `SELECT conv_id, customer_id, factory_id FROM conversations WHERE conv_id = $1`
 		if err := tx.Get(&conv, query, convID); err != nil {

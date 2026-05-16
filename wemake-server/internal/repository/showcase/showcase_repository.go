@@ -244,9 +244,9 @@ func aggregateSections(rows []sectionRow) []domain.ShowcaseSection {
 			sectionMap[row.SectionID].Items = append(sectionMap[row.SectionID].Items, domain.ShowcaseSectionItem{
 				ItemID:      *row.ItemID,
 				Title:       row.ItemTitle,
-				Description: derefString(row.Description),
+				Description: helper.DerefString(row.Description),
 				IconName:    row.IconName,
-				SortOrder:   derefInt(row.ItemSort),
+				SortOrder:   helper.DerefInt(row.ItemSort),
 			})
 		}
 	}
@@ -256,11 +256,6 @@ func aggregateSections(rows []sectionRow) []domain.ShowcaseSection {
 	}
 	return sections
 }
-
-var (
-	derefString = helper.DerefString
-	derefInt    = helper.DerefInt
-)
 
 // GetDetail returns the full showcase detail including images and sections.
 // callerID=0 means unauthenticated public request.

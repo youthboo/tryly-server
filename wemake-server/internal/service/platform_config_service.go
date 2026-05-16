@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/yourusername/wemake/internal/helper"
 	"strconv"
 	"strings"
 	"time"
@@ -49,7 +50,7 @@ func (s *PlatformConfigService) CreateVersion(cfg *domain.PlatformConfig) error 
 	}
 	cfg.CurrencyCode = strings.ToUpper(strings.TrimSpace(cfg.CurrencyCode))
 	cfg.EffectiveFrom = time.Now().UTC()
-	return WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+	return helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		if err := s.repo.CloseActive(tx); err != nil {
 			return err
 		}
@@ -89,7 +90,7 @@ func (s *PlatformConfigService) CreateConfig(req domain.CreatePlatformConfigRequ
 		EffectiveTo:           effectiveTo,
 		CreatedBy:             &actorID,
 	}
-	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		if err := s.repo.CreatePackage(tx, cfg); err != nil {
 			return err
 		}
@@ -117,7 +118,7 @@ func (s *PlatformConfigService) UpdateConfig(configID int64, req domain.UpdatePl
 		DefaultCommissionRate: req.DefaultCommissionRate,
 		VatRate:               req.VatRate,
 	}
-	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		if err := s.repo.UpdateConfig(tx, configID, after); err != nil {
 			if repository.IsNotFoundError(err) {
 				return ErrPlatformConfigNotFound

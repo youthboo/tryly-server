@@ -3,6 +3,7 @@ package factory
 import (
 	"database/sql"
 	"errors"
+	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
@@ -118,7 +119,7 @@ func (r *FactoryRepository) RemoveFactorySubCategory(factoryID, subCategoryID in
 }
 
 func (r *FactoryRepository) ReplaceFactoryCategories(factoryID int64, categoryIDs []int64) error {
-	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
 		if _, err := tx.Exec(`DELETE FROM map_factory_categories WHERE factory_id = $1`, factoryID); err != nil {
 			return err
 		}
@@ -139,7 +140,7 @@ func (r *FactoryRepository) ReplaceFactoryCategories(factoryID int64, categoryID
 }
 
 func (r *FactoryRepository) ReplaceFactorySubCategories(factoryID int64, subCategoryIDs []int64) error {
-	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
 		if _, err := tx.Exec(`DELETE FROM map_factory_sub_categories WHERE factory_id = $1`, factoryID); err != nil {
 			return err
 		}

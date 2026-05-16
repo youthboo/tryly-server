@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 	"time"
 
@@ -431,7 +432,7 @@ func (s *QuotationService) CreateDetailed(item *domain.Quotation) error {
 	item.PlatformCommissionAmount = breakdown.PlatformCommissionAmount
 	item.FactoryNetReceivable = breakdown.FactoryNetReceivable
 	item.PlatformConfigID = &breakdown.PlatformConfigID
-	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		if item.ParentQuotationID != nil {
 			if err := s.repo.MarkAncestorsRevised(tx, item.RFQID, item.FactoryID); err != nil {
 				return err

@@ -148,7 +148,7 @@ func (s *ConversationService) ShareRFQ(convID, userID, rfqID int64) (*domain.Mes
 		CreatedAt:     nowUTC,
 	}
 	msg.MessageID = "msg-" + msg.CreatedAt.Format("20060102150405.000000000")
-	if err := WithTx(context.Background(), s.rfqs.DB(), func(tx *sqlx.Tx) error {
+	if err := helper.WithTx(context.Background(), s.rfqs.DB(), func(tx *sqlx.Tx) error {
 		if err := s.rfqs.LinkConversationTx(tx, rfqID, userID, convID); err != nil {
 			return err
 		}
@@ -175,13 +175,13 @@ func (s *ConversationService) ShareRFQ(convID, userID, rfqID int64) (*domain.Mes
 }
 
 func mapConversation(row *domain.ConversationRow) domain.ConversationResponse {
-	first := derefString(row.CustomerFirstName)
-	last := derefString(row.CustomerLastName)
+	first := helper.DerefString(row.CustomerFirstName)
+	last := helper.DerefString(row.CustomerLastName)
 	display := strings.TrimSpace(first + " " + last)
 	if display == "" {
 		display = fmt.Sprintf("ลูกค้า #%d", row.CustomerID)
 	}
-	factoryName := derefString(row.FactoryName)
+	factoryName := helper.DerefString(row.FactoryName)
 	if factoryName == "" {
 		factoryName = fmt.Sprintf("โรงงาน #%d", row.FactoryID)
 	}
@@ -191,7 +191,7 @@ func mapConversation(row *domain.ConversationRow) domain.ConversationResponse {
 		FactoryID:        row.FactoryID,
 		SourceShowcaseID: row.SourceShowcaseID,
 		ConvType:         row.ConvType,
-		LastMessage:      derefString(row.LastMessage),
+		LastMessage:      helper.DerefString(row.LastMessage),
 		UnreadCustomer:   row.UnreadCustomer,
 		UnreadFactory:    row.UnreadFactory,
 		UpdatedAt:        row.UpdatedAt,
@@ -204,14 +204,12 @@ func mapConversation(row *domain.ConversationRow) domain.ConversationResponse {
 		Factory: domain.FactoryPartyInfo{
 			UserID:         row.FactoryID,
 			FactoryName:    factoryName,
-			ImageURL:       derefString(row.FactoryImageURL),
+			ImageURL:       helper.DerefString(row.FactoryImageURL),
 			IsVerified:     derefBool(row.FactoryIsVerified),
-			Specialization: derefString(row.FactorySpecialization),
+			Specialization: helper.DerefString(row.FactorySpecialization),
 		},
 	}
 }
-
-var derefString = helper.DerefString
 
 func derefBool(value *bool) bool {
 	return domainutil.BoolValue(value)

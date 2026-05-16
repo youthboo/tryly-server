@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/yourusername/wemake/internal/helper"
 	"math"
 	"strconv"
 	"strings"
@@ -113,7 +114,7 @@ func (s *OrderPaymentService) PayDeposit(input OrderPaymentInput) (*OrderPayment
 	}
 
 	var out *OrderPaymentResponse
-	if err := WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		order, err := lockPaymentOrder(tx, input.OrderID)
 		if err != nil {
 			return err
@@ -148,7 +149,7 @@ func (s *OrderPaymentService) PayDeposit(input OrderPaymentInput) (*OrderPayment
 		customerWallet, err := getPaymentWallet(tx, order.UserID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				return &PaymentRuleError{Err: ErrPaymentInsufficientWallet, Shortfall: roundCurrency(input.Amount)}
+				return &PaymentRuleError{Err: ErrPaymentInsufficientWallet, Shortfall: helper.RoundCurrency(input.Amount)}
 			}
 			return err
 		}
@@ -180,7 +181,7 @@ func (s *OrderPaymentService) PayDeposit(input OrderPaymentInput) (*OrderPayment
 		`, input.Amount, customerWallet.WalletID).Scan(&customerGoodAfter)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				shortfall := roundCurrency(input.Amount - customerWallet.GoodFund)
+				shortfall := helper.RoundCurrency(input.Amount - customerWallet.GoodFund)
 				if shortfall < 0 {
 					shortfall = 0
 				}
@@ -282,8 +283,8 @@ func (s *OrderPaymentService) PayDeposit(input OrderPaymentInput) (*OrderPayment
 			},
 			OrderStatusAfter: "PR",
 			WalletBalanceAfter: WalletBalanceAfter{
-				GoodFund:    roundCurrency(customerGoodAfter),
-				PendingFund: roundCurrency(customerWallet.PendingFund),
+				GoodFund:    helper.RoundCurrency(customerGoodAfter),
+				PendingFund: helper.RoundCurrency(customerWallet.PendingFund),
 			},
 		}
 		return nil
@@ -444,8 +445,8 @@ func (s *OrderPaymentService) loadPaymentReplay(orderID int64, idempotencyKey st
 		}
 		out.CustomerTransaction = item
 		out.WalletBalanceAfter = WalletBalanceAfter{
-			GoodFund:    roundCurrency(row.GoodFundAfter),
-			PendingFund: roundCurrency(row.PendingFundAfter),
+			GoodFund:    helper.RoundCurrency(row.GoodFundAfter),
+			PendingFund: helper.RoundCurrency(row.PendingFundAfter),
 		}
 	}
 	if out.CustomerTransaction.TxID == "" || out.FactoryTransaction.TxID == "" {

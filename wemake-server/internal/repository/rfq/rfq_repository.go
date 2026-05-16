@@ -2,6 +2,7 @@ package rfq
 
 import (
 	"database/sql"
+	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 	"time"
 
@@ -156,7 +157,7 @@ func (r *RFQRepository) GetByID(userID, rfqID int64) (*domain.RFQ, error) {
 }
 
 func (r *RFQRepository) Cancel(userID, rfqID int64) error {
-	return withTx(nil, r.db, func(tx *sqlx.Tx) error {
+	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
 		if _, err := tx.Exec("UPDATE rfqs SET status = 'CC', updated_at = NOW() WHERE user_id = $1 AND rfq_id = $2", userID, rfqID); err != nil {
 			return err
 		}
