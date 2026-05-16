@@ -3,25 +3,15 @@ package domain
 import (
 	"database/sql/driver"
 	"encoding/json"
-	"fmt"
 )
 
 // JSONStringArray is a PostgreSQL JSONB array of strings for database/sql and JSON APIs.
 type JSONStringArray []string
 
 func (a *JSONStringArray) Scan(src interface{}) error {
-	if src == nil {
-		*a = JSONStringArray{}
-		return nil
-	}
-	var data []byte
-	switch v := src.(type) {
-	case []byte:
-		data = v
-	case string:
-		data = []byte(v)
-	default:
-		return fmt.Errorf("JSONStringArray: unsupported type %T", src)
+	data, err := jsonBytesFromSQL(src, "JSONStringArray")
+	if err != nil {
+		return err
 	}
 	if len(data) == 0 {
 		*a = JSONStringArray{}

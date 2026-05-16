@@ -3,25 +3,15 @@ package domain
 import (
 	"database/sql/driver"
 	"encoding/json"
-	"fmt"
 )
 
 // JSONInt64Array is a PostgreSQL JSONB array of integer IDs.
 type JSONInt64Array []int64
 
 func (a *JSONInt64Array) Scan(src interface{}) error {
-	if src == nil {
-		*a = JSONInt64Array{}
-		return nil
-	}
-	var data []byte
-	switch v := src.(type) {
-	case []byte:
-		data = v
-	case string:
-		data = []byte(v)
-	default:
-		return fmt.Errorf("JSONInt64Array: unsupported type %T", src)
+	data, err := jsonBytesFromSQL(src, "JSONInt64Array")
+	if err != nil {
+		return err
 	}
 	if len(data) == 0 {
 		*a = JSONInt64Array{}

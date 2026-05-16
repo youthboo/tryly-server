@@ -2,7 +2,6 @@ package handler
 
 import (
 	"database/sql"
-	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/repository"
@@ -23,8 +22,7 @@ func NewAdminCustomerHandler(
 // GET /api/admin/customers
 func (h *AdminCustomerHandler) ListCustomers(c *fiber.Ctx) error {
 	search := c.Query("search", "")
-	limit := c.QueryInt("limit", 20)
-	offset := c.QueryInt("offset", 0)
+	limit, offset := limitOffset(c, 20)
 
 	var isActive *bool
 	if v := c.Query("is_active"); v != "" {
@@ -46,9 +44,9 @@ func (h *AdminCustomerHandler) ListCustomers(c *fiber.Ctx) error {
 
 // GET /api/admin/customers/:user_id
 func (h *AdminCustomerHandler) GetCustomerDetail(c *fiber.Ctx) error {
-	userID, err := strconv.ParseInt(c.Params("user_id"), 10, 64)
-	if err != nil || userID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user_id"})
+	userID, err := parsePositiveInt64Param(c, "user_id")
+	if err != nil {
+		return jsonError(c, fiber.StatusBadRequest, "invalid user_id")
 	}
 
 	detail, err := h.customers.GetCustomerDetail(userID)
@@ -63,9 +61,9 @@ func (h *AdminCustomerHandler) GetCustomerDetail(c *fiber.Ctx) error {
 
 // GET /api/admin/customers/:user_id/wallet
 func (h *AdminCustomerHandler) GetCustomerWallet(c *fiber.Ctx) error {
-	userID, err := strconv.ParseInt(c.Params("user_id"), 10, 64)
-	if err != nil || userID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user_id"})
+	userID, err := parsePositiveInt64Param(c, "user_id")
+	if err != nil {
+		return jsonError(c, fiber.StatusBadRequest, "invalid user_id")
 	}
 
 	wallet, err := h.customers.GetCustomerWallet(userID)
@@ -77,12 +75,11 @@ func (h *AdminCustomerHandler) GetCustomerWallet(c *fiber.Ctx) error {
 
 // GET /api/admin/customers/:user_id/orders
 func (h *AdminCustomerHandler) ListCustomerOrders(c *fiber.Ctx) error {
-	userID, err := strconv.ParseInt(c.Params("user_id"), 10, 64)
-	if err != nil || userID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user_id"})
+	userID, err := parsePositiveInt64Param(c, "user_id")
+	if err != nil {
+		return jsonError(c, fiber.StatusBadRequest, "invalid user_id")
 	}
-	limit := c.QueryInt("limit", 20)
-	offset := c.QueryInt("offset", 0)
+	limit, offset := limitOffset(c, 20)
 
 	items, total, err := h.customers.ListCustomerOrders(userID, limit, offset)
 	if err != nil {
@@ -98,7 +95,7 @@ func (h *AdminCustomerHandler) ListCustomerOrders(c *fiber.Ctx) error {
 
 // GET /api/admin/dashboard/top-customers
 func (h *AdminCustomerHandler) ListTopCustomers(c *fiber.Ctx) error {
-	limit := c.QueryInt("limit", 5)
+	limit := clampInt(c.QueryInt("limit", 5), 1, 100)
 	items, err := h.customers.ListTopCustomers(limit)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch top customers"})
@@ -108,12 +105,11 @@ func (h *AdminCustomerHandler) ListTopCustomers(c *fiber.Ctx) error {
 
 // GET /api/admin/factories/:factory_id/settlements
 func (h *AdminCustomerHandler) ListFactorySettlements(c *fiber.Ctx) error {
-	factoryID, err := strconv.ParseInt(c.Params("factory_id"), 10, 64)
-	if err != nil || factoryID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_id"})
+	factoryID, err := parsePositiveInt64Param(c, "factory_id")
+	if err != nil {
+		return jsonError(c, fiber.StatusBadRequest, "invalid factory_id")
 	}
-	limit := c.QueryInt("limit", 20)
-	offset := c.QueryInt("offset", 0)
+	limit, offset := limitOffset(c, 20)
 
 	items, total, err := h.settlements.ListByFactory(factoryID, limit, offset)
 	if err != nil {

@@ -57,20 +57,3 @@ func (h *AdminUserHandler) List(c *fiber.Ctx) error {
 	}
 	return c.JSON(fiber.Map{"data": items})
 }
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-func normalizePageSize(size int) int {
-	if size <= 0 {
-		return 20
-	}
-	if size > 100 {
-		return 100
-	}
-	return size
-}

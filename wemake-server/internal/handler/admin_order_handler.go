@@ -31,20 +31,16 @@ func (h *AdminOrderHandler) List(c *fiber.Ctx) error {
 		Page:     c.QueryInt("page", 1),
 		PageSize: c.QueryInt("page_size", 20),
 	}
-	if v := strings.TrimSpace(c.Query("factory_id")); v != "" {
-		id, err := strconv.ParseInt(v, 10, 64)
-		if err != nil || id <= 0 {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_id"})
-		}
-		filter.FactoryID = &id
+	factoryID, err := parseOptionalPositiveInt64Query(c, "factory_id")
+	if err != nil {
+		return jsonError(c, fiber.StatusBadRequest, "invalid factory_id")
 	}
-	if v := strings.TrimSpace(c.Query("user_id")); v != "" {
-		id, err := strconv.ParseInt(v, 10, 64)
-		if err != nil || id <= 0 {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user_id"})
-		}
-		filter.UserID = &id
+	filter.FactoryID = factoryID
+	userID, err := parseOptionalPositiveInt64Query(c, "user_id")
+	if err != nil {
+		return jsonError(c, fiber.StatusBadRequest, "invalid user_id")
 	}
+	filter.UserID = userID
 	if v := strings.TrimSpace(c.Query("date_from")); v != "" {
 		t, err := time.Parse("2006-01-02", v)
 		if err != nil {
@@ -67,9 +63,9 @@ func (h *AdminOrderHandler) List(c *fiber.Ctx) error {
 }
 
 func (h *AdminOrderHandler) GetByID(c *fiber.Ctx) error {
-	orderID, err := strconv.ParseInt(c.Params("order_id"), 10, 64)
-	if err != nil || orderID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
+	orderID, err := parsePositiveInt64Param(c, "order_id")
+	if err != nil {
+		return jsonError(c, fiber.StatusBadRequest, "invalid order_id")
 	}
 	detail, err := h.service.GetAdminDetailByID(orderID)
 	if err != nil {
@@ -86,9 +82,9 @@ func (h *AdminOrderHandler) GetByID(c *fiber.Ctx) error {
 }
 
 func (h *AdminOrderHandler) PatchStatus(c *fiber.Ctx) error {
-	orderID, err := strconv.ParseInt(c.Params("order_id"), 10, 64)
-	if err != nil || orderID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
+	orderID, err := parsePositiveInt64Param(c, "order_id")
+	if err != nil {
+		return jsonError(c, fiber.StatusBadRequest, "invalid order_id")
 	}
 	var req struct {
 		Status string `json:"status"`
@@ -113,13 +109,9 @@ func (h *AdminOrderHandler) PatchStatus(c *fiber.Ctx) error {
 }
 
 func (h *AdminOrderHandler) ListWithdrawals(c *fiber.Ctx) error {
-	var factoryID *int64
-	if v := strings.TrimSpace(c.Query("factory_id")); v != "" {
-		id, err := strconv.ParseInt(v, 10, 64)
-		if err != nil || id <= 0 {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_id"})
-		}
-		factoryID = &id
+	factoryID, err := parseOptionalPositiveInt64Query(c, "factory_id")
+	if err != nil {
+		return jsonError(c, fiber.StatusBadRequest, "invalid factory_id")
 	}
 	items, total, err := h.withdrawal.ListAdmin(strings.TrimSpace(c.Query("status")), factoryID, c.QueryInt("page", 1), c.QueryInt("page_size", 20))
 	if err != nil {
@@ -129,9 +121,9 @@ func (h *AdminOrderHandler) ListWithdrawals(c *fiber.Ctx) error {
 }
 
 func (h *AdminOrderHandler) PatchWithdrawal(c *fiber.Ctx) error {
-	requestID, err := strconv.ParseInt(c.Params("request_id"), 10, 64)
-	if err != nil || requestID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request_id"})
+	requestID, err := parsePositiveInt64Param(c, "request_id")
+	if err != nil {
+		return jsonError(c, fiber.StatusBadRequest, "invalid request_id")
 	}
 	var req struct {
 		Status string  `json:"status"`
@@ -155,13 +147,9 @@ func (h *AdminOrderHandler) PatchWithdrawal(c *fiber.Ctx) error {
 }
 
 func (h *AdminOrderHandler) ListDisputes(c *fiber.Ctx) error {
-	var orderID *int64
-	if v := strings.TrimSpace(c.Query("order_id")); v != "" {
-		id, err := strconv.ParseInt(v, 10, 64)
-		if err != nil || id <= 0 {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
-		}
-		orderID = &id
+	orderID, err := parseOptionalPositiveInt64Query(c, "order_id")
+	if err != nil {
+		return jsonError(c, fiber.StatusBadRequest, "invalid order_id")
 	}
 	items, total, err := h.dispute.ListAdmin(strings.TrimSpace(c.Query("status")), orderID, c.QueryInt("page", 1), c.QueryInt("page_size", 20))
 	if err != nil {
@@ -171,9 +159,9 @@ func (h *AdminOrderHandler) ListDisputes(c *fiber.Ctx) error {
 }
 
 func (h *AdminOrderHandler) PatchDispute(c *fiber.Ctx) error {
-	disputeID, err := strconv.ParseInt(c.Params("dispute_id"), 10, 64)
-	if err != nil || disputeID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid dispute_id"})
+	disputeID, err := parsePositiveInt64Param(c, "dispute_id")
+	if err != nil {
+		return jsonError(c, fiber.StatusBadRequest, "invalid dispute_id")
 	}
 	var req struct {
 		Status     string  `json:"status"`

@@ -39,3 +39,69 @@ func getOptionalRoleFromContext(c *fiber.Ctx) string {
 	}
 	return ""
 }
+
+func jsonError(c *fiber.Ctx, status int, message string) error {
+	return c.Status(status).JSON(fiber.Map{"error": message})
+}
+
+func parsePositiveInt64Param(c *fiber.Ctx, name string) (int64, error) {
+	value, err := strconv.ParseInt(c.Params(name), 10, 64)
+	if err != nil || value <= 0 {
+		return 0, fiber.NewError(fiber.StatusBadRequest, "invalid "+name)
+	}
+	return value, nil
+}
+
+func parseOptionalPositiveInt64Query(c *fiber.Ctx, name string) (*int64, error) {
+	raw := strings.TrimSpace(c.Query(name))
+	if raw == "" {
+		return nil, nil
+	}
+	value, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || value <= 0 {
+		return nil, fiber.NewError(fiber.StatusBadRequest, "invalid "+name)
+	}
+	return &value, nil
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func maxIntQuery(v, min int) int {
+	if v < min {
+		return min
+	}
+	return v
+}
+
+func clampInt(v, min, max int) int {
+	if v < min {
+		return min
+	}
+	if v > max {
+		return max
+	}
+	return v
+}
+
+func normalizePageSize(size int) int {
+	if size <= 0 {
+		return 20
+	}
+	if size > 100 {
+		return 100
+	}
+	return size
+}
+
+func pageLimit(c *fiber.Ctx, defaultLimit int) (int, int) {
+	return maxIntQuery(c.QueryInt("page", 1), 1), clampInt(c.QueryInt("limit", defaultLimit), 1, 100)
+}
+
+func limitOffset(c *fiber.Ctx, defaultLimit int) (int, int) {
+	return clampInt(c.QueryInt("limit", defaultLimit), 1, 100), maxIntQuery(c.QueryInt("offset", 0), 0)
+}

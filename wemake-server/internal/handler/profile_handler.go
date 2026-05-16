@@ -205,8 +205,7 @@ func (h *ProfileHandler) ListTransactions(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	page := maxIntQuery(c.QueryInt("page", 1), 1)
-	limit := clampInt(c.QueryInt("limit", 20), 1, 100)
+	page, limit := pageLimit(c, 20)
 	items, total, totalIn, totalOut, err := h.service.ListTransactions(userID, page, limit, c.Query("type"), c.Query("status"))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch transactions"})
@@ -231,8 +230,7 @@ func (h *ProfileHandler) ListMyReviews(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	page := maxIntQuery(c.QueryInt("page", 1), 1)
-	limit := clampInt(c.QueryInt("limit", 20), 1, 100)
+	page, limit := pageLimit(c, 20)
 	items, total, err := h.service.ListMyReviews(userID, page, limit)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch reviews"})
@@ -245,8 +243,7 @@ func (h *ProfileHandler) ListReceivedReviews(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	page := maxIntQuery(c.QueryInt("page", 1), 1)
-	limit := clampInt(c.QueryInt("limit", 20), 1, 100)
+	page, limit := pageLimit(c, 20)
 	role := getOptionalRoleFromContext(c)
 	items, total, err := h.service.ListReceivedReviews(userID, role, page, limit)
 	if err != nil {

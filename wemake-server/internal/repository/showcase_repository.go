@@ -638,7 +638,6 @@ func (r *ShowcaseRepository) CreateImage(img *domain.ShowcaseImage, factoryID in
 		return sql.ErrNoRows
 	}
 	img.ImageURL = imageURL
-	img.ShowcaseID = img.ShowcaseID
 	return nil
 }
 

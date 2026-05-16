@@ -8,19 +8,24 @@ import (
 
 type JSONB map[string]interface{}
 
-func (j *JSONB) Scan(src interface{}) error {
+func jsonBytesFromSQL(src interface{}, typeName string) ([]byte, error) {
 	if src == nil {
-		*j = JSONB{}
-		return nil
+		return nil, nil
 	}
-	var data []byte
 	switch v := src.(type) {
 	case []byte:
-		data = v
+		return v, nil
 	case string:
-		data = []byte(v)
+		return []byte(v), nil
 	default:
-		return fmt.Errorf("JSONB: unsupported type %T", src)
+		return nil, fmt.Errorf("%s: unsupported type %T", typeName, src)
+	}
+}
+
+func (j *JSONB) Scan(src interface{}) error {
+	data, err := jsonBytesFromSQL(src, "JSONB")
+	if err != nil {
+		return err
 	}
 	if len(data) == 0 {
 		*j = JSONB{}
