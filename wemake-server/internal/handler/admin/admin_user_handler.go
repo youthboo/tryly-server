@@ -1,21 +1,21 @@
 package admin
 
 import (
-	"github.com/yourusername/wemake/internal/helper"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/dto"
-	"github.com/yourusername/wemake/internal/repository"
-	"github.com/yourusername/wemake/internal/service"
+	"github.com/yourusername/wemake/internal/helper"
+	authrepo "github.com/yourusername/wemake/internal/repository/auth"
+	authservice "github.com/yourusername/wemake/internal/service/auth"
 )
 
 type AdminUserHandler struct {
-	authService *service.AuthService
-	authRepo    *repository.AuthRepository
+	authService *authservice.AuthService
+	authRepo    *authrepo.AuthRepository
 }
 
-func NewAdminUserHandler(authService *service.AuthService, authRepo *repository.AuthRepository) *AdminUserHandler {
+func NewAdminUserHandler(authService *authservice.AuthService, authRepo *authrepo.AuthRepository) *AdminUserHandler {
 	return &AdminUserHandler{authService: authService, authRepo: authRepo}
 }
 
@@ -33,7 +33,7 @@ func (h *AdminUserHandler) Create(c *fiber.Ctx) error {
 		return err
 	}
 	displayName := req.FirstName + " " + req.LastName
-	item, err := h.authService.RegisterAdmin(service.RegisterAdminInput{
+	item, err := h.authService.RegisterAdmin(authservice.RegisterAdminInput{
 		Role:        strings.TrimSpace(req.Role),
 		Email:       strings.TrimSpace(req.Email),
 		Password:    req.Password,

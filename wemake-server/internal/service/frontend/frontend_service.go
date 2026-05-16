@@ -1,4 +1,4 @@
-package service
+package frontend
 
 import (
 	"database/sql"
@@ -12,14 +12,15 @@ import (
 	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/repository"
 	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
+	frontendrepo "github.com/yourusername/wemake/internal/repository/frontend"
 )
 
 type FrontendService struct {
-	repo        *repository.FrontendRepository
+	repo        *frontendrepo.FrontendRepository
 	factoryRepo *factoryrepo.FactoryRepository
 }
 
-func NewFrontendService(repo *repository.FrontendRepository, factoryRepo *factoryrepo.FactoryRepository) *FrontendService {
+func NewFrontendService(repo *frontendrepo.FrontendRepository, factoryRepo *factoryrepo.FactoryRepository) *FrontendService {
 	return &FrontendService{repo: repo, factoryRepo: factoryRepo}
 }
 
@@ -65,9 +66,9 @@ func (s *FrontendService) GetBootstrap(userID int64) (*domain.FrontendBootstrapR
 	}
 	logger.Debug("frontend factories loaded", "user_id", userID, "count", len(factoryRows))
 
-	var rfqRows []repository.FrontendRFQRow
-	var orderRows []repository.FrontendOrderRow
-	var threadRows []repository.FrontendMessageThreadRow
+	var rfqRows []frontendrepo.FrontendRFQRow
+	var orderRows []frontendrepo.FrontendOrderRow
+	var threadRows []frontendrepo.FrontendMessageThreadRow
 	if userID > 0 {
 		if rows, e := s.repo.ListRFQsByUserID(userID); e == nil {
 			rfqRows = rows
@@ -248,7 +249,7 @@ func (s *FrontendService) GetFactoryDetail(factoryID int64) (*domain.FrontendFac
 	}
 
 	return &domain.FrontendFactoryDetail{
-		Factory: mapFactoryCard(repository.FrontendFactoryRow{
+		Factory: mapFactoryCard(frontendrepo.FrontendFactoryRow{
 			ID:              row.ID,
 			Name:            row.Name,
 			Location:        row.Location,
@@ -484,7 +485,7 @@ func (s *FrontendService) GetMockData(userID int64) (*domain.FrontendMockDataRes
 	}, nil
 }
 
-func (s *FrontendService) buildThreads(rows []repository.FrontendMessageThreadRow) ([]domain.FrontendMessageThread, error) {
+func (s *FrontendService) buildThreads(rows []frontendrepo.FrontendMessageThreadRow) ([]domain.FrontendMessageThread, error) {
 	logger.Debug("building frontend message threads", "count", len(rows))
 	items := make([]domain.FrontendMessageThread, 0, len(rows))
 	for idx, item := range rows {
@@ -534,7 +535,7 @@ func (s *FrontendService) buildThreads(rows []repository.FrontendMessageThreadRo
 	return items, nil
 }
 
-func mapFactoryCard(row repository.FrontendFactoryRow) domain.FrontendFactoryCard {
+func mapFactoryCard(row frontendrepo.FrontendFactoryRow) domain.FrontendFactoryCard {
 	specialization := row.Specialization.String
 	leadTime := strings.TrimSpace(row.LeadTimeDesc.String)
 	if leadTime == "" {
@@ -575,7 +576,7 @@ func mapFactoryCard(row repository.FrontendFactoryRow) domain.FrontendFactoryCar
 	}
 }
 
-func mapRFQCard(row repository.FrontendRFQRow) domain.FrontendRFQCard {
+func mapRFQCard(row frontendrepo.FrontendRFQRow) domain.FrontendRFQCard {
 	return domain.FrontendRFQCard{
 		ID:          row.ID,
 		ProjectName: row.ProjectName,
@@ -589,7 +590,7 @@ func mapRFQCard(row repository.FrontendRFQRow) domain.FrontendRFQCard {
 	}
 }
 
-func mapOrderCard(row repository.FrontendOrderRow) domain.FrontendOrderCard {
+func mapOrderCard(row frontendrepo.FrontendOrderRow) domain.FrontendOrderCard {
 	return domain.FrontendOrderCard{
 		ID:                row.ID,
 		ProjectName:       row.ProjectName,
@@ -662,7 +663,7 @@ func nullStr(s sql.NullString) string {
 	return strings.TrimSpace(s.String)
 }
 
-func mapMockCurrentUser(row *repository.FrontendCurrentUserRow) *domain.MockCurrentUser {
+func mapMockCurrentUser(row *frontendrepo.FrontendCurrentUserRow) *domain.MockCurrentUser {
 	name := strings.TrimSpace(strings.Join([]string{row.FirstName.String, row.LastName.String}, " "))
 	if name == "" {
 		name = row.FactoryName.String
@@ -690,7 +691,7 @@ func mapMockCurrentUser(row *repository.FrontendCurrentUserRow) *domain.MockCurr
 	}
 }
 
-func mapMockCategory(row repository.FrontendCategoryRow) domain.MockCategory {
+func mapMockCategory(row frontendrepo.FrontendCategoryRow) domain.MockCategory {
 	iconMap := map[string]string{
 		"อาหารสัตว์":          "🐾",
 		"อาหารเสริม":          "💊",
@@ -727,7 +728,7 @@ func mapMockCategory(row repository.FrontendCategoryRow) domain.MockCategory {
 	}
 }
 
-func mapMockFactory(row repository.FrontendFactoryRow) domain.MockFactory {
+func mapMockFactory(row frontendrepo.FrontendFactoryRow) domain.MockFactory {
 	rating := 4.6 + (float64(row.ID%4) * 0.1)
 	reviews := row.CompletedOrders/2 + 24
 	priceRanges := []string{"฿", "฿฿", "฿฿฿"}
@@ -766,7 +767,7 @@ func mapMockFactory(row repository.FrontendFactoryRow) domain.MockFactory {
 	}
 }
 
-func buildMockFactoryProfile(row repository.FrontendFactoryDetailRow) domain.MockFactoryProfile {
+func buildMockFactoryProfile(row frontendrepo.FrontendFactoryDetailRow) domain.MockFactoryProfile {
 	certificates := []string{}
 	if row.Verified {
 		certificates = append(certificates, "Verified")
@@ -871,7 +872,7 @@ func buildMockShowcases(factory domain.MockFactory, index int) []domain.MockShow
 	return []domain.MockShowcase{product, second}
 }
 
-func (s *FrontendService) buildMockRFQ(row repository.FrontendRFQRow, categoryIcons map[string]string) (domain.MockRFQ, error) {
+func (s *FrontendService) buildMockRFQ(row frontendrepo.FrontendRFQRow, categoryIcons map[string]string) (domain.MockRFQ, error) {
 	offerRows, err := s.repo.ListQuotationsByRFQID(row.ID)
 	if err != nil {
 		return domain.MockRFQ{}, err
@@ -919,7 +920,7 @@ func (s *FrontendService) buildMockRFQ(row repository.FrontendRFQRow, categoryIc
 	}, nil
 }
 
-func (s *FrontendService) buildMockOrder(row repository.FrontendOrderRow, rfq domain.MockRFQ) (domain.MockOrder, error) {
+func (s *FrontendService) buildMockOrder(row frontendrepo.FrontendOrderRow, rfq domain.MockRFQ) (domain.MockOrder, error) {
 	timelineRows, err := s.repo.ListOrderTimeline(row.ID)
 	if err != nil {
 		return domain.MockOrder{}, err
@@ -962,7 +963,7 @@ func (s *FrontendService) buildMockOrder(row repository.FrontendOrderRow, rfq do
 	}, nil
 }
 
-func (s *FrontendService) buildMockConversation(userID int64, thread repository.FrontendMessageThreadRow, rfqMap map[int64]domain.MockRFQ, factoryMap map[int64]domain.MockFactory, index int) (domain.MockConversation, error) {
+func (s *FrontendService) buildMockConversation(userID int64, thread frontendrepo.FrontendMessageThreadRow, rfqMap map[int64]domain.MockRFQ, factoryMap map[int64]domain.MockFactory, index int) (domain.MockConversation, error) {
 	messagesRows, err := s.repo.ListMessagesByReference(thread.ReferenceType, thread.ReferenceID, userID)
 	if err != nil {
 		return domain.MockConversation{}, err
@@ -1201,7 +1202,7 @@ func (s *FrontendService) GetExploreData(userID int64) (*domain.ExploreData, err
 	}, nil
 }
 
-func lastFrontendMessageTime(items []repository.FrontendMessageRow) string {
+func lastFrontendMessageTime(items []frontendrepo.FrontendMessageRow) string {
 	if len(items) == 0 {
 		return ""
 	}

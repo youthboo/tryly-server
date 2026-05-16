@@ -7,7 +7,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/repository"
-	"github.com/yourusername/wemake/internal/service"
+	authservice "github.com/yourusername/wemake/internal/service/auth"
 	factoryservice "github.com/yourusername/wemake/internal/service/factory"
 )
 
@@ -15,10 +15,10 @@ const errMsgInvalidFactoryID = "invalid factory_id"
 
 type FactoryHandler struct {
 	service *factoryservice.FactoryService
-	auth    *service.AuthService
+	auth    *authservice.AuthService
 }
 
-func NewFactoryHandler(service *factoryservice.FactoryService, authService *service.AuthService) *FactoryHandler {
+func NewFactoryHandler(service *factoryservice.FactoryService, authService *authservice.AuthService) *FactoryHandler {
 	return &FactoryHandler{service: service, auth: authService}
 }
 

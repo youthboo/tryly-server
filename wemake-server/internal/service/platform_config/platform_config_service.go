@@ -1,18 +1,19 @@
-package service
+package platformconfig
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/yourusername/wemake/internal/helper"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/helper"
 	"github.com/yourusername/wemake/internal/repository"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
+	platformrepo "github.com/yourusername/wemake/internal/repository/platform_config"
 )
 
 var (
@@ -24,11 +25,11 @@ var (
 
 type PlatformConfigService struct {
 	db    *sqlx.DB
-	repo  *repository.PlatformConfigRepository
+	repo  *platformrepo.PlatformConfigRepository
 	audit *adminrepo.AdminAuditRepository
 }
 
-func NewPlatformConfigService(db *sqlx.DB, repo *repository.PlatformConfigRepository, audit *adminrepo.AdminAuditRepository) *PlatformConfigService {
+func NewPlatformConfigService(db *sqlx.DB, repo *platformrepo.PlatformConfigRepository, audit *adminrepo.AdminAuditRepository) *PlatformConfigService {
 	return &PlatformConfigService{db: db, repo: repo, audit: audit}
 }
 

@@ -5,13 +5,18 @@ import (
 	"github.com/yourusername/wemake/internal/config"
 	"github.com/yourusername/wemake/internal/handler"
 	adminhandler "github.com/yourusername/wemake/internal/handler/admin"
+	authhandler "github.com/yourusername/wemake/internal/handler/auth"
 	boqhandler "github.com/yourusername/wemake/internal/handler/boq"
+	cataloghandler "github.com/yourusername/wemake/internal/handler/catalog"
 	conversationhandler "github.com/yourusername/wemake/internal/handler/conversation"
 	factoryhandler "github.com/yourusername/wemake/internal/handler/factory"
+	frontendhandler "github.com/yourusername/wemake/internal/handler/frontend"
+	masterhandler "github.com/yourusername/wemake/internal/handler/master"
 	messagehandler "github.com/yourusername/wemake/internal/handler/message"
 	notificationhandler "github.com/yourusername/wemake/internal/handler/notification"
 	orderhandler "github.com/yourusername/wemake/internal/handler/order"
 	paymenthandler "github.com/yourusername/wemake/internal/handler/payment"
+	platformconfighandler "github.com/yourusername/wemake/internal/handler/platform_config"
 	productionhandler "github.com/yourusername/wemake/internal/handler/production"
 	profilehandler "github.com/yourusername/wemake/internal/handler/profile"
 	quotationhandler "github.com/yourusername/wemake/internal/handler/quotation"
@@ -21,14 +26,18 @@ import (
 	wallethandler "github.com/yourusername/wemake/internal/handler/wallet"
 	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/media"
-	"github.com/yourusername/wemake/internal/repository"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
+	authrepo "github.com/yourusername/wemake/internal/repository/auth"
+	catalogrepo "github.com/yourusername/wemake/internal/repository/catalog"
 	conversationrepo "github.com/yourusername/wemake/internal/repository/conversation"
 	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
+	frontendrepo "github.com/yourusername/wemake/internal/repository/frontend"
+	masterrepo "github.com/yourusername/wemake/internal/repository/master"
 	messagerepo "github.com/yourusername/wemake/internal/repository/message"
 	notificationrepo "github.com/yourusername/wemake/internal/repository/notification"
 	orderrepo "github.com/yourusername/wemake/internal/repository/order"
 	paymentrepo "github.com/yourusername/wemake/internal/repository/payment"
+	platformrepo "github.com/yourusername/wemake/internal/repository/platform_config"
 	productionrepo "github.com/yourusername/wemake/internal/repository/production"
 	profilerepo "github.com/yourusername/wemake/internal/repository/profile"
 	quotationrepo "github.com/yourusername/wemake/internal/repository/quotation"
@@ -36,15 +45,19 @@ import (
 	showcaserepo "github.com/yourusername/wemake/internal/repository/showcase"
 	userrepo "github.com/yourusername/wemake/internal/repository/user"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
-	"github.com/yourusername/wemake/internal/service"
 	adminservice "github.com/yourusername/wemake/internal/service/admin"
+	authservice "github.com/yourusername/wemake/internal/service/auth"
 	boqservice "github.com/yourusername/wemake/internal/service/boq"
+	catalogservice "github.com/yourusername/wemake/internal/service/catalog"
 	conversationservice "github.com/yourusername/wemake/internal/service/conversation"
 	factoryservice "github.com/yourusername/wemake/internal/service/factory"
+	frontendservice "github.com/yourusername/wemake/internal/service/frontend"
+	masterservice "github.com/yourusername/wemake/internal/service/master"
 	messageservice "github.com/yourusername/wemake/internal/service/message"
 	notificationservice "github.com/yourusername/wemake/internal/service/notification"
 	orderservice "github.com/yourusername/wemake/internal/service/order"
 	paymentservice "github.com/yourusername/wemake/internal/service/payment"
+	platformservice "github.com/yourusername/wemake/internal/service/platform_config"
 	productionservice "github.com/yourusername/wemake/internal/service/production"
 	profileservice "github.com/yourusername/wemake/internal/service/profile"
 	quotationservice "github.com/yourusername/wemake/internal/service/quotation"
@@ -55,10 +68,10 @@ import (
 )
 
 type routeHandlers struct {
-	authService *service.AuthService
+	authService *authservice.AuthService
 
-	auth              *handler.AuthHandler
-	catalog           *handler.CatalogHandler
+	auth              *authhandler.AuthHandler
+	catalog           *cataloghandler.CatalogHandler
 	address           *userhandler.AddressHandler
 	wallet            *wallethandler.WalletHandler
 	rfq               *rfqhandler.RFQHandler
@@ -67,9 +80,9 @@ type routeHandlers struct {
 	orderPayment      *paymenthandler.OrderPaymentHandler
 	production        *productionhandler.ProductionHandler
 	message           *messagehandler.MessageHandler
-	master            *handler.MasterHandler
+	master            *masterhandler.MasterHandler
 	transaction       *wallethandler.TransactionHandler
-	frontend          *handler.FrontendHandler
+	frontend          *frontendhandler.FrontendHandler
 	media             *handler.MediaHandler
 	review            *userhandler.ReviewHandler
 	conversation      *conversationhandler.ConversationHandler
@@ -86,7 +99,7 @@ type routeHandlers struct {
 	dispute           *wallethandler.DisputeHandler
 	quotationTemplate *quotationhandler.QuotationTemplateHandler
 	paymentSchedule   *paymenthandler.PaymentScheduleHandler
-	platformConfig    *handler.PlatformConfigHandler
+	platformConfig    *platformconfighandler.PlatformConfigHandler
 	adminFactory      *adminhandler.AdminFactoryHandler
 	adminDashboard    *adminhandler.AdminDashboardHandler
 	adminRFQ          *adminhandler.AdminRFQHandler
@@ -97,8 +110,8 @@ type routeHandlers struct {
 }
 
 func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
-	authRepo := repository.NewAuthRepository(db)
-	catalogRepo := repository.NewCatalogRepository(db)
+	authRepo := authrepo.NewAuthRepository(db)
+	catalogRepo := catalogrepo.NewCatalogRepository(db)
 	addressRepo := userrepo.NewAddressRepository(db)
 	walletRepo := walletrepo.NewWalletRepository(db)
 	rfqRepo := rfqrepo.NewRFQRepository(db)
@@ -106,9 +119,9 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 	orderRepo := orderrepo.NewOrderRepository(db)
 	productionRepo := productionrepo.NewProductionRepository(db)
 	messageRepo := messagerepo.NewMessageRepository(db)
-	masterRepo := repository.NewMasterRepository(db)
+	masterRepo := masterrepo.NewMasterRepository(db)
 	transactionRepo := walletrepo.NewTransactionRepository(db)
-	frontendRepo := repository.NewFrontendRepository(db)
+	frontendRepo := frontendrepo.NewFrontendRepository(db)
 	reviewRepo := userrepo.NewReviewRepository(db)
 	conversationRepo := conversationrepo.NewConversationRepository(db)
 	notificationRepo := notificationrepo.NewNotificationRepository(db)
@@ -124,7 +137,7 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 	disputeRepo := walletrepo.NewDisputeRepository(db)
 	quotationTemplateRepo := quotationrepo.NewQuotationTemplateRepository(db)
 	paymentScheduleRepo := paymentrepo.NewPaymentScheduleRepository(db)
-	platformConfigRepo := repository.NewPlatformConfigRepository(db)
+	platformConfigRepo := platformrepo.NewPlatformConfigRepository(db)
 	quotationItemRepo := quotationrepo.NewQuotationItemRepository(db)
 	commissionRepo := walletrepo.NewCommissionRepository(db)
 	adminAuditRepo := adminrepo.NewAdminAuditRepository(db)
@@ -137,8 +150,8 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 	customerAdminRepo := adminrepo.NewCustomerAdminRepository(db)
 	settlementAdminRepo := adminrepo.NewSettlementAdminRepository(db)
 
-	authService := service.NewAuthService(authRepo, cfg.JWTSecret)
-	catalogService := service.NewCatalogService(catalogRepo)
+	authService := authservice.NewAuthService(authRepo, cfg.JWTSecret)
+	catalogService := catalogservice.NewCatalogService(catalogRepo)
 	addressService := userservice.NewAddressService(addressRepo, factoryRepo)
 	walletService := walletservice.NewWalletService(walletRepo, transactionRepo)
 	notificationService := notificationservice.NewNotificationService(notificationRepo)
@@ -146,13 +159,13 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 	messageService := messageservice.NewMessageService(messageRepo, conversationRepo, notificationService)
 	orderService := orderservice.NewOrderService(db, orderRepo, paymentScheduleRepo, walletRepo, transactionRepo, quotationRepo, rfqRepo, reviewRepo, notificationService, messageService)
 	commissionService := walletservice.NewCommissionService(platformConfigRepo, commissionRepo)
-	platformConfigService := service.NewPlatformConfigService(db, platformConfigRepo, adminAuditRepo)
+	platformConfigService := platformservice.NewPlatformConfigService(db, platformConfigRepo, adminAuditRepo)
 	quotationService := quotationservice.NewQuotationService(db, quotationRepo, rfqRepo, quotationItemRepo, commissionService, orderService, factoryRepo, notificationService, messageService)
 	orderPaymentService := paymentservice.NewOrderPaymentService(db)
 	productionService := productionservice.NewProductionService(productionRepo)
-	masterService := service.NewMasterService(masterRepo)
+	masterService := masterservice.NewMasterService(masterRepo)
 	transactionService := walletservice.NewTransactionService(transactionRepo)
-	frontendService := service.NewFrontendService(frontendRepo, factoryRepo)
+	frontendService := frontendservice.NewFrontendService(frontendRepo, factoryRepo)
 	reviewService := userservice.NewReviewService(reviewRepo)
 	conversationService := conversationservice.NewConversationService(conversationRepo, rfqRepo, messageService)
 	showcaseService := showcaseservice.NewShowcaseService(showcaseRepo, factoryRepo)
@@ -178,8 +191,8 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 
 	return &routeHandlers{
 		authService:       authService,
-		auth:              handler.NewAuthHandler(authService),
-		catalog:           handler.NewCatalogHandler(catalogService),
+		auth:              authhandler.NewAuthHandler(authService),
+		catalog:           cataloghandler.NewCatalogHandler(catalogService),
 		address:           userhandler.NewAddressHandler(addressService),
 		wallet:            wallethandler.NewWalletHandler(walletService),
 		rfq:               rfqhandler.NewRFQHandler(rfqService, authService),
@@ -188,9 +201,9 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 		orderPayment:      paymenthandler.NewOrderPaymentHandler(orderPaymentService),
 		production:        productionhandler.NewProductionHandler(productionService),
 		message:           messagehandler.NewMessageHandler(messageService),
-		master:            handler.NewMasterHandler(masterService),
+		master:            masterhandler.NewMasterHandler(masterService),
 		transaction:       wallethandler.NewTransactionHandler(transactionService),
-		frontend:          handler.NewFrontendHandler(frontendService),
+		frontend:          frontendhandler.NewFrontendHandler(frontendService),
 		media:             handler.NewMediaHandler(cfg.PublicBaseURL, cld),
 		review:            userhandler.NewReviewHandler(reviewService),
 		conversation:      conversationhandler.NewConversationHandler(conversationService),
@@ -207,7 +220,7 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 		dispute:           wallethandler.NewDisputeHandler(disputeService),
 		quotationTemplate: quotationhandler.NewQuotationTemplateHandler(quotationTemplateService),
 		paymentSchedule:   paymenthandler.NewPaymentScheduleHandler(paymentScheduleService),
-		platformConfig:    handler.NewPlatformConfigHandler(platformConfigService, authService),
+		platformConfig:    platformconfighandler.NewPlatformConfigHandler(platformConfigService, authService),
 		adminFactory:      adminhandler.NewAdminFactoryHandler(adminFactoryRepo, adminFactoryService),
 		adminDashboard:    adminhandler.NewAdminDashboardHandler(adminDashboardService),
 		adminRFQ:          adminhandler.NewAdminRFQHandler(adminRFQRepo, adminAuditRepo),

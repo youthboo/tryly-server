@@ -1,4 +1,4 @@
-package handler
+package frontend
 
 import (
 	"fmt"
@@ -6,14 +6,14 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/logger"
-	"github.com/yourusername/wemake/internal/service"
+	frontendservice "github.com/yourusername/wemake/internal/service/frontend"
 )
 
 type FrontendHandler struct {
-	service *service.FrontendService
+	service *frontendservice.FrontendService
 }
 
-func NewFrontendHandler(service *service.FrontendService) *FrontendHandler {
+func NewFrontendHandler(service *frontendservice.FrontendService) *FrontendHandler {
 	return &FrontendHandler{service: service}
 }
 

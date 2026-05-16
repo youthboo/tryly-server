@@ -1,15 +1,15 @@
-package service
+package catalog
 
 import (
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
+	catalogrepo "github.com/yourusername/wemake/internal/repository/catalog"
 )
 
 type CatalogService struct {
-	repo *repository.CatalogRepository
+	repo *catalogrepo.CatalogRepository
 }
 
-func NewCatalogService(repo *repository.CatalogRepository) *CatalogService {
+func NewCatalogService(repo *catalogrepo.CatalogRepository) *CatalogService {
 	return &CatalogService{repo: repo}
 }
 

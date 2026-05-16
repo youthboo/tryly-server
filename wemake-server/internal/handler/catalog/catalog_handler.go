@@ -1,18 +1,18 @@
-package handler
+package catalog
 
 import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/helper"
-	"github.com/yourusername/wemake/internal/service"
+	catalogservice "github.com/yourusername/wemake/internal/service/catalog"
 )
 
 type CatalogHandler struct {
-	service *service.CatalogService
+	service *catalogservice.CatalogService
 }
 
-func NewCatalogHandler(service *service.CatalogService) *CatalogHandler {
+func NewCatalogHandler(service *catalogservice.CatalogService) *CatalogHandler {
 	return &CatalogHandler{service: service}
 }
 

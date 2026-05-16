@@ -1,4 +1,4 @@
-package repository
+package frontend
 
 import (
 	"database/sql"

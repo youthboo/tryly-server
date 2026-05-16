@@ -1,18 +1,18 @@
-package handler
+package auth
 
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	"github.com/yourusername/wemake/internal/logger"
-	"github.com/yourusername/wemake/internal/service"
+	authservice "github.com/yourusername/wemake/internal/service/auth"
 )
 
 type AuthHandler struct {
-	service *service.AuthService
+	service *authservice.AuthService
 }
 
-func NewAuthHandler(service *service.AuthService) *AuthHandler {
+func NewAuthHandler(service *authservice.AuthService) *AuthHandler {
 	return &AuthHandler{service: service}
 }
 
@@ -26,7 +26,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		return err
 	}
 
-	result, err := h.service.Register(service.RegisterInput{
+	result, err := h.service.Register(authservice.RegisterInput{
 		Role:          req.Role,
 		Email:         req.Email,
 		Phone:         req.Phone,
@@ -40,9 +40,9 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	})
 	if err != nil {
 		switch err {
-		case service.ErrEmailAlreadyExists:
+		case authservice.ErrEmailAlreadyExists:
 			return helper.WriteAPIError(c, helper.ConflictAPIError("EMAIL_EXISTS", "email already exists"))
-		case service.ErrInvalidRole, service.ErrMissingRoleData:
+		case authservice.ErrInvalidRole, authservice.ErrMissingRoleData:
 			return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_ROLE", err.Error()))
 		default:
 			logger.Error("user registration failed", "role", req.Role, "email", req.Email, "err", err)
@@ -66,9 +66,9 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	result, err := h.service.Login(req.Email, req.Password)
 	if err != nil {
 		switch err {
-		case service.ErrInvalidCredentials:
+		case authservice.ErrInvalidCredentials:
 			return helper.WriteAPIError(c, helper.UnauthorizedAPIError("INVALID_CREDENTIALS", "invalid email or password"))
-		case service.ErrUserInactive:
+		case authservice.ErrUserInactive:
 			return helper.WriteAPIError(c, helper.ForbiddenAPIError("USER_INACTIVE", "account is inactive"))
 		default:
 			return helper.WriteAPIError(c, helper.InternalServerError("LOGIN_FAILED", "failed to login"))
@@ -109,7 +109,7 @@ func (h *AuthHandler) ResetPassword(c *fiber.Ctx) error {
 	}
 
 	if err := h.service.ResetPassword(req.Token, req.NewPassword); err != nil {
-		if err == service.ErrInvalidResetToken {
+		if err == authservice.ErrInvalidResetToken {
 			return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_RESET_TOKEN", "invalid or expired reset token"))
 		}
 		return helper.WriteAPIError(c, helper.InternalServerError("RESET_PASSWORD_FAILED", "failed to reset password"))

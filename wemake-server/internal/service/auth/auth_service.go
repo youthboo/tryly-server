@@ -1,4 +1,4 @@
-package service
+package auth
 
 import (
 	"errors"
@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/repository"
+	authrepo "github.com/yourusername/wemake/internal/repository/auth"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -22,7 +23,7 @@ var (
 )
 
 type AuthService struct {
-	repo      *repository.AuthRepository
+	repo      *authrepo.AuthRepository
 	jwtSecret string
 }
 
@@ -44,7 +45,7 @@ type LoginResult struct {
 	User  *domain.User `json:"user"`
 }
 
-func NewAuthService(repo *repository.AuthRepository, jwtSecret string) *AuthService {
+func NewAuthService(repo *authrepo.AuthRepository, jwtSecret string) *AuthService {
 	return &AuthService{repo: repo, jwtSecret: jwtSecret}
 }
 

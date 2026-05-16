@@ -9,16 +9,16 @@ import (
 	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	"github.com/yourusername/wemake/internal/repository"
-	"github.com/yourusername/wemake/internal/service"
+	authservice "github.com/yourusername/wemake/internal/service/auth"
 	orderservice "github.com/yourusername/wemake/internal/service/order"
 )
 
 type OrderHandler struct {
 	service *orderservice.OrderService
-	auth    *service.AuthService
+	auth    *authservice.AuthService
 }
 
-func NewOrderHandler(orderService *orderservice.OrderService, authService *service.AuthService) *OrderHandler {
+func NewOrderHandler(orderService *orderservice.OrderService, authService *authservice.AuthService) *OrderHandler {
 	return &OrderHandler{service: orderService, auth: authService}
 }
 

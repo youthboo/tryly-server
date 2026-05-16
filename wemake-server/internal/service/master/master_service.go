@@ -1,15 +1,15 @@
-package service
+package master
 
 import (
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
+	masterrepo "github.com/yourusername/wemake/internal/repository/master"
 )
 
 type MasterService struct {
-	repo *repository.MasterRepository
+	repo *masterrepo.MasterRepository
 }
 
-func NewMasterService(repo *repository.MasterRepository) *MasterService {
+func NewMasterService(repo *masterrepo.MasterRepository) *MasterService {
 	return &MasterService{repo: repo}
 }
 

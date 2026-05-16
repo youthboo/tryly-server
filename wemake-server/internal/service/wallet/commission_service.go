@@ -5,7 +5,7 @@ import (
 
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
-	"github.com/yourusername/wemake/internal/repository"
+	platformrepo "github.com/yourusername/wemake/internal/repository/platform_config"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 )
 
@@ -37,11 +37,11 @@ type CommissionInput struct {
 }
 
 type CommissionService struct {
-	configs   *repository.PlatformConfigRepository
+	configs   *platformrepo.PlatformConfigRepository
 	overrides *walletrepo.CommissionRepository
 }
 
-func NewCommissionService(configs *repository.PlatformConfigRepository, overrides *walletrepo.CommissionRepository) *CommissionService {
+func NewCommissionService(configs *platformrepo.PlatformConfigRepository, overrides *walletrepo.CommissionRepository) *CommissionService {
 	return &CommissionService{configs: configs, overrides: overrides}
 }
 

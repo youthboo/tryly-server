@@ -19,6 +19,10 @@ func NewCertificateHandler(service *userservice.CertificateService) *Certificate
 	return &CertificateHandler{service: service}
 }
 
+var certificateNotFoundErrorMap = map[error]helper.ErrorResponse{
+	sql.ErrNoRows: helper.ErrorMessage(fiber.StatusNotFound, "certificate mapping not found"),
+}
+
 func (h *CertificateHandler) ListByFactory(c *fiber.Ctx) error {
 	factoryID, err := c.ParamsInt("factory_id")
 	if err != nil {
@@ -76,9 +80,9 @@ func (h *CertificateHandler) Delete(c *fiber.Ctx) error {
 			if fallbackErr := h.service.DeleteByCertID(int64(factoryID), mapID); fallbackErr == nil {
 				return c.SendStatus(fiber.StatusNoContent)
 			}
-			return helper.JSONError(c, fiber.StatusNotFound, "certificate mapping not found")
+			return helper.MapServiceError(c, sql.ErrNoRows, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to delete certificate"), certificateNotFoundErrorMap)
 		}
-		return helper.WriteServiceError(c, err, "failed to delete certificate", helper.NotFoundCase(sql.ErrNoRows, "certificate mapping not found"))
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to delete certificate"), certificateNotFoundErrorMap)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -97,7 +101,7 @@ func (h *CertificateHandler) DeleteByCertID(c *fiber.Ctx) error {
 		return helper.BadRequest(c, "invalid cert_id")
 	}
 	if err := h.service.DeleteByCertID(int64(factoryID), certID); err != nil {
-		return helper.WriteServiceError(c, err, "failed to delete certificate", helper.NotFoundCase(sql.ErrNoRows, "certificate mapping not found"))
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to delete certificate"), certificateNotFoundErrorMap)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -123,7 +127,7 @@ func (h *CertificateHandler) PatchByCertID(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "at least one field is required"})
 	}
 	if err := h.service.PatchByCertID(int64(factoryID), certID, req.DocumentURL, req.ExpireDate, req.CertNumber); err != nil {
-		return helper.WriteServiceError(c, err, "failed to update certificate", helper.NotFoundCase(sql.ErrNoRows, "certificate mapping not found"))
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to update certificate"), certificateNotFoundErrorMap)
 	}
 	items, err := h.service.ListByFactoryID(int64(factoryID))
 	if err != nil {

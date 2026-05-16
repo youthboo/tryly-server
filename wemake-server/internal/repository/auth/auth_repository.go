@@ -1,13 +1,13 @@
-package repository
+package auth
 
 import (
 	"database/sql"
-	"github.com/yourusername/wemake/internal/helper"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
+	"github.com/yourusername/wemake/internal/helper"
 )
 
 type AuthRepository struct {
@@ -199,8 +199,4 @@ func (r *AuthRepository) ResetPassword(userID int64, tokenID int64, passwordHash
 func (r *AuthRepository) UpdatePassword(userID int64, passwordHash string, now time.Time) error {
 	_, err := r.db.Exec(`UPDATE users SET password_hash = $1, updated_at = $2 WHERE user_id = $3`, passwordHash, now, userID)
 	return err
-}
-
-func IsNotFoundError(err error) bool {
-	return err == sql.ErrNoRows
 }

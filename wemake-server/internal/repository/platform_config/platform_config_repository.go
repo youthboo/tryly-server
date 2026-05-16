@@ -1,4 +1,4 @@
-package repository
+package platformconfig
 
 import (
 	"database/sql"

@@ -47,7 +47,6 @@ func NewShowcaseHandler(service *showcaseservice.ShowcaseService) *ShowcaseHandl
 	return &ShowcaseHandler{service: service}
 }
 
-
 type linkedShowcaseObject struct {
 	ImageURL  string `json:"image_url"`
 	SortOrder int    `json:"sort_order"`
@@ -197,6 +196,10 @@ func showcaseWriteRequestToInput(r dto.ShowcaseWriteRequest) (domain.ShowcaseWri
 }
 
 func writeShowcaseError(c *fiber.Ctx, err error, fallback string) error {
+	return writeShowcaseMappedError(c, err, fallback, showcaseNotFoundErrorMap)
+}
+
+func writeShowcaseMappedError(c *fiber.Ctx, err error, fallback string, responses map[error]helper.ErrorResponse) error {
 	var validationErr domain.ShowcaseValidationError
 	if errors.As(err, &validationErr) {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{
@@ -204,11 +207,33 @@ func writeShowcaseError(c *fiber.Ctx, err error, fallback string) error {
 			"details": validationErr.Details,
 		})
 	}
-	if errors.Is(err, sql.ErrNoRows) {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": errShowcaseNotFound})
+	if !errors.Is(err, sql.ErrNoRows) && !errors.Is(err, domain.ErrForbidden) && !errors.Is(err, domain.ErrImageLimitExceeded) {
+		logger.Error("showcase handler failed", "fallback", fallback, "err", err)
 	}
-	logger.Error("showcase handler failed", "fallback", fallback, "err", err)
-	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": fallback})
+	return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, fallback), responses)
+}
+
+var showcaseNotFoundErrorMap = map[error]helper.ErrorResponse{
+	sql.ErrNoRows: helper.ErrorMessage(fiber.StatusNotFound, errShowcaseNotFound),
+}
+
+var showcaseImageCreateErrorMap = map[error]helper.ErrorResponse{
+	sql.ErrNoRows:                helper.ErrorMessage(fiber.StatusNotFound, errShowcaseNotFound),
+	domain.ErrForbidden:          helper.ErrorMessage(fiber.StatusForbidden, errNotYourShowcase),
+	domain.ErrImageLimitExceeded: helper.ErrorMessage(fiber.StatusUnprocessableEntity, domain.ErrImageLimitExceeded.Error()),
+}
+
+var showcaseOwnerNotFoundErrorMap = map[error]helper.ErrorResponse{
+	sql.ErrNoRows:       helper.ErrorMessage(fiber.StatusNotFound, errShowcaseNotFound),
+	domain.ErrForbidden: helper.ErrorMessage(fiber.StatusForbidden, errNotYourShowcase),
+}
+
+var showcaseImageNotFoundErrorMap = map[error]helper.ErrorResponse{
+	sql.ErrNoRows: helper.ErrorMessage(fiber.StatusNotFound, "image not found"),
+}
+
+var showcaseSectionNotFoundErrorMap = map[error]helper.ErrorResponse{
+	sql.ErrNoRows: helper.ErrorMessage(fiber.StatusNotFound, "section not found"),
 }
 
 // parseContentTypeQuery validates the ?type= query param (shared by List handlers).
@@ -306,7 +331,7 @@ func (h *ShowcaseHandler) GetDetail(c *fiber.Ctx) error {
 	}
 	detail, err := h.service.GetDetail(showcaseID)
 	if err != nil {
-		return helper.WriteServiceError(c, err, "failed to fetch showcase", helper.NotFoundCase(sql.ErrNoRows, errShowcaseNotFound))
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to fetch showcase"), showcaseNotFoundErrorMap)
 	}
 	// Non-owner sees only active showcases
 	callerID, _ := helper.UserIDFromHeader(c)
@@ -429,7 +454,7 @@ func (h *ShowcaseHandler) Delete(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidShowcaseID})
 	}
 	if err := h.service.Delete(showcaseID, userID); err != nil {
-		return helper.WriteServiceError(c, err, "failed to delete showcase", helper.NotFoundCase(sql.ErrNoRows, errShowcaseNotFound))
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to delete showcase"), showcaseNotFoundErrorMap)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -445,7 +470,7 @@ func (h *ShowcaseHandler) GetAnalytics(c *fiber.Ctx) error {
 	}
 	item, err := h.service.GetAnalytics(showcaseID, userID)
 	if err != nil {
-		return helper.WriteServiceError(c, err, "failed to fetch analytics", helper.NotFoundCase(sql.ErrNoRows, errShowcaseNotFound))
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to fetch analytics"), showcaseNotFoundErrorMap)
 	}
 	return c.JSON(item)
 }
@@ -493,11 +518,7 @@ func (h *ShowcaseHandler) CreateImage(c *fiber.Ctx) error {
 		Caption:    req.Caption,
 	}
 	if err := h.service.CreateImage(img, userID); err != nil {
-		return helper.WriteServiceError(c, err, "failed to add image",
-			helper.NotFoundCase(sql.ErrNoRows, errShowcaseNotFound),
-			helper.ServiceErrorCase{Err: domain.ErrForbidden, Status: fiber.StatusForbidden, Message: errNotYourShowcase},
-			helper.UnprocessableCase(domain.ErrImageLimitExceeded),
-		)
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to add image"), showcaseImageCreateErrorMap)
 	}
 	return c.Status(fiber.StatusCreated).JSON(img)
 }
@@ -512,7 +533,7 @@ func (h *ShowcaseHandler) ListImages(c *fiber.Ctx) error {
 	images, err := h.service.ListImages(showcaseID, callerID)
 	if err != nil {
 		logger.Error("showcase images fetch failed", "showcase_id", showcaseID, "caller_id", callerID, "err", err)
-		return helper.WriteServiceError(c, err, "failed to fetch images", helper.NotFoundCase(sql.ErrNoRows, errShowcaseNotFound))
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to fetch images"), showcaseNotFoundErrorMap)
 	}
 	return c.JSON(fiber.Map{"images": images})
 }
@@ -532,7 +553,7 @@ func (h *ShowcaseHandler) DeleteImage(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid image_id"})
 	}
 	if err := h.service.DeleteImage(showcaseID, imageID, userID); err != nil {
-		return helper.WriteServiceError(c, err, "failed to delete image", helper.NotFoundCase(sql.ErrNoRows, "image not found"))
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to delete image"), showcaseImageNotFoundErrorMap)
 	}
 	return c.JSON(fiber.Map{"message": "deleted"})
 }
@@ -549,10 +570,7 @@ func (h *ShowcaseHandler) GetSections(c *fiber.Ctx) error {
 	}
 	sections, err := h.service.GetSections(showcaseID, userID)
 	if err != nil {
-		return helper.WriteServiceError(c, err, "failed to fetch sections",
-			helper.NotFoundCase(sql.ErrNoRows, errShowcaseNotFound),
-			helper.ServiceErrorCase{Err: domain.ErrForbidden, Status: fiber.StatusForbidden, Message: errNotYourShowcase},
-		)
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to fetch sections"), showcaseOwnerNotFoundErrorMap)
 	}
 	return c.JSON(fiber.Map{"sections": sections})
 }
@@ -580,10 +598,7 @@ func (h *ShowcaseHandler) BulkReplaceSections(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
 	}
 	if err := h.service.BulkReplaceSections(showcaseID, userID, req.Sections); err != nil {
-		return helper.WriteServiceError(c, err, "failed to update sections",
-			helper.NotFoundCase(sql.ErrNoRows, errShowcaseNotFound),
-			helper.ServiceErrorCase{Err: domain.ErrForbidden, Status: fiber.StatusForbidden, Message: errNotYourShowcase},
-		)
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to update sections"), showcaseOwnerNotFoundErrorMap)
 	}
 	return c.JSON(fiber.Map{"message": "sections updated"})
 }
@@ -600,10 +615,7 @@ func (h *ShowcaseHandler) GetSpecs(c *fiber.Ctx) error {
 	}
 	specs, err := h.service.GetSpecs(showcaseID, userID)
 	if err != nil {
-		return helper.WriteServiceError(c, err, "failed to fetch specs",
-			helper.NotFoundCase(sql.ErrNoRows, errShowcaseNotFound),
-			helper.ServiceErrorCase{Err: domain.ErrForbidden, Status: fiber.StatusForbidden, Message: errNotYourShowcase},
-		)
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to fetch specs"), showcaseOwnerNotFoundErrorMap)
 	}
 	return c.JSON(fiber.Map{"specs": specs})
 }
@@ -633,10 +645,7 @@ func (h *ShowcaseHandler) BulkReplaceSpecs(c *fiber.Ctx) error {
 		}
 	}
 	if err := h.service.BulkReplaceSpecs(showcaseID, userID, req.Specs); err != nil {
-		return helper.WriteServiceError(c, err, "failed to update specs",
-			helper.NotFoundCase(sql.ErrNoRows, errShowcaseNotFound),
-			helper.ServiceErrorCase{Err: domain.ErrForbidden, Status: fiber.StatusForbidden, Message: errNotYourShowcase},
-		)
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to update specs"), showcaseOwnerNotFoundErrorMap)
 	}
 	return c.JSON(fiber.Map{"message": "specs updated"})
 }
@@ -664,7 +673,7 @@ func (h *ShowcaseHandler) PatchImage(c *fiber.Ctx) error {
 	}
 	img, err := h.service.PatchImage(showcaseID, imageID, userID, req.SortOrder, req.Caption)
 	if err != nil {
-		return helper.WriteServiceError(c, err, "failed to update image", helper.NotFoundCase(sql.ErrNoRows, "image not found"))
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to update image"), showcaseImageNotFoundErrorMap)
 	}
 	return c.JSON(img)
 }
@@ -684,7 +693,7 @@ func (h *ShowcaseHandler) DeleteSection(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid section_id"})
 	}
 	if err := h.service.DeleteSection(showcaseID, sectionID, userID); err != nil {
-		return helper.WriteServiceError(c, err, "failed to delete section", helper.NotFoundCase(sql.ErrNoRows, "section not found"))
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to delete section"), showcaseSectionNotFoundErrorMap)
 	}
 	return c.JSON(fiber.Map{"message": "deleted"})
 }

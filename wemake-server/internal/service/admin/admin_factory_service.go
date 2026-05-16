@@ -10,6 +10,7 @@ import (
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/repository"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
+	platformrepo "github.com/yourusername/wemake/internal/repository/platform_config"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 )
 
@@ -24,10 +25,10 @@ type AdminFactoryService struct {
 	factories  *adminrepo.AdminFactoryRepository
 	audit      *adminrepo.AdminAuditRepository
 	commission *walletrepo.CommissionRepository
-	configs    *repository.PlatformConfigRepository
+	configs    *platformrepo.PlatformConfigRepository
 }
 
-func NewAdminFactoryService(factories *adminrepo.AdminFactoryRepository, audit *adminrepo.AdminAuditRepository, commission *walletrepo.CommissionRepository, configs *repository.PlatformConfigRepository) *AdminFactoryService {
+func NewAdminFactoryService(factories *adminrepo.AdminFactoryRepository, audit *adminrepo.AdminAuditRepository, commission *walletrepo.CommissionRepository, configs *platformrepo.PlatformConfigRepository) *AdminFactoryService {
 	return &AdminFactoryService{factories: factories, audit: audit, commission: commission, configs: configs}
 }
 

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/repository"
+	authrepo "github.com/yourusername/wemake/internal/repository/auth"
 	profilerepo "github.com/yourusername/wemake/internal/repository/profile"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -19,10 +19,10 @@ var (
 
 type ProfileService struct {
 	profiles *profilerepo.ProfileRepository
-	auth     *repository.AuthRepository
+	auth     *authrepo.AuthRepository
 }
 
-func NewProfileService(profiles *profilerepo.ProfileRepository, auth *repository.AuthRepository) *ProfileService {
+func NewProfileService(profiles *profilerepo.ProfileRepository, auth *authrepo.AuthRepository) *ProfileService {
 	return &ProfileService{profiles: profiles, auth: auth}
 }
 

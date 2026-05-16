@@ -7,16 +7,16 @@ import (
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
-	"github.com/yourusername/wemake/internal/service"
+	authservice "github.com/yourusername/wemake/internal/service/auth"
 	quotationservice "github.com/yourusername/wemake/internal/service/quotation"
 )
 
 type QuotationHandler struct {
 	service *quotationservice.QuotationService
-	auth    *service.AuthService
+	auth    *authservice.AuthService
 }
 
-func NewQuotationHandler(quotationService *quotationservice.QuotationService, authService *service.AuthService) *QuotationHandler {
+func NewQuotationHandler(quotationService *quotationservice.QuotationService, authService *authservice.AuthService) *QuotationHandler {
 	return &QuotationHandler{service: quotationService, auth: authService}
 }
 

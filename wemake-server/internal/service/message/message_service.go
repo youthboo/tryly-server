@@ -47,7 +47,7 @@ var allowedMessageTypes = map[string]struct{}{
 
 type messageRepository interface {
 	Create(item *domain.Message) error
-	BeginTx() (*sqlx.Tx, error)
+	DB() *sqlx.DB
 	CreateTx(exec interface {
 		Exec(query string, args ...interface{}) (sql.Result, error)
 	}, item *domain.Message) error
@@ -106,24 +106,19 @@ func (s *MessageService) Create(item *domain.Message) error {
 	if item.ReceiverID == conv.CustomerID {
 		unreadField = "unread_customer"
 	}
-	tx, err := s.repo.BeginTx()
-	if err != nil {
+	if err := helper.WithTx(context.Background(), s.repo.DB(), func(tx *sqlx.Tx) error {
+		if err := s.repo.CreateTx(tx, item); err != nil {
+			return err
+		}
+		_, err := tx.Exec(`
+			UPDATE conversations
+			SET `+unreadField+` = COALESCE(`+unreadField+`, 0) + 1,
+			    last_message = $2,
+			    updated_at = $3
+			WHERE conv_id = $1
+		`, *item.ConvID, item.Content, item.CreatedAt)
 		return err
-	}
-	defer tx.Rollback()
-	if err := s.repo.CreateTx(tx, item); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(`
-		UPDATE conversations
-		SET `+unreadField+` = COALESCE(`+unreadField+`, 0) + 1,
-		    last_message = $2,
-		    updated_at = $3
-		WHERE conv_id = $1
-	`, *item.ConvID, item.Content, item.CreatedAt); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
+	}); err != nil {
 		return err
 	}
 	s.notifyReceiver(item)
@@ -344,7 +339,7 @@ func (s *MessageService) AutoSendQuotationCard(ctx context.Context, convID int64
 		ReferenceID:   q.RFQID,
 		SenderID:      q.FactoryID,
 		ReceiverID:    customerID,
-		Content:       fmt.Sprintf("ใบเสนอราคา ฿%.0f", q.GrandTotal),
+		Content:       fmt.Sprintf("ใบเสนอราคา ฿%.0f", q.GrandTotal.InexactFloat64()),
 		MessageType:   "quotation_card",
 		QuoteData:     stringPtr(string(payload)),
 		IsRead:        false,

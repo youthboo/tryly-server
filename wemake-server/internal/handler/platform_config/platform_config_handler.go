@@ -1,4 +1,4 @@
-package handler
+package platformconfig
 
 import (
 	"errors"
@@ -9,15 +9,16 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
-	"github.com/yourusername/wemake/internal/service"
+	authservice "github.com/yourusername/wemake/internal/service/auth"
+	platformservice "github.com/yourusername/wemake/internal/service/platform_config"
 )
 
 type PlatformConfigHandler struct {
-	service *service.PlatformConfigService
-	auth    *service.AuthService
+	service *platformservice.PlatformConfigService
+	auth    *authservice.AuthService
 }
 
-func NewPlatformConfigHandler(service *service.PlatformConfigService, auth *service.AuthService) *PlatformConfigHandler {
+func NewPlatformConfigHandler(service *platformservice.PlatformConfigService, auth *authservice.AuthService) *PlatformConfigHandler {
 	return &PlatformConfigHandler{service: service, auth: auth}
 }
 
@@ -130,7 +131,7 @@ func (h *PlatformConfigHandler) DeleteConfig(c *fiber.Ctx) error {
 	ip := c.IP()
 	err = h.service.DeleteConfig(configID, actorID, &ip)
 	if err != nil {
-		if errors.Is(err, service.ErrPlatformConfigInUse) {
+		if errors.Is(err, platformservice.ErrPlatformConfigInUse) {
 			count, _ := h.service.FactoriesUsingConfig(configID)
 			msg := "ไม่สามารถลบได้ มีโรงงาน " + strconv.Itoa(count) + " แห่งกำลังใช้ config นี้อยู่"
 			return helper.WriteAPIError(c, helper.ConflictAPIError("CONFIG_IN_USE", msg))

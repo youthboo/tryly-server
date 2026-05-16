@@ -5,12 +5,12 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/helper"
-	"github.com/yourusername/wemake/internal/service"
+	authservice "github.com/yourusername/wemake/internal/service/auth"
 )
 
 // RequireRole middleware ตรวจสอบว่า user มี role ที่อนุญาต
 // Usage: app.Use(RequireRole(authService, "admin", "super_admin"))
-func RequireRole(auth *service.AuthService, roles ...string) fiber.Handler {
+func RequireRole(auth *authservice.AuthService, roles ...string) fiber.Handler {
 	allowed := make(map[string]struct{}, len(roles))
 	for _, role := range roles {
 		allowed[strings.ToUpper(strings.TrimSpace(role))] = struct{}{}
@@ -39,7 +39,7 @@ func RequireRole(auth *service.AuthService, roles ...string) fiber.Handler {
 
 // RequireUserAndRole middleware ตรวจสอบ user + role + set user in context
 // More convenient when you need both user object and role validation
-func RequireUserAndRole(auth *service.AuthService, requiredRoles ...string) fiber.Handler {
+func RequireUserAndRole(auth *authservice.AuthService, requiredRoles ...string) fiber.Handler {
 	allowedRoles := make(map[string]struct{}, len(requiredRoles))
 	for _, role := range requiredRoles {
 		allowedRoles[strings.ToUpper(strings.TrimSpace(role))] = struct{}{}
@@ -74,7 +74,7 @@ func RequireUserAndRole(auth *service.AuthService, requiredRoles ...string) fibe
 
 // OptionalRequireRole middleware ตรวจสอบ role ถ้า user authenticated
 // If not authenticated, just continue (useful for mixed public/private endpoints)
-func OptionalRequireRole(auth *service.AuthService, requiredRoles ...string) fiber.Handler {
+func OptionalRequireRole(auth *authservice.AuthService, requiredRoles ...string) fiber.Handler {
 	allowedRoles := make(map[string]struct{}, len(requiredRoles))
 	for _, role := range requiredRoles {
 		allowedRoles[strings.ToUpper(strings.TrimSpace(role))] = struct{}{}

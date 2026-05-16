@@ -2,12 +2,11 @@ package quotation
 
 import (
 	"database/sql"
-	"errors"
-	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/dto"
+	"github.com/yourusername/wemake/internal/helper"
 	quotationservice "github.com/yourusername/wemake/internal/service/quotation"
 )
 
@@ -17,6 +16,10 @@ type QuotationTemplateHandler struct {
 
 func NewQuotationTemplateHandler(svc *quotationservice.QuotationTemplateService) *QuotationTemplateHandler {
 	return &QuotationTemplateHandler{service: svc}
+}
+
+var quotationTemplateNotFoundErrorMap = map[error]helper.ErrorResponse{
+	sql.ErrNoRows: helper.ErrorMessage(fiber.StatusNotFound, "quotation template not found"),
 }
 
 // GET /quotation-templates
@@ -43,9 +46,9 @@ func (h *QuotationTemplateHandler) Create(c *fiber.Ctx) error {
 		return err
 	}
 	tmpl := &domain.QuotationTemplate{
-		FactoryID: userID,
+		FactoryID:    userID,
 		TemplateName: req.Name,
-		Note: req.Description,
+		Note:         req.Description,
 	}
 	if req.IsActive != nil {
 		tmpl.IsActive = *req.IsActive
@@ -72,7 +75,7 @@ func (h *QuotationTemplateHandler) Patch(c *fiber.Ctx) error {
 	}
 	tmpl := &domain.QuotationTemplate{
 		TemplateID: templateID,
-		FactoryID: userID,
+		FactoryID:  userID,
 	}
 	if req.Name != nil {
 		tmpl.TemplateName = *req.Name
@@ -84,10 +87,7 @@ func (h *QuotationTemplateHandler) Patch(c *fiber.Ctx) error {
 		tmpl.IsActive = *req.IsActive
 	}
 	if err := h.service.Update(tmpl); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "quotation template not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update quotation template"})
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to update quotation template"), quotationTemplateNotFoundErrorMap)
 	}
 	return c.JSON(tmpl)
 }
@@ -103,10 +103,7 @@ func (h *QuotationTemplateHandler) Delete(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid template_id"})
 	}
 	if err := h.service.Delete(templateID, userID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "quotation template not found"})
-		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to delete quotation template"})
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to delete quotation template"), quotationTemplateNotFoundErrorMap)
 	}
 	return c.SendStatus(fiber.StatusNoContent)
 }

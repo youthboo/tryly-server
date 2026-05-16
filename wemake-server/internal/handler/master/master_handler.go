@@ -1,16 +1,16 @@
-package handler
+package master
 
 import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/helper"
-	"github.com/yourusername/wemake/internal/service"
+	masterservice "github.com/yourusername/wemake/internal/service/master"
 )
 
 type MasterHandler struct {
-	service *service.MasterService
+	service *masterservice.MasterService
 }
 
-func NewMasterHandler(service *service.MasterService) *MasterHandler {
+func NewMasterHandler(service *masterservice.MasterService) *MasterHandler {
 	return &MasterHandler{service: service}
 }
 
