@@ -31,6 +31,7 @@ var (
 	ErrRFQWrongScope         = errors.New("WRONG_SCOPE")
 	ErrHasActiveQuotation    = errors.New("HAS_ACTIVE_QUOTATION")
 	ErrQuotationAccepted     = errors.New("QUOTATION_ACCEPTED")
+	ErrRFQNotEditable        = errors.New("RFQ_NOT_EDITABLE")
 )
 
 type RFQService struct {
@@ -261,7 +262,7 @@ func (s *RFQService) Patch(userID, rfqID int64, rfq *domain.RFQ) error {
 		return err
 	}
 	if existing.Status != "OP" {
-		return errors.New("rfq is not editable")
+		return ErrRFQNotEditable
 	}
 	rfq.RFQID = rfqID
 	rfq.UserID = userID

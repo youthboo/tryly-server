@@ -3,11 +3,12 @@ package wallet
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 )
+
+var ErrInsufficientPendingFund = errors.New("INSUFFICIENT_PENDING_FUND")
 
 type WalletRepository struct {
 	db *sqlx.DB
@@ -139,7 +140,7 @@ func (r *WalletRepository) MovePendingToGoodTx(tx *sqlx.Tx, walletID int64, amou
 		return err
 	}
 	if n == 0 {
-		return fmt.Errorf("insufficient pending_fund")
+		return ErrInsufficientPendingFund
 	}
 	return nil
 }

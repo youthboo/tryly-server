@@ -13,6 +13,13 @@ import (
 	"github.com/yourusername/wemake/internal/domainutil"
 )
 
+var (
+	ErrShowcaseInvalidSectionType = errors.New("INVALID_SECTION_TYPE")
+	ErrShowcaseSectionTitleRequired = errors.New("SECTION_TITLE_REQUIRED")
+	ErrShowcaseMaxItemsPerSection = errors.New("MAX_20_ITEMS_PER_SECTION")
+	ErrShowcaseItemDescriptionRequired = errors.New("ITEM_DESCRIPTION_REQUIRED")
+)
+
 type ShowcaseService struct {
 	repo        *showcaserepo.ShowcaseRepository
 	factoryRepo *factoryrepo.FactoryRepository
@@ -36,6 +43,26 @@ func (s *ShowcaseService) upsertFactoryCategoryMap(factoryID int64, item *domain
 			_ = err
 		}
 	}
+}
+
+func (s *ShowcaseService) ValidateSectionInputs(sections []domain.ShowcaseSectionInput) error {
+	for _, sec := range sections {
+		if sec.SectionType != "highlight" && sec.SectionType != "checklist" {
+			return ErrShowcaseInvalidSectionType
+		}
+		if strings.TrimSpace(sec.SectionTitle) == "" {
+			return ErrShowcaseSectionTitleRequired
+		}
+		if len(sec.Items) > 20 {
+			return ErrShowcaseMaxItemsPerSection
+		}
+		for _, item := range sec.Items {
+			if strings.TrimSpace(item.Description) == "" {
+				return ErrShowcaseItemDescriptionRequired
+			}
+		}
+	}
+	return nil
 }
 
 func (s *ShowcaseService) ListExplore(contentType string) ([]domain.ShowcaseExploreItem, error) {

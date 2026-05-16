@@ -35,6 +35,7 @@ var (
 	ErrProductionMaxImages              = errors.New("MAX_5_IMAGES")
 	ErrProductionDescriptionTooLong     = errors.New("DESCRIPTION_TOO_LONG")
 	ErrProductionReasonRequired         = errors.New("REASON_REQUIRED")
+	ErrProductionStepNotFound           = errors.New("STEP_NOT_FOUND")
 )
 
 type ProductionRuleError struct {

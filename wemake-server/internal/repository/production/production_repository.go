@@ -2,13 +2,15 @@ package production
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
 )
+
+var ErrProductionStepNotFound = errors.New("STEP_NOT_FOUND")
 
 type ProductionRepository struct {
 	db *sqlx.DB
@@ -454,5 +456,5 @@ func (r *ProductionRepository) StepIndex(steps []domain.ProductionStepTemplate, 
 			return idx, nil
 		}
 	}
-	return -1, fmt.Errorf("step not found")
+	return -1, ErrProductionStepNotFound
 }

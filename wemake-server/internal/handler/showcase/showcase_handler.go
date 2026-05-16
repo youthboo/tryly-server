@@ -595,7 +595,7 @@ func (h *ShowcaseHandler) BulkReplaceSections(c *fiber.Ctx) error {
 	if len(req.Sections) > 10 {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": "max 10 sections per showcase"})
 	}
-	if err := validateSectionInputs(req.Sections); err != nil {
+	if err := h.service.ValidateSectionInputs(req.Sections); err != nil {
 		return c.Status(fiber.StatusUnprocessableEntity).JSON(fiber.Map{"error": err.Error()})
 	}
 	if err := h.service.BulkReplaceSections(showcaseID, userID, req.Sections); err != nil {
@@ -699,22 +699,3 @@ func (h *ShowcaseHandler) DeleteSection(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "deleted"})
 }
 
-func validateSectionInputs(sections []domain.ShowcaseSectionInput) error {
-	for _, sec := range sections {
-		if sec.SectionType != "highlight" && sec.SectionType != "checklist" {
-			return errors.New("section_type must be 'highlight' or 'checklist'")
-		}
-		if strings.TrimSpace(sec.SectionTitle) == "" {
-			return errors.New("section_title is required")
-		}
-		if len(sec.Items) > 20 {
-			return errors.New("max 20 items per section")
-		}
-		for _, item := range sec.Items {
-			if strings.TrimSpace(item.Description) == "" {
-				return errors.New("item description is required")
-			}
-		}
-	}
-	return nil
-}
