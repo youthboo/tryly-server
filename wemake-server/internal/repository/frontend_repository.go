@@ -2,12 +2,12 @@ package repository
 
 import (
 	"database/sql"
-	log "github.com/yourusername/wemake/internal/logger"
 	"strings"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/logger"
 )
 
 type FrontendRepository struct {
@@ -154,7 +154,7 @@ func NewFrontendRepository(db *sqlx.DB) *FrontendRepository {
 }
 
 func (r *FrontendRepository) GetCurrentUser(userID int64) (*FrontendCurrentUserRow, error) {
-	log.Printf("[DEBUG] GetCurrentUser repo: userID=%d", userID)
+	logger.Debug("frontend current user query started", "user_id", userID)
 	var item FrontendCurrentUserRow
 	// LIMIT 1 ป้องกัน db.Get() panic เมื่อ LEFT JOIN คืนหลาย row
 	// (เช่น factory_profiles หรือ wallets มีหลาย record ต่อ user_id)
@@ -178,10 +178,10 @@ func (r *FrontendRepository) GetCurrentUser(userID int64) (*FrontendCurrentUserR
 		LIMIT 1
 	`
 	if err := r.db.Get(&item, query, userID); err != nil {
-		log.Printf("[ERROR] GetCurrentUser query failed: %v", err)
+		logger.Error("frontend current user query failed", "user_id", userID, "err", err)
 		return nil, err
 	}
-	log.Printf("[DEBUG] GetCurrentUser success: id=%d, email=%s, role=%s", item.ID, item.Email, item.Role)
+	logger.Debug("frontend current user query succeeded", "user_id", item.ID, "email", item.Email, "role", item.Role)
 	return &item, nil
 }
 

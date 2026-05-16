@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	log "github.com/yourusername/wemake/internal/logger"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,6 +12,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/service"
 )
 
@@ -132,7 +132,7 @@ func (h *ProfileHandler) UploadAvatar(c *fiber.Ctx) error {
 			ResourceType: "auto",
 		})
 		if err != nil {
-			log.Printf("cloudinary upload avatar: %v", err)
+			logger.Error("cloudinary avatar upload failed", "user_id", userID, "public_id", strings.TrimSuffix(fileName, ext), "err", err)
 			return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": "failed to upload avatar"})
 		}
 		avatarURL = result.SecureURL

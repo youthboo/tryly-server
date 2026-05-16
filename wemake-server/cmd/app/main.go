@@ -1,30 +1,29 @@
 package main
 
 import (
-	"log"
-
 	"github.com/joho/godotenv"
 	"github.com/yourusername/wemake/api"
 	"github.com/yourusername/wemake/internal/config"
 	"github.com/yourusername/wemake/internal/jobs"
+	"github.com/yourusername/wemake/internal/logger"
 )
 
 func main() {
 	// Load environment variables
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found")
+		logger.Warn("env file not loaded", "err", err)
 	}
 
 	// Initialize configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		logger.Fatal("failed to load config", "err", err)
 	}
 
 	// Initialize database
 	db, err := config.InitDatabase(cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		logger.Fatal("failed to initialize database", "err", err)
 	}
 	defer db.Close()
 
@@ -34,8 +33,8 @@ func main() {
 	// Initialize router and start server
 	app := api.SetupRoutes(db, cfg)
 
-	log.Printf("Starting server on port %s", cfg.Port)
+	logger.Info("starting server", "port", cfg.Port)
 	if err := app.Listen(":" + cfg.Port); err != nil {
-		log.Fatalf("Server failed to start: %v", err)
+		logger.Fatal("server failed to start", "err", err, "port", cfg.Port)
 	}
 }

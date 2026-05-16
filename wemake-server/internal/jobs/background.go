@@ -4,10 +4,10 @@ package jobs
 
 import (
 	"encoding/json"
-	log "github.com/yourusername/wemake/internal/logger"
 	"time"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/repository"
 	"github.com/yourusername/wemake/internal/service"
 )
@@ -58,16 +58,16 @@ func runOrderAutoClose(orderService *service.OrderService) {
 	defer ticker.Stop()
 
 	if n, err := orderService.AutoCloseShippedOrders(); err != nil {
-		log.Printf("[jobs/order-auto-close] error: %v", err)
+		logger.Error("order auto-close job failed", "err", err)
 	} else if n > 0 {
-		log.Printf("[jobs/order-auto-close] auto-closed %d order(s)", n)
+		logger.Info("order auto-close job completed", "closed_count", n)
 	}
 
 	for range ticker.C {
 		if n, err := orderService.AutoCloseShippedOrders(); err != nil {
-			log.Printf("[jobs/order-auto-close] error: %v", err)
+			logger.Error("order auto-close job failed", "err", err)
 		} else if n > 0 {
-			log.Printf("[jobs/order-auto-close] auto-closed %d order(s)", n)
+			logger.Info("order auto-close job completed", "closed_count", n)
 		}
 	}
 }
@@ -97,12 +97,12 @@ func expireQuotations(db *sqlx.DB) {
 		      ) < NOW()
 	`)
 	if err != nil {
-		log.Printf("[jobs/expiration] expireQuotations error: %v", err)
+		logger.Error("quotation expiration job failed", "err", err)
 		return
 	}
 	n, _ := res.RowsAffected()
 	if n > 0 {
-		log.Printf("[jobs/expiration] expired %d quotation(s) (PD→EX)", n)
+		logger.Info("quotation expiration job completed", "expired_count", n, "from_status", "PD", "to_status", "EX")
 	}
 
 	// ขั้น 2: OP → CL สำหรับ RFQ ที่ไม่มี quotation สถานะ PD หรือ AC เหลืออยู่แล้ว
@@ -118,12 +118,12 @@ func expireQuotations(db *sqlx.DB) {
 		  )
 	`)
 	if err2 != nil {
-		log.Printf("[jobs/expiration] expireRFQs (OP→CL) error: %v", err2)
+		logger.Error("rfq auto-close job failed", "err", err2, "from_status", "OP", "to_status", "CL")
 		return
 	}
 	n2, _ := res2.RowsAffected()
 	if n2 > 0 {
-		log.Printf("[jobs/expiration] auto-closed %d RFQ(s) after all quotations expired (OP→CL)", n2)
+		logger.Info("rfq auto-close job completed", "closed_count", n2, "from_status", "OP", "to_status", "CL")
 	}
 }
 
@@ -158,17 +158,17 @@ func expirePendingDeposits(db *sqlx.DB) {
 		RETURNING o.order_id
 	`)
 	if err != nil {
-		log.Printf("[jobs/expiration] expirePendingDeposits (PP→PE) error: %v", err)
+		logger.Error("pending deposit expiration job failed", "err", err, "from_status", "PP", "to_status", "PE")
 		return
 	}
 	for _, row := range peRows {
 		payload, _ := json.Marshal(map[string]interface{}{"order_id": row.OrderID})
 		if _, err := db.Exec(`INSERT INTO domain_events (event_type, payload) VALUES ($1, $2)`, "order.deposit_expired", payload); err != nil {
-			log.Printf("[jobs/expiration] deposit_expired event error (order %d): %v", row.OrderID, err)
+			logger.Error("deposit expired domain event insert failed", "order_id", row.OrderID, "err", err)
 		}
 	}
 	if len(peRows) > 0 {
-		log.Printf("[jobs/expiration] expired %d pending deposit order(s) PP→PE", len(peRows))
+		logger.Info("pending deposit expiration job completed", "expired_count", len(peRows), "from_status", "PP", "to_status", "PE")
 	}
 
 	// ขั้น 2: PE → CL เมื่อผ่าน grace period (due_date + 3 วัน) แล้วยังไม่ได้ชำระ
@@ -202,7 +202,7 @@ func expirePendingDeposits(db *sqlx.DB) {
 		RETURNING o.order_id, o.quote_id
 	`)
 	if err != nil {
-		log.Printf("[jobs/expiration] cancelExpiredDeposits (PE→CL) error: %v", err)
+		logger.Error("expired deposit cancellation job failed", "err", err, "from_status", "PE", "to_status", "CL")
 		return
 	}
 	for _, row := range clRows {
@@ -213,15 +213,15 @@ func expirePendingDeposits(db *sqlx.DB) {
 			SET status = 'PD', is_locked = FALSE, log_timestamp = NOW()
 			WHERE quote_id = $1 AND status = 'AC'
 		`, row.QuoteID); err != nil {
-			log.Printf("[jobs/expiration] unlock quotation error (order %d, quote %d): %v", row.OrderID, row.QuoteID, err)
+			logger.Error("quotation unlock failed during deposit cancellation", "order_id", row.OrderID, "quote_id", row.QuoteID, "err", err)
 		}
 		payload, _ := json.Marshal(map[string]interface{}{"order_id": row.OrderID, "quote_id": row.QuoteID})
 		if _, err := db.Exec(`INSERT INTO domain_events (event_type, payload) VALUES ($1, $2)`, "order.auto_cancelled", payload); err != nil {
-			log.Printf("[jobs/expiration] auto_cancelled event error (order %d): %v", row.OrderID, err)
+			logger.Error("auto cancelled domain event insert failed", "order_id", row.OrderID, "quote_id", row.QuoteID, "err", err)
 		}
 	}
 	if len(clRows) > 0 {
-		log.Printf("[jobs/expiration] auto-cancelled %d expired deposit order(s) PE→CL (quotations unlocked)", len(clRows))
+		logger.Info("expired deposit cancellation job completed", "cancelled_count", len(clRows), "from_status", "PE", "to_status", "CL")
 	}
 }
 
@@ -259,7 +259,7 @@ func sendMatchingNotifications(db *sqlx.DB) {
 		  AND created_at >= NOW() - INTERVAL '6 minutes'
 	`)
 	if err != nil {
-		log.Printf("[jobs/matching] query new RFQs error: %v", err)
+		logger.Error("matching notification rfq query failed", "err", err)
 		return
 	}
 	if len(newRFQs) == 0 {
@@ -305,7 +305,7 @@ func notifyMatchingFactories(db *sqlx.DB, rfqID, categoryID int64, subCategoryID
 		  )
 	`, categoryID, subCatArg, rfqID)
 	if err != nil {
-		log.Printf("[jobs/matching] query matching factories error: %v", err)
+		logger.Error("matching notification factory query failed", "rfq_id", rfqID, "category_id", categoryID, "err", err)
 		return
 	}
 	if len(factories) == 0 {
@@ -321,8 +321,8 @@ func notifyMatchingFactories(db *sqlx.DB, rfqID, categoryID int64, subCategoryID
 			VALUES ($1, 'RFQ', $2, $3, '/factory/rfqs/' || $4::text, FALSE)
 		`, f.UserID, title, body, rfqID)
 		if err != nil {
-			log.Printf("[jobs/matching] insert notification error (factory %d, rfq %d): %v", f.UserID, rfqID, err)
+			logger.Error("matching notification insert failed", "factory_id", f.UserID, "rfq_id", rfqID, "err", err)
 		}
 	}
-	log.Printf("[jobs/matching] sent notifications for RFQ %d to %d factory/factories", rfqID, len(factories))
+	logger.Info("matching notifications sent", "rfq_id", rfqID, "factory_count", len(factories))
 }

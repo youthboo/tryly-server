@@ -3,12 +3,12 @@ package service
 import (
 	"database/sql"
 	"fmt"
-	log "github.com/yourusername/wemake/internal/logger"
 	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/repository"
 )
 
@@ -22,11 +22,11 @@ func NewFrontendService(repo *repository.FrontendRepository, factoryRepo *reposi
 }
 
 func (s *FrontendService) GetBootstrap(userID int64) (*domain.FrontendBootstrapResponse, error) {
-	log.Printf("[DEBUG] GetBootstrap service: userID=%d", userID)
+	logger.Debug("building frontend bootstrap", "user_id", userID)
 
 	// anonymous request → return public data only
 	if userID <= 0 {
-		log.Printf("[DEBUG] GetBootstrap: anonymous request (userID=%d), returning guest data", userID)
+		logger.Debug("frontend bootstrap using guest data", "user_id", userID)
 		return s.getGuestBootstrap()
 	}
 
@@ -37,31 +37,31 @@ func (s *FrontendService) GetBootstrap(userID int64) (*domain.FrontendBootstrapR
 	{
 		cu, err := s.GetCurrentUser(userID)
 		if err != nil {
-			log.Printf("[WARN] GetCurrentUser failed: %v (type: %T), continuing with nil currentUser", err, err)
+			logger.Warn("frontend current user lookup failed", "user_id", userID, "err", err, "err_type", fmt.Sprintf("%T", err))
 			if !repository.IsNotFoundError(err) {
-				log.Printf("[ERROR] GetCurrentUser non-notfound error: %v", err)
+				logger.Error("frontend current user lookup returned non-not-found error", "user_id", userID, "err", err)
 				return nil, err
 			}
 			// user not found → currentUser stays nil, load data as guest
 		} else {
-			log.Printf("[DEBUG] GetCurrentUser success: id=%d, name=%s", cu.ID, cu.Name)
+			logger.Debug("frontend current user loaded", "user_id", cu.ID, "name", cu.Name)
 			currentUser = cu
 		}
 	}
 
 	categoryRows, err := s.repo.ListCategories()
 	if err != nil {
-		log.Printf("[ERROR] ListCategories failed: %v", err)
+		logger.Error("frontend categories query failed", "user_id", userID, "err", err)
 		return nil, err
 	}
-	log.Printf("[DEBUG] ListCategories success: %d rows", len(categoryRows))
+	logger.Debug("frontend categories loaded", "user_id", userID, "count", len(categoryRows))
 
 	factoryRows, err := s.repo.ListFactories()
 	if err != nil {
-		log.Printf("[ERROR] ListFactories failed: %v", err)
+		logger.Error("frontend factories query failed", "user_id", userID, "err", err)
 		return nil, err
 	}
-	log.Printf("[DEBUG] ListFactories success: %d rows", len(factoryRows))
+	logger.Debug("frontend factories loaded", "user_id", userID, "count", len(factoryRows))
 
 	var rfqRows []repository.FrontendRFQRow
 	var orderRows []repository.FrontendOrderRow
@@ -69,21 +69,21 @@ func (s *FrontendService) GetBootstrap(userID int64) (*domain.FrontendBootstrapR
 	if userID > 0 {
 		if rows, e := s.repo.ListRFQsByUserID(userID); e == nil {
 			rfqRows = rows
-			log.Printf("[DEBUG] ListRFQsByUserID success: %d rows", len(rfqRows))
+			logger.Debug("frontend rfqs loaded", "user_id", userID, "count", len(rfqRows))
 		} else {
-			log.Printf("[WARN] ListRFQsByUserID error: %v (continuing)", e)
+			logger.Warn("frontend rfqs query failed, continuing", "user_id", userID, "err", e)
 		}
 		if rows, e := s.repo.ListOrdersByUserID(userID); e == nil {
 			orderRows = rows
-			log.Printf("[DEBUG] ListOrdersByUserID success: %d rows", len(orderRows))
+			logger.Debug("frontend orders loaded", "user_id", userID, "count", len(orderRows))
 		} else {
-			log.Printf("[WARN] ListOrdersByUserID error: %v (continuing)", e)
+			logger.Warn("frontend orders query failed, continuing", "user_id", userID, "err", e)
 		}
 		if rows, e := s.repo.ListMessageThreads(userID); e == nil {
 			threadRows = rows
-			log.Printf("[DEBUG] ListMessageThreads success: %d rows", len(threadRows))
+			logger.Debug("frontend message threads loaded", "user_id", userID, "count", len(threadRows))
 		} else {
-			log.Printf("[WARN] ListMessageThreads error: %v (continuing)", e)
+			logger.Warn("frontend message threads query failed, continuing", "user_id", userID, "err", e)
 		}
 	}
 
@@ -483,11 +483,15 @@ func (s *FrontendService) GetMockData(userID int64) (*domain.FrontendMockDataRes
 }
 
 func (s *FrontendService) buildThreads(rows []repository.FrontendMessageThreadRow) ([]domain.FrontendMessageThread, error) {
-	log.Printf("[DEBUG] buildThreads: %d rows", len(rows))
+	logger.Debug("building frontend message threads", "count", len(rows))
 	items := make([]domain.FrontendMessageThread, 0, len(rows))
 	for idx, item := range rows {
-		log.Printf("[DEBUG] buildThreads: processing row %d, counterpartID=%d, refType=%s, refID=%d",
-			idx, item.CounterpartID, item.ReferenceType, item.ReferenceID)
+		logger.Debug("processing frontend message thread",
+			"row_index", idx,
+			"counterpart_id", item.CounterpartID,
+			"reference_type", item.ReferenceType,
+			"reference_id", item.ReferenceID,
+		)
 
 		// Graceful handling: use default values if data not found
 		counterpartName := fmt.Sprintf("User %d", item.CounterpartID)
@@ -495,7 +499,7 @@ func (s *FrontendService) buildThreads(rows []repository.FrontendMessageThreadRo
 		if err == nil {
 			counterpartName = userLabel.Name
 		} else {
-			log.Printf("[WARN] GetUserLabel failed for counterpartID=%d: %v (using default)", item.CounterpartID, err)
+			logger.Warn("frontend message thread user label lookup failed, using default", "counterpart_id", item.CounterpartID, "err", err)
 		}
 
 		projectName := item.ReferenceType
@@ -505,8 +509,11 @@ func (s *FrontendService) buildThreads(rows []repository.FrontendMessageThreadRo
 			projectName = reference.ProjectName
 			hasQuote = reference.HasQuote
 		} else {
-			log.Printf("[WARN] GetReferenceLabel failed for refType=%s, refID=%d: %v (using default)",
-				item.ReferenceType, item.ReferenceID, err)
+			logger.Warn("frontend message thread reference label lookup failed, using default",
+				"reference_type", item.ReferenceType,
+				"reference_id", item.ReferenceID,
+				"err", err,
+			)
 		}
 
 		items = append(items, domain.FrontendMessageThread{

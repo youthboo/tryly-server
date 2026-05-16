@@ -1,9 +1,8 @@
 package handler
 
 import (
-	log "github.com/yourusername/wemake/internal/logger"
-
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/service"
 )
 
@@ -71,7 +70,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		case service.ErrInvalidRole, service.ErrMissingRoleData:
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 		default:
-			log.Printf("register failed: %v", err)
+			logger.Error("user registration failed", "role", req.Role, "email", req.Email, "err", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error":   "failed to register",
 				"details": err.Error(),

@@ -3,7 +3,6 @@ package handler
 import (
 	"context"
 	"fmt"
-	log "github.com/yourusername/wemake/internal/logger"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/yourusername/wemake/internal/logger"
 )
 
 type MediaHandler struct {
@@ -53,7 +53,7 @@ func (h *MediaHandler) UploadFile(c *fiber.Ctx) error {
 			ResourceType: "auto",
 		})
 		if err != nil {
-			log.Printf("cloudinary upload: %v", err)
+			logger.Error("cloudinary media upload failed", "public_id", publicID, "err", err)
 			return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": "failed to upload to cloud storage"})
 		}
 		if result.SecureURL == "" {

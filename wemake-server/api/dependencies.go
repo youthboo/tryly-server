@@ -1,11 +1,10 @@
 package api
 
 import (
-	"log"
-
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/config"
 	"github.com/yourusername/wemake/internal/handler"
+	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/media"
 	"github.com/yourusername/wemake/internal/repository"
 	"github.com/yourusername/wemake/internal/service"
@@ -124,7 +123,7 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 
 	cld, err := media.NewCloudinaryClient(cfg)
 	if err != nil {
-		log.Printf("cloudinary disabled: invalid configuration: %v", err)
+		logger.Warn("cloudinary disabled", "reason", "invalid configuration", "err", err)
 		cld = nil
 	}
 

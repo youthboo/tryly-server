@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	log "github.com/yourusername/wemake/internal/logger"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/service"
 )
 
@@ -224,7 +224,7 @@ func writeShowcaseError(c *fiber.Ctx, err error, fallback string) error {
 	if errors.Is(err, sql.ErrNoRows) {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": errShowcaseNotFound})
 	}
-	log.Printf("[showcase] %s: %v", fallback, err)
+	logger.Error("showcase handler failed", "fallback", fallback, "err", err)
 	return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": fallback})
 }
 
@@ -346,7 +346,7 @@ func (h *ShowcaseHandler) ListByFactory(c *fiber.Ctx) error {
 	callerID, _ := getUserIDFromHeader(c)
 	items, err := h.service.GetShowcasesByFactory(int64(factoryID), contentType, callerID)
 	if err != nil {
-		log.Printf("[showcase] ListByFactory error: %v", err)
+		logger.Error("showcase list by factory failed", "factory_id", factoryID, "caller_id", callerID, "content_type", contentType, "err", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": errFetchShowcases})
 	}
 	return c.JSON(items)
@@ -531,7 +531,7 @@ func (h *ShowcaseHandler) ListImages(c *fiber.Ctx) error {
 	callerID, _ := getUserIDFromHeader(c)
 	images, err := h.service.ListImages(showcaseID, callerID)
 	if err != nil {
-		log.Printf("[showcase] failed to fetch images: %v", err)
+		logger.Error("showcase images fetch failed", "showcase_id", showcaseID, "caller_id", callerID, "err", err)
 		return writeServiceError(c, err, "failed to fetch images", notFoundCase(sql.ErrNoRows, errShowcaseNotFound))
 	}
 	return c.JSON(fiber.Map{"images": images})

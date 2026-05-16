@@ -4,8 +4,30 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 )
+
+func Debug(message string, args ...interface{}) {
+	slog.Debug(message, args...)
+}
+
+func Info(message string, args ...interface{}) {
+	slog.Info(message, args...)
+}
+
+func Warn(message string, args ...interface{}) {
+	slog.Warn(message, args...)
+}
+
+func Error(message string, args ...interface{}) {
+	slog.Error(message, args...)
+}
+
+func Fatal(message string, args ...interface{}) {
+	slog.Error(message, args...)
+	os.Exit(1)
+}
 
 func Printf(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)

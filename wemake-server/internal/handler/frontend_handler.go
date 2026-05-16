@@ -3,9 +3,8 @@ package handler
 import (
 	"fmt"
 
-	log "github.com/yourusername/wemake/internal/logger"
-
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/service"
 )
 
@@ -19,19 +18,23 @@ func NewFrontendHandler(service *service.FrontendService) *FrontendHandler {
 
 func (h *FrontendHandler) GetBootstrap(c *fiber.Ctx) error {
 	userID := getOptionalUserIDFromHeader(c)
-	log.Printf("[DEBUG] GetBootstrap handler: userID=%d", userID)
+	logger.Debug("frontend bootstrap requested", "user_id", userID)
 
 	item, err := h.service.GetBootstrap(userID)
 	if err != nil {
-		log.Printf("[ERROR] GetBootstrap service failed: %v (type: %T)", err, err)
+		logger.Error("frontend bootstrap failed", "user_id", userID, "err", err, "err_type", fmt.Sprintf("%T", err))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "failed to fetch bootstrap data",
 			"debug": fmt.Sprintf("%v", err),
 		})
 	}
 
-	log.Printf("[SUCCESS] GetBootstrap returned: currentUser=%v, categories=%d, factories=%d",
-		item.CurrentUser != nil, len(item.Categories), len(item.Factories))
+	logger.Info("frontend bootstrap returned",
+		"user_id", userID,
+		"has_current_user", item.CurrentUser != nil,
+		"categories_count", len(item.Categories),
+		"factories_count", len(item.Factories),
+	)
 	return c.JSON(item)
 }
 

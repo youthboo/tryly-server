@@ -1,9 +1,8 @@
 package service
 
 import (
-	log "github.com/yourusername/wemake/internal/logger"
-
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/repository"
 )
 
@@ -32,7 +31,7 @@ func (s *AddressService) Create(address *domain.Address) error {
 			"province_id": address.ProvinceID,
 		}); err != nil {
 			// Non-fatal: log the failure but don't roll back the address insert.
-			log.Printf("[WARN] AddressService.Create: failed to sync province_id to factory_profiles (userID=%d): %v", address.UserID, err)
+			logger.Warn("address province sync failed after create", "user_id", address.UserID, "province_id", address.ProvinceID, "err", err)
 		}
 	}
 	return nil
@@ -51,7 +50,7 @@ func (s *AddressService) Patch(userID, addressID int64, fields map[string]interf
 			if err := s.factoryRepo.PatchProfile(userID, map[string]interface{}{
 				"province_id": pid,
 			}); err != nil {
-				log.Printf("[WARN] AddressService.Patch: failed to sync province_id to factory_profiles (userID=%d): %v", userID, err)
+				logger.Warn("address province sync failed after patch", "user_id", userID, "province_id", pid, "err", err)
 			}
 		}
 	}

@@ -2,11 +2,11 @@ package repository
 
 import (
 	"fmt"
-	log "github.com/yourusername/wemake/internal/logger"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/logger"
 )
 
 type AdminDashboardRepository struct {
@@ -18,7 +18,7 @@ func NewAdminDashboardRepository(db *sqlx.DB) *AdminDashboardRepository {
 }
 
 func (r *AdminDashboardRepository) GetSummary(from, to time.Time, period string) (*domain.AdminDashboardSummary, error) {
-	log.Printf("[AdminDashboard] GetSummary called: period=%s, from=%s, to=%s", period, from.Format("2006-01-02"), to.Format("2006-01-02"))
+	logger.Debug("admin dashboard summary query started", "period", period, "date_from", from.Format("2006-01-02"), "date_to", to.Format("2006-01-02"))
 	out := &domain.AdminDashboardSummary{
 		Period:   period,
 		DateFrom: from.Format("2006-01-02"),
@@ -26,7 +26,7 @@ func (r *AdminDashboardRepository) GetSummary(from, to time.Time, period string)
 	}
 	hasQuoteVAT, err := r.hasColumn("quotations", "vat_amount")
 	if err != nil {
-		log.Printf("[AdminDashboard] Error checking vat_amount column: %v", err)
+		logger.Error("admin dashboard column check failed", "table", "quotations", "column", "vat_amount", "err", err)
 		return nil, err
 	}
 	hasQuoteCommission, err := r.hasColumn("quotations", "platform_commission_amount")
@@ -62,10 +62,10 @@ func (r *AdminDashboardRepository) GetSummary(from, to time.Time, period string)
 		netExpr = "COALESCE(SUM(q.factory_net_receivable), 0)::float8"
 	}
 	if err := r.db.Get(&out.Revenue, fmt.Sprintf(revenueQuery, vatExpr, commissionExpr, netExpr), from, to); err != nil {
-		log.Printf("[AdminDashboard] Error fetching revenue: %v", err)
+		logger.Error("admin dashboard revenue query failed", "period", period, "err", err)
 		return nil, err
 	}
-	log.Printf("[AdminDashboard] Revenue fetched successfully: %+v", out.Revenue)
+	logger.Debug("admin dashboard revenue query succeeded", "period", period, "gross_order_value", out.Revenue.GrossOrderValue, "platform_commission", out.Revenue.PlatformCommission)
 	hasDisputesTable, err := r.hasTable("disputes")
 	if err != nil {
 		return nil, err
@@ -88,10 +88,10 @@ func (r *AdminDashboardRepository) GetSummary(from, to time.Time, period string)
 		WHERE o.created_at >= $1
 		  AND o.created_at < $2
 	`, disputedExpr, disputeJoin), from, to); err != nil {
-		log.Printf("[AdminDashboard] Error fetching orders: %v", err)
+		logger.Error("admin dashboard orders query failed", "period", period, "err", err)
 		return nil, err
 	}
-	log.Printf("[AdminDashboard] Orders fetched successfully: %+v", out.Orders)
+	logger.Debug("admin dashboard orders query succeeded", "period", period, "total", out.Orders.Total, "active", out.Orders.Active, "completed", out.Orders.Completed)
 	if err := r.db.Get(&out.RFQs, `
 		SELECT
 			COUNT(*)::bigint AS total,
@@ -101,13 +101,13 @@ func (r *AdminDashboardRepository) GetSummary(from, to time.Time, period string)
 		WHERE created_at >= $1
 		  AND created_at < $2
 	`, from, to); err != nil {
-		log.Printf("[AdminDashboard] Error fetching RFQs: %v", err)
+		logger.Error("admin dashboard rfqs query failed", "period", period, "err", err)
 		return nil, err
 	}
-	log.Printf("[AdminDashboard] RFQs fetched successfully: %+v", out.RFQs)
+	logger.Debug("admin dashboard rfqs query succeeded", "period", period, "total", out.RFQs.Total, "open", out.RFQs.Open, "closed", out.RFQs.Closed)
 	hasApprovalStatus, err := r.hasColumn("factory_profiles", "approval_status")
 	if err != nil {
-		log.Printf("[AdminDashboard] Error checking approval_status column: %v", err)
+		logger.Error("admin dashboard column check failed", "table", "factory_profiles", "column", "approval_status", "err", err)
 		return nil, err
 	}
 	if hasApprovalStatus {
@@ -120,7 +120,7 @@ func (r *AdminDashboardRepository) GetSummary(from, to time.Time, period string)
 				COUNT(*) FILTER (WHERE approval_status = 'SU')::bigint AS suspended
 			FROM factory_profiles
 		`); err != nil {
-			log.Printf("[AdminDashboard] Error fetching factories (with approval_status): %v", err)
+			logger.Error("admin dashboard factories query failed", "uses_approval_status", true, "err", err)
 			return nil, err
 		}
 	} else {
@@ -133,21 +133,21 @@ func (r *AdminDashboardRepository) GetSummary(from, to time.Time, period string)
 				0::bigint AS suspended
 			FROM factory_profiles
 		`); err != nil {
-			log.Printf("[AdminDashboard] Error fetching factories (without approval_status): %v", err)
+			logger.Error("admin dashboard factories query failed", "uses_approval_status", false, "err", err)
 			return nil, err
 		}
 	}
-	log.Printf("[AdminDashboard] Factories fetched successfully: %+v", out.Factories)
+	logger.Debug("admin dashboard factories query succeeded", "total_registered", out.Factories.TotalRegistered, "pending_approval", out.Factories.PendingApproval)
 	if err := r.db.Get(&out.Customers, `
 		SELECT COUNT(*)::bigint AS total FROM users WHERE role = 'CT'
 	`); err != nil {
-		log.Printf("[AdminDashboard] Error fetching customers: %v", err)
+		logger.Error("admin dashboard customers query failed", "err", err)
 		return nil, err
 	}
-	log.Printf("[AdminDashboard] Customers fetched successfully: %+v", out.Customers)
+	logger.Debug("admin dashboard customers query succeeded", "total", out.Customers.Total)
 	hasSettlementsTable, err := r.hasTable("settlements")
 	if err != nil {
-		log.Printf("[AdminDashboard] Error checking settlements table: %v", err)
+		logger.Error("admin dashboard table check failed", "table", "settlements", "err", err)
 		return nil, err
 	}
 	if hasSettlementsTable {
@@ -159,14 +159,14 @@ func (r *AdminDashboardRepository) GetSummary(from, to time.Time, period string)
 			WHERE created_at >= $1
 			  AND created_at < $2
 		`, from, to); err != nil {
-			log.Printf("[AdminDashboard] Error fetching settlements: %v", err)
+			logger.Error("admin dashboard settlements query failed", "period", period, "err", err)
 			return nil, err
 		}
-		log.Printf("[AdminDashboard] Settlements fetched successfully: %+v", out.Settlements)
+		logger.Debug("admin dashboard settlements query succeeded", "pending_amount", out.Settlements.PendingAmount, "completed_amount", out.Settlements.CompletedAmount)
 	}
 	hasWithdrawalsTable, err := r.hasTable("withdrawal_requests")
 	if err != nil {
-		log.Printf("[AdminDashboard] Error checking withdrawal_requests table: %v", err)
+		logger.Error("admin dashboard table check failed", "table", "withdrawal_requests", "err", err)
 		return nil, err
 	}
 	if hasWithdrawalsTable {
@@ -178,12 +178,12 @@ func (r *AdminDashboardRepository) GetSummary(from, to time.Time, period string)
 			WHERE created_at >= $1
 			  AND created_at < $2
 		`, from, to); err != nil {
-			log.Printf("[AdminDashboard] Error fetching withdrawals: %v", err)
+			logger.Error("admin dashboard withdrawals query failed", "period", period, "err", err)
 			return nil, err
 		}
-		log.Printf("[AdminDashboard] Withdrawals fetched successfully: %+v", out.Withdrawals)
+		logger.Debug("admin dashboard withdrawals query succeeded", "pending_count", out.Withdrawals.PendingCount, "pending_amount", out.Withdrawals.PendingAmount)
 	}
-	log.Printf("[AdminDashboard] GetSummary completed successfully")
+	logger.Debug("admin dashboard summary query completed", "period", period)
 	return out, nil
 }
 
