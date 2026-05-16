@@ -14,6 +14,7 @@ import (
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/helper"
 	notificationservice "github.com/yourusername/wemake/internal/service/notification"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 var (
@@ -150,7 +151,7 @@ func (s *MessageService) CreateTx(tx interface {
 }
 
 func normalizeMessageRefType(t string) string {
-	u := strings.ToUpper(strings.TrimSpace(t))
+	u := domainutil.NormalizeStatus(t)
 	switch u {
 	case "RFQ", "RQ":
 		return "RQ"

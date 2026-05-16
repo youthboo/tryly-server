@@ -9,6 +9,7 @@ import (
 	"github.com/yourusername/wemake/internal/helper"
 	authservice "github.com/yourusername/wemake/internal/service/auth"
 	quotationservice "github.com/yourusername/wemake/internal/service/quotation"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type QuotationHandler struct {
@@ -26,9 +27,9 @@ func (h *QuotationHandler) CreateQuotation(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
 
-	rfqID, err := c.ParamsInt("rfq_id")
+	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
+		return err
 	}
 
 	var req dto.CreateQuotationRequest
@@ -75,9 +76,9 @@ func (h *QuotationHandler) CreateQuotation(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) ListQuotationsByRFQ(c *fiber.Ctx) error {
-	rfqID, err := c.ParamsInt("rfq_id")
+	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
+		return err
 	}
 	items, err := h.service.ListByRFQID(int64(rfqID))
 	if err != nil {
@@ -152,9 +153,9 @@ func (h *QuotationHandler) ListCollection(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) GetQuotation(c *fiber.Ctx) error {
-	quotationID, err := c.ParamsInt("quotation_id")
+	quotationID, err := helper.RequireInt64Param(c, "quotation_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid quotation_id"})
+		return err
 	}
 	item, err := h.service.GetByID(int64(quotationID))
 	if err != nil {
@@ -175,9 +176,9 @@ func (h *QuotationHandler) ListHistory(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
 	}
-	quotationID, err := c.ParamsInt("quotation_id")
+	quotationID, err := helper.RequireInt64Param(c, "quotation_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid quotation_id"})
+		return err
 	}
 	ok, err := h.service.CanView(int64(quotationID), userID, u.Role)
 	if err != nil {
@@ -260,9 +261,9 @@ func (h *QuotationHandler) CreateDetailed(c *fiber.Ctx) error {
 }
 
 func (h *QuotationHandler) CreateRevision(c *fiber.Ctx) error {
-	parentID, err := c.ParamsInt("quotation_id")
+	parentID, err := helper.RequireInt64Param(c, "quotation_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid quotation_id"})
+		return err
 	}
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
@@ -299,9 +300,9 @@ func (h *QuotationHandler) Accept(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
-	quotationID, err := c.ParamsInt("quotation_id")
+	quotationID, err := helper.RequireInt64Param(c, "quotation_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid quotation_id"})
+		return err
 	}
 	order, err := h.service.Accept(int64(quotationID), userID)
 	if err != nil {
@@ -315,9 +316,9 @@ func (h *QuotationHandler) Reject(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
-	quotationID, err := c.ParamsInt("quotation_id")
+	quotationID, err := helper.RequireInt64Param(c, "quotation_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid quotation_id"})
+		return err
 	}
 	if err := h.service.Reject(int64(quotationID), userID); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
@@ -330,9 +331,9 @@ func (h *QuotationHandler) PatchQuotation(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
-	quotationID, err := c.ParamsInt("quotation_id")
+	quotationID, err := helper.RequireInt64Param(c, "quotation_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid quotation_id"})
+		return err
 	}
 	var req dto.PatchQuotationBodyRequest
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -379,9 +380,9 @@ func (h *QuotationHandler) PatchQuotationStatus(c *fiber.Ctx) error {
 	if err == nil {
 		editor = &userID
 	}
-	quotationID, err := c.ParamsInt("quotation_id")
+	quotationID, err := helper.RequireInt64Param(c, "quotation_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid quotation_id"})
+		return err
 	}
 	var req dto.PatchQuotationStatusRequest
 	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
@@ -389,7 +390,7 @@ func (h *QuotationHandler) PatchQuotationStatus(c *fiber.Ctx) error {
 	}); err != nil {
 		return err
 	}
-	status := strings.TrimSpace(strings.ToUpper(req.Status))
+	status := domainutil.NormalizeStatus(req.Status)
 	if status != domain.QuotationStatusAccepted &&
 		status != domain.QuotationStatusRejected &&
 		status != domain.QuotationStatusPrepared &&

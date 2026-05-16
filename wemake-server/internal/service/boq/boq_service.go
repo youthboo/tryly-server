@@ -20,6 +20,7 @@ import (
 	notificationservice "github.com/yourusername/wemake/internal/service/notification"
 	orderservice "github.com/yourusername/wemake/internal/service/order"
 	walletservice "github.com/yourusername/wemake/internal/service/wallet"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 var (
@@ -89,7 +90,7 @@ func computeBOQTotals(items []domain.RFQItem, discountAmount float64, vatPercent
 }
 
 func normalizeBOQInput(in BOQInput) BOQInput {
-	in.Currency = strings.ToUpper(strings.TrimSpace(in.Currency))
+	in.Currency = domainutil.NormalizeStatus(in.Currency)
 	if in.Currency == "" {
 		in.Currency = "THB"
 	}

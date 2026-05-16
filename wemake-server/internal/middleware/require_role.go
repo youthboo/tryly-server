@@ -1,11 +1,10 @@
 package middleware
 
 import (
-	"strings"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/helper"
 	authservice "github.com/yourusername/wemake/internal/service/auth"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 // RequireRole middleware ตรวจสอบว่า user มี role ที่อนุญาต
@@ -13,7 +12,7 @@ import (
 func RequireRole(auth *authservice.AuthService, roles ...string) fiber.Handler {
 	allowed := make(map[string]struct{}, len(roles))
 	for _, role := range roles {
-		allowed[strings.ToUpper(strings.TrimSpace(role))] = struct{}{}
+		allowed[domainutil.NormalizeStatus(role)] = struct{}{}
 	}
 
 	return func(c *fiber.Ctx) error {
@@ -27,7 +26,7 @@ func RequireRole(auth *authservice.AuthService, roles ...string) fiber.Handler {
 			return helper.WriteAPIError(c, helper.UnauthorizedAPIError("USER_NOT_FOUND", "user not found"))
 		}
 
-		if _, ok := allowed[strings.ToUpper(strings.TrimSpace(user.Role))]; !ok {
+		if _, ok := allowed[domainutil.NormalizeStatus(user.Role)]; !ok {
 			return helper.WriteAPIError(c, helper.ForbiddenAPIError("INSUFFICIENT_PERMISSION", "insufficient permissions"))
 		}
 
@@ -42,7 +41,7 @@ func RequireRole(auth *authservice.AuthService, roles ...string) fiber.Handler {
 func RequireUserAndRole(auth *authservice.AuthService, requiredRoles ...string) fiber.Handler {
 	allowedRoles := make(map[string]struct{}, len(requiredRoles))
 	for _, role := range requiredRoles {
-		allowedRoles[strings.ToUpper(strings.TrimSpace(role))] = struct{}{}
+		allowedRoles[domainutil.NormalizeStatus(role)] = struct{}{}
 	}
 
 	return func(c *fiber.Ctx) error {
@@ -59,7 +58,7 @@ func RequireUserAndRole(auth *authservice.AuthService, requiredRoles ...string) 
 		}
 
 		// Check role
-		userRole := strings.ToUpper(strings.TrimSpace(user.Role))
+		userRole := domainutil.NormalizeStatus(user.Role)
 		if _, ok := allowedRoles[userRole]; !ok {
 			return helper.WriteAPIError(c, helper.ForbiddenAPIError("INSUFFICIENT_ROLE", "user role not allowed"))
 		}
@@ -77,7 +76,7 @@ func RequireUserAndRole(auth *authservice.AuthService, requiredRoles ...string) 
 func OptionalRequireRole(auth *authservice.AuthService, requiredRoles ...string) fiber.Handler {
 	allowedRoles := make(map[string]struct{}, len(requiredRoles))
 	for _, role := range requiredRoles {
-		allowedRoles[strings.ToUpper(strings.TrimSpace(role))] = struct{}{}
+		allowedRoles[domainutil.NormalizeStatus(role)] = struct{}{}
 	}
 
 	return func(c *fiber.Ctx) error {
@@ -94,7 +93,7 @@ func OptionalRequireRole(auth *authservice.AuthService, requiredRoles ...string)
 		}
 
 		// Check if role matches
-		if _, ok := allowedRoles[strings.ToUpper(strings.TrimSpace(user.Role))]; ok {
+		if _, ok := allowedRoles[domainutil.NormalizeStatus(user.Role)]; ok {
 			c.Locals("user", user)
 		}
 

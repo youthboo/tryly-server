@@ -9,6 +9,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	rfqrepo "github.com/yourusername/wemake/internal/repository/rfq"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type AdminRFQRepository struct {
@@ -29,7 +30,7 @@ func (r *AdminRFQRepository) ListAdmin(filter domain.AdminRFQFilter) ([]domain.A
 		return fmt.Sprintf("$%d", len(args))
 	}
 	if filter.Status != "" {
-		where = append(where, "r.status = "+arg(strings.TrimSpace(strings.ToUpper(filter.Status))))
+		where = append(where, "r.status = "+arg(domainutil.NormalizeStatus(filter.Status)))
 	}
 	if filter.UserID != nil {
 		where = append(where, "r.user_id = "+arg(*filter.UserID))

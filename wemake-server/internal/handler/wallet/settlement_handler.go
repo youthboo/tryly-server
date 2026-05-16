@@ -2,13 +2,13 @@ package wallet
 
 import (
 	"database/sql"
-	"strings"
 
 	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/dto"
 	walletservice "github.com/yourusername/wemake/internal/service/wallet"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type SettlementHandler struct {
@@ -76,7 +76,7 @@ func (h *SettlementHandler) PatchStatus(c *fiber.Ctx) error {
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
-	status := strings.ToUpper(strings.TrimSpace(req.Status))
+	status := domainutil.NormalizeStatus(req.Status)
 	if status != "PR" && status != "CP" && status != "FL" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "status must be PR, CP, or FL"})
 	}

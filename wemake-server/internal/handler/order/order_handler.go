@@ -50,9 +50,9 @@ func (h *OrderHandler) BulkCheckout(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
-	rfqID, err := c.ParamsInt("rfq_id")
+	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
+		return err
 	}
 	var req reqBody
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -118,9 +118,9 @@ func (h *OrderHandler) GetOrder(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
 	}
-	orderID, err := c.ParamsInt("order_id")
+	orderID, err := helper.RequireInt64Param(c, "order_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
+		return err
 	}
 	detail, err := h.service.GetDetailByID(int64(orderID), userID, u.Role)
 	if err != nil {
@@ -138,9 +138,9 @@ func (h *OrderHandler) ListActivity(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
 	}
-	orderID, err := c.ParamsInt("order_id")
+	orderID, err := helper.RequireInt64Param(c, "order_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
+		return err
 	}
 	if _, err := h.service.GetByID(int64(orderID), userID, u.Role); err != nil {
 		return helper.WriteServiceErrorWithNotFound(c, err, "failed to verify order", "order not found")
@@ -158,9 +158,9 @@ func (h *OrderHandler) PatchOrderStatus(c *fiber.Ctx) error {
 	if authErr == nil {
 		actor = &uid
 	}
-	orderID, err := c.ParamsInt("order_id")
+	orderID, err := helper.RequireInt64Param(c, "order_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
+		return err
 	}
 	var req dto.PatchOrderStatusRequest
 	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
@@ -187,9 +187,9 @@ func (h *OrderHandler) CancelOrder(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
 	}
-	orderID, err := c.ParamsInt("order_id")
+	orderID, err := helper.RequireInt64Param(c, "order_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
+		return err
 	}
 	if err := h.service.Cancel(int64(orderID), userID, u.Role); err != nil {
 		return helper.WriteServiceErrorWithNotFound(c, err, "failed to cancel order", "order not found", helper.BadRequestCase(orderservice.ErrOrderCannotBeCancelled))
@@ -209,9 +209,9 @@ func (h *OrderHandler) MarkShipped(c *fiber.Ctx) error {
 	if u.Role != domain.RoleFactory {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "factory role required"})
 	}
-	orderID, err := c.ParamsInt("order_id")
+	orderID, err := helper.RequireInt64Param(c, "order_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
+		return err
 	}
 	var req dto.MarkShippedRequest
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -236,9 +236,9 @@ func (h *OrderHandler) CreatePayment(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
 	}
-	orderID, err := c.ParamsInt("order_id")
-	if err != nil || orderID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
+	orderID, err := helper.RequireInt64Param(c, "order_id")
+	if err != nil {
+		return err
 	}
 	var req dto.PayDepositRequest
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -264,9 +264,9 @@ func (h *OrderHandler) VerifyPayment(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
 	}
-	orderID, err := c.ParamsInt("order_id")
-	if err != nil || orderID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
+	orderID, err := helper.RequireInt64Param(c, "order_id")
+	if err != nil {
+		return err
 	}
 	txID := strings.TrimSpace(c.Params("tx_id"))
 	if txID == "" {
@@ -292,9 +292,9 @@ func (h *OrderHandler) ConfirmReceipt(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
 	}
-	orderID, err := c.ParamsInt("order_id")
-	if err != nil || orderID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
+	orderID, err := helper.RequireInt64Param(c, "order_id")
+	if err != nil {
+		return err
 	}
 	var req dto.ConfirmReceiptRequest
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -328,9 +328,9 @@ func (h *OrderHandler) GetReviewState(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
 	}
-	orderID, err := c.ParamsInt("order_id")
-	if err != nil || orderID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
+	orderID, err := helper.RequireInt64Param(c, "order_id")
+	if err != nil {
+		return err
 	}
 	item, err := h.service.GetReviewState(int64(orderID), userID, u.Role)
 	if err != nil {
@@ -353,9 +353,9 @@ func (h *OrderHandler) CreateReview(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
 	}
-	orderID, err := c.ParamsInt("order_id")
-	if err != nil || orderID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
+	orderID, err := helper.RequireInt64Param(c, "order_id")
+	if err != nil {
+		return err
 	}
 	var req reqBody
 	if err := helper.RequireBody(c, &req); err != nil {

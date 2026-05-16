@@ -2,12 +2,12 @@ package frontend
 
 import (
 	"database/sql"
-	"strings"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/logger"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type FrontendRepository struct {
@@ -547,7 +547,7 @@ func (r *FrontendRepository) GetReferenceLabel(referenceType string, referenceID
 }
 
 func normalizeFrontendRefType(t string) string {
-	u := strings.ToUpper(strings.TrimSpace(t))
+	u := domainutil.NormalizeStatus(t)
 	switch u {
 	case "RFQ", "RQ":
 		return "RQ"

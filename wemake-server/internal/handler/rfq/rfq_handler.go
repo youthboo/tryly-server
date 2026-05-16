@@ -10,6 +10,7 @@ import (
 	"github.com/yourusername/wemake/internal/helper"
 	authservice "github.com/yourusername/wemake/internal/service/auth"
 	rfqservice "github.com/yourusername/wemake/internal/service/rfq"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type RFQHandler struct {
@@ -119,9 +120,9 @@ func (h *RFQHandler) PatchRFQ(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
-	rfqID, err := c.ParamsInt("rfq_id")
+	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
+		return err
 	}
 	var req dto.PatchRFQRequest
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -194,7 +195,7 @@ func (h *RFQHandler) ListRFQs(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch rfqs"})
 	}
-	kind := strings.TrimSpace(strings.ToUpper(c.Query("kind")))
+	kind := domainutil.NormalizeStatus(c.Query("kind"))
 	if kind != "" {
 		if kind != domain.RequestKindProduction && kind != domain.RequestKindProductSample && kind != domain.RequestKindMaterialSample {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "INVALID_KIND"})
@@ -273,9 +274,9 @@ func (h *RFQHandler) DismissRFQ(c *fiber.Ctx) error {
 	if u.Role != domain.RoleFactory {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "FORBIDDEN"})
 	}
-	rfqID, err := c.ParamsInt("rfq_id")
+	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
+		return err
 	}
 	item, created, err := h.service.DismissRFQ(userID, int64(rfqID))
 	if err != nil {
@@ -304,9 +305,9 @@ func (h *RFQHandler) UndismissRFQ(c *fiber.Ctx) error {
 	if u.Role != domain.RoleFactory {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "FORBIDDEN"})
 	}
-	rfqID, err := c.ParamsInt("rfq_id")
+	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
+		return err
 	}
 	if err := h.service.UndismissRFQ(userID, int64(rfqID)); err != nil {
 		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to undismiss rfq"), rfqNotFoundCodeErrorMap)
@@ -323,9 +324,9 @@ func (h *RFQHandler) GetRFQ(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "user not found"})
 	}
-	rfqID, err := c.ParamsInt("rfq_id")
+	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
+		return err
 	}
 
 	rfq, err := h.service.GetForViewer(userID, u.Role, int64(rfqID))
@@ -341,9 +342,9 @@ func (h *RFQHandler) CancelRFQ(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
-	rfqID, err := c.ParamsInt("rfq_id")
+	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
+		return err
 	}
 
 	if err := h.service.Cancel(userID, int64(rfqID)); err != nil {
@@ -359,9 +360,9 @@ func (h *RFQHandler) CloseRFQ(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid X-User-ID header"})
 	}
-	rfqID, err := c.ParamsInt("rfq_id")
+	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid rfq_id"})
+		return err
 	}
 
 	if err := h.service.Close(userID, int64(rfqID)); err != nil {

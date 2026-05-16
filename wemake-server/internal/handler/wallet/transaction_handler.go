@@ -9,6 +9,7 @@ import (
 	"github.com/yourusername/wemake/internal/helper"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 	walletservice "github.com/yourusername/wemake/internal/service/wallet"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type TransactionHandler struct {
@@ -80,7 +81,7 @@ func (h *TransactionHandler) PatchTransactionStatus(c *fiber.Ctx) error {
 		return err
 	}
 
-	status := strings.TrimSpace(strings.ToUpper(req.Status))
+	status := domainutil.NormalizeStatus(req.Status)
 	if status != "ST" && status != "PT" && status != "RJ" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "status must be ST, PT or RJ"})
 	}

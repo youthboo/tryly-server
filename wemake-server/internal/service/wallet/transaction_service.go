@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/yourusername/wemake/internal/domain"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type TransactionService struct {
@@ -20,8 +21,8 @@ func NewTransactionService(repo *walletrepo.TransactionRepository) *TransactionS
 func (s *TransactionService) Create(item *domain.Transaction) error {
 	now := time.Now()
 	item.TxID = "tx-" + uuid.NewString()
-	item.Type = strings.TrimSpace(strings.ToUpper(item.Type))
-	item.Status = strings.TrimSpace(strings.ToUpper(item.Status))
+	item.Type = domainutil.NormalizeStatus(item.Type)
+	item.Status = domainutil.NormalizeStatus(item.Status)
 	item.CreatedAt = now
 	item.UpdatedAt = now
 	item.UploadedAt = now
@@ -33,5 +34,5 @@ func (s *TransactionService) List(filters walletrepo.TransactionFilters) ([]doma
 }
 
 func (s *TransactionService) PatchStatus(txID string, status string) error {
-	return s.repo.PatchStatus(strings.TrimSpace(txID), strings.TrimSpace(strings.ToUpper(status)))
+	return s.repo.PatchStatus(strings.TrimSpace(txID), domainutil.NormalizeStatus(status))
 }

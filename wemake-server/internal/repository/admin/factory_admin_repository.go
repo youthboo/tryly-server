@@ -29,7 +29,7 @@ func (r *AdminFactoryRepository) ListAdmin(filter domain.AdminFactoryFilter) ([]
 		return fmt.Sprintf("$%d", len(args))
 	}
 	if filter.ApprovalStatus != "" {
-		where = append(where, "fp.approval_status = "+arg(strings.TrimSpace(strings.ToUpper(filter.ApprovalStatus))))
+		where = append(where, "fp.approval_status = "+arg(domainutil.NormalizeStatus(filter.ApprovalStatus)))
 	}
 	if filter.IsVerified != nil {
 		where = append(where, "COALESCE(fp.is_verified, FALSE) = "+arg(*filter.IsVerified))

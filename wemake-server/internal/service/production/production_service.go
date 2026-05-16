@@ -14,6 +14,7 @@ import (
 	domainstatus "github.com/yourusername/wemake/internal/domain/status"
 	"github.com/yourusername/wemake/internal/helper"
 	productionrepo "github.com/yourusername/wemake/internal/repository/production"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 var (
@@ -117,7 +118,7 @@ func (s *ProductionService) ListByOrderID(orderID, userID int64) (*domain.Produc
 }
 
 func (s *ProductionService) Upsert(orderID, userID int64, input ProductionWriteInput) (*domain.ProductionUpdateResult, error) {
-	input.Status = strings.ToUpper(strings.TrimSpace(input.Status))
+	input.Status = domainutil.NormalizeStatus(input.Status)
 	input.Description = strings.TrimSpace(input.Description)
 	if input.StepID <= 0 {
 		return nil, &ProductionRuleError{Err: ErrProductionStepIDRequired}
@@ -417,11 +418,11 @@ func validateImageURLs(items []string) error {
 }
 
 func normalizeUserRole(role string) string {
-	switch strings.ToUpper(strings.TrimSpace(role)) {
+	switch domainutil.NormalizeStatus(role) {
 	case "CT":
 		return "CU"
 	default:
-		return strings.ToUpper(strings.TrimSpace(role))
+		return domainutil.NormalizeStatus(role)
 	}
 }
 

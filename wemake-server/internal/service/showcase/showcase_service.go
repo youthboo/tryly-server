@@ -10,6 +10,7 @@ import (
 	"github.com/yourusername/wemake/internal/domain"
 	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
 	showcaserepo "github.com/yourusername/wemake/internal/repository/showcase"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type ShowcaseService struct {
@@ -131,7 +132,7 @@ func (s *ShowcaseService) UpdateStructured(showcaseID, factoryID int64, input do
 }
 
 func (s *ShowcaseService) UpdateStatus(showcaseID, factoryID int64, status string) error {
-	status = strings.TrimSpace(strings.ToUpper(status))
+	status = domainutil.NormalizeStatus(status)
 	if !validShowcaseStatus(status) {
 		return domain.ShowcaseValidationError{Details: []domain.ShowcaseValidationDetail{{Field: "status", Message: "must be one of DR, AC, HI, AR"}}}
 	}
@@ -154,10 +155,10 @@ func (s *ShowcaseService) Delete(showcaseID, factoryID int64) error {
 
 func mergeShowcaseInput(item *domain.FactoryShowcase, input domain.ShowcaseWriteInput) {
 	if input.ContentType != nil {
-		item.ContentType = strings.TrimSpace(strings.ToUpper(*input.ContentType))
+		item.ContentType = domainutil.NormalizeStatus(*input.ContentType)
 	}
 	if input.Status != nil {
-		item.Status = strings.TrimSpace(strings.ToUpper(*input.Status))
+		item.Status = domainutil.NormalizeStatus(*input.Status)
 	}
 	if input.Title != nil {
 		item.Title = strings.TrimSpace(*input.Title)

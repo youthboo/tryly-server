@@ -269,7 +269,7 @@ func splitCSVUpper(raw string) []string {
 	out := make([]string, 0, len(parts))
 	seen := make(map[string]struct{}, len(parts))
 	for _, part := range parts {
-		item := strings.TrimSpace(strings.ToUpper(part))
+		item := domainutil.NormalizeStatus(part)
 		if item == "" {
 			continue
 		}

@@ -39,9 +39,9 @@ func (h *NotificationHandler) MarkAsRead(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	notiID, err := c.ParamsInt("noti_id")
+	notiID, err := helper.RequireInt64Param(c, "noti_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid noti_id"})
+		return err
 	}
 	if err := h.service.MarkAsRead(int64(notiID), userID); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update notification"})

@@ -50,9 +50,9 @@ func (h *FavoriteHandler) Remove(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.Unauthorized(c)
 	}
-	showcaseID, err := c.ParamsInt("showcase_id")
+	showcaseID, err := helper.RequireInt64Param(c, "showcase_id")
 	if err != nil {
-		return helper.BadRequest(c, "invalid showcase_id")
+		return err
 	}
 	if err := h.service.Remove(userID, int64(showcaseID)); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to remove favorite"})

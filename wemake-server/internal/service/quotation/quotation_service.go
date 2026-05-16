@@ -16,6 +16,7 @@ import (
 	rfqrepo "github.com/yourusername/wemake/internal/repository/rfq"
 	orderservice "github.com/yourusername/wemake/internal/service/order"
 	walletservice "github.com/yourusername/wemake/internal/service/wallet"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 var (
@@ -145,7 +146,7 @@ func (s *QuotationService) ListByRFQID(rfqID int64) ([]domain.Quotation, error) 
 }
 
 func (s *QuotationService) ListMine(factoryID int64, status string) ([]domain.Quotation, error) {
-	return s.repo.ListByFactoryID(factoryID, strings.TrimSpace(strings.ToUpper(status)))
+	return s.repo.ListByFactoryID(factoryID, domainutil.NormalizeStatus(status))
 }
 
 func (s *QuotationService) GetByID(quotationID int64) (*domain.Quotation, error) {
@@ -199,10 +200,10 @@ func (s *QuotationService) UpdateStatus(quoteID int64, status string, editorID *
 		return err
 	}
 	old := q.Status
-	if err := s.repo.UpdateStatus(quoteID, strings.TrimSpace(strings.ToUpper(status))); err != nil {
+	if err := s.repo.UpdateStatus(quoteID, domainutil.NormalizeStatus(status)); err != nil {
 		return err
 	}
-	if old == strings.TrimSpace(strings.ToUpper(status)) {
+	if old == domainutil.NormalizeStatus(status) {
 		return nil
 	}
 	q2, err := s.repo.GetByID(quoteID)
@@ -382,7 +383,7 @@ func validateQuotationItems(items []domain.QuotationItem) error {
 
 func validateQuotationTerms(incoterms, paymentTerms *string, validityDays int) error {
 	if incoterms != nil {
-		switch strings.TrimSpace(strings.ToUpper(*incoterms)) {
+		switch domainutil.NormalizeStatus(*incoterms) {
 		case "EXW", "FOB", "CIF", "DDP":
 		default:
 			return ErrIncotermsInvalid

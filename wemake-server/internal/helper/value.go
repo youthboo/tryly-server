@@ -77,7 +77,7 @@ func NormalizeEmail(s string) string {
 }
 
 func NormalizeRole(s string) string {
-	return strings.TrimSpace(strings.ToUpper(s))
+	return domainutil.NormalizeStatus(s)
 }
 
 func NormalizePhone(s string) string {

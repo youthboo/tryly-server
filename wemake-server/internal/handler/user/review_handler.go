@@ -18,9 +18,9 @@ func NewReviewHandler(service *userservice.ReviewService) *ReviewHandler {
 }
 
 func (h *ReviewHandler) ListByFactory(c *fiber.Ctx) error {
-	factoryID, err := c.ParamsInt("factory_id")
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_id"})
+		return err
 	}
 	items, err := h.service.ListByFactoryID(int64(factoryID))
 	if err != nil {
@@ -30,9 +30,9 @@ func (h *ReviewHandler) ListByFactory(c *fiber.Ctx) error {
 }
 
 func (h *ReviewHandler) GetSummaryByFactory(c *fiber.Ctx) error {
-	factoryID, err := c.ParamsInt("factory_id")
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_id"})
+		return err
 	}
 	item, err := h.service.GetSummaryByFactoryID(int64(factoryID))
 	if err != nil {
@@ -42,9 +42,9 @@ func (h *ReviewHandler) GetSummaryByFactory(c *fiber.Ctx) error {
 }
 
 func (h *ReviewHandler) Create(c *fiber.Ctx) error {
-	factoryID, err := c.ParamsInt("factory_id")
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_id"})
+		return err
 	}
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
@@ -72,9 +72,9 @@ func (h *ReviewHandler) UpdateByUser(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	reviewID, err := c.ParamsInt("review_id")
+	reviewID, err := helper.RequireInt64Param(c, "review_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid review_id"})
+		return err
 	}
 	var req struct {
 		Rating    int                `json:"rating"`
@@ -102,9 +102,9 @@ func (h *ReviewHandler) DeleteByUser(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	reviewID, err := c.ParamsInt("review_id")
+	reviewID, err := helper.RequireInt64Param(c, "review_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid review_id"})
+		return err
 	}
 	if err := h.service.DeleteByUser(int64(reviewID), userID); err != nil {
 		if err == sql.ErrNoRows {

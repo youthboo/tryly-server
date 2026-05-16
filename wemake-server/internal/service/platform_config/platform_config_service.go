@@ -14,6 +14,7 @@ import (
 	"github.com/yourusername/wemake/internal/repository"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 	platformrepo "github.com/yourusername/wemake/internal/repository/platform_config"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 var (
@@ -49,7 +50,7 @@ func (s *PlatformConfigService) CreateVersion(cfg *domain.PlatformConfig) error 
 	if cfg.CurrencyCode == "" {
 		cfg.CurrencyCode = "THB"
 	}
-	cfg.CurrencyCode = strings.ToUpper(strings.TrimSpace(cfg.CurrencyCode))
+	cfg.CurrencyCode = domainutil.NormalizeStatus(cfg.CurrencyCode)
 	cfg.EffectiveFrom = time.Now().UTC()
 	return helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
 		if err := s.repo.CloseActive(tx); err != nil {
@@ -71,7 +72,7 @@ func (s *PlatformConfigService) CreateConfig(req domain.CreatePlatformConfigRequ
 		}
 		vatRate = *req.VatRate
 	}
-	currency := strings.ToUpper(strings.TrimSpace(req.CurrencyCode))
+	currency := domainutil.NormalizeStatus(req.CurrencyCode)
 	if currency == "" {
 		currency = "THB"
 	}

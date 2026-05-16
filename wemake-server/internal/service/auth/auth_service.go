@@ -11,6 +11,7 @@ import (
 	"github.com/yourusername/wemake/internal/repository"
 	authrepo "github.com/yourusername/wemake/internal/repository/auth"
 	"golang.org/x/crypto/bcrypt"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 var (
@@ -55,7 +56,7 @@ func (s *AuthService) GetUserByID(userID int64) (*domain.User, error) {
 
 func (s *AuthService) Register(input RegisterInput) (*LoginResult, error) {
 	input.Email = strings.TrimSpace(strings.ToLower(input.Email))
-	input.Role = strings.TrimSpace(strings.ToUpper(input.Role))
+	input.Role = domainutil.NormalizeStatus(input.Role)
 
 	if input.Role != domain.RoleCustomer && input.Role != domain.RoleFactory {
 		return nil, ErrInvalidRole
@@ -130,12 +131,12 @@ type RegisterAdminInput struct {
 }
 
 func (s *AuthService) RegisterAdmin(input RegisterAdminInput, actorRole string) (*LoginResult, error) {
-	actorRole = strings.TrimSpace(strings.ToUpper(actorRole))
+	actorRole = domainutil.NormalizeStatus(actorRole)
 	if actorRole != domain.RoleSuperAdmin {
 		return nil, ErrInvalidRole
 	}
 
-	input.Role = strings.TrimSpace(strings.ToUpper(input.Role))
+	input.Role = domainutil.NormalizeStatus(input.Role)
 	if input.Role != domain.RoleAccountManager && input.Role != domain.RoleAdmin && input.Role != domain.RoleSuperAdmin {
 		return nil, ErrInvalidRole
 	}

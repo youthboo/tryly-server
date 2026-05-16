@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"github.com/shopspring/decimal"
 	"github.com/yourusername/wemake/internal/helper"
-	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 	"github.com/yourusername/wemake/internal/domain"
 	orderrepo "github.com/yourusername/wemake/internal/repository/order"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type BulkCheckoutItemInput struct {
@@ -171,7 +171,7 @@ func (s *OrderService) BulkCheckout(input BulkCheckoutInput) (*BulkCheckoutResul
 			return nil, ErrInvalidQuotationSet
 		}
 		seen[item.QuotationID] = struct{}{}
-		pt := strings.TrimSpace(strings.ToUpper(item.PaymentType))
+		pt := domainutil.NormalizeStatus(item.PaymentType)
 		switch pt {
 		case "", "FULL", domain.PaymentTypeFull:
 			pt = domain.PaymentTypeFull

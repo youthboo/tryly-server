@@ -16,6 +16,7 @@ import (
 	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/logger"
 	showcaseservice "github.com/yourusername/wemake/internal/service/showcase"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 // Allowed values for GET /showcases?type= (matches factory_showcases.content_type)
@@ -276,7 +277,7 @@ func (h *ShowcaseHandler) List(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
 	}
-	status := strings.TrimSpace(strings.ToUpper(c.Query("status", "")))
+	status := domainutil.NormalizeStatus(c.Query("status", ""))
 	if status != "" {
 		if _, ok := showcaseStatusAllowed[status]; !ok {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidStatus})
@@ -343,9 +344,9 @@ func (h *ShowcaseHandler) GetDetail(c *fiber.Ctx) error {
 
 // ListByFactory handles GET /factories/:factory_id/showcases
 func (h *ShowcaseHandler) ListByFactory(c *fiber.Ctx) error {
-	factoryID, err := c.ParamsInt("factory_id")
-	if err != nil || factoryID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_id"})
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
+	if err != nil {
+		return err
 	}
 	contentType, err := parseContentTypeQuery(c, errInvalidTypeFactory)
 	if err != nil {
@@ -430,7 +431,7 @@ func (h *ShowcaseHandler) PatchStatus(c *fiber.Ctx) error {
 	if err := helper.ValidateStruct(c, &req, map[string]string{"Status": errInvalidStatus}); err != nil {
 		return err
 	}
-	status := strings.TrimSpace(strings.ToUpper(req.Status))
+	status := domainutil.NormalizeStatus(req.Status)
 	if _, ok := showcaseStatusAllowed[status]; !ok {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": errInvalidStatus})
 	}

@@ -62,9 +62,9 @@ func (h *FrontendHandler) ListFactories(c *fiber.Ctx) error {
 }
 
 func (h *FrontendHandler) GetFactoryDetail(c *fiber.Ctx) error {
-	factoryID, err := c.ParamsInt("factory_id")
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
 	if err != nil {
-		return helper.BadRequest(c, "invalid factory_id")
+		return err
 	}
 
 	item, err := h.service.GetFactoryDetail(int64(factoryID))
@@ -80,9 +80,9 @@ func (h *FrontendHandler) GetRFQDetail(c *fiber.Ctx) error {
 		return helper.BadRequest(c, "invalid user context")
 	}
 
-	rfqID, err := c.ParamsInt("rfq_id")
+	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
 	if err != nil {
-		return helper.BadRequest(c, "invalid rfq_id")
+		return err
 	}
 
 	item, err := h.service.GetRFQDetail(userID, int64(rfqID))
@@ -98,9 +98,9 @@ func (h *FrontendHandler) GetOrderDetail(c *fiber.Ctx) error {
 		return helper.BadRequest(c, "invalid user context")
 	}
 
-	orderID, err := c.ParamsInt("order_id")
+	orderID, err := helper.RequireInt64Param(c, "order_id")
 	if err != nil {
-		return helper.BadRequest(c, "invalid order_id")
+		return err
 	}
 
 	item, err := h.service.GetOrderDetail(userID, int64(orderID))

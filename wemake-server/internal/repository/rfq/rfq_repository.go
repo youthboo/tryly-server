@@ -244,7 +244,7 @@ func (r *RFQRepository) CategoryScope(categoryID int64) (string, bool, error) {
 	if !scope.Valid || strings.TrimSpace(scope.String) == "" {
 		return "PD", true, nil
 	}
-	return strings.TrimSpace(strings.ToUpper(scope.String)), true, nil
+	return domainutil.NormalizeStatus(scope.String), true, nil
 }
 
 // GetByIDAny loads RFQ by id without customer ownership check.
@@ -412,7 +412,7 @@ func (r *RFQRepository) ListMatchingFactoryIDs(rfq *domain.RFQ) ([]int64, error)
 
 func (r *RFQRepository) ListMatchingFactoryIDsForKind(kind string, categoryID int64, subCategoryID *int64) ([]int64, error) {
 	var ids []int64
-	if strings.TrimSpace(strings.ToUpper(kind)) == domain.RequestKindMaterialSample {
+	if domainutil.NormalizeStatus(kind) == domain.RequestKindMaterialSample {
 		query := `
 			SELECT DISTINCT fs.factory_id
 			FROM factory_showcases fs
@@ -587,7 +587,7 @@ func splitRFQKinds(raw string) []string {
 	out := make([]string, 0, len(parts))
 	seen := make(map[string]struct{}, len(parts))
 	for _, part := range parts {
-		item := strings.TrimSpace(strings.ToUpper(part))
+		item := domainutil.NormalizeStatus(part)
 		switch item {
 		case domain.RequestKindProduction, domain.RequestKindProductSample, domain.RequestKindMaterialSample:
 		default:

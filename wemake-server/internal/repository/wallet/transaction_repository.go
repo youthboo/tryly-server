@@ -7,6 +7,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type TransactionRepository struct {
@@ -85,12 +86,12 @@ func (r *TransactionRepository) List(filters TransactionFilters) ([]domain.Trans
 	}
 	if filters.Type != nil {
 		conditions = append(conditions, fmt.Sprintf("type = $%d", argPos))
-		args = append(args, strings.ToUpper(strings.TrimSpace(*filters.Type)))
+		args = append(args, domainutil.NormalizeStatus(*filters.Type))
 		argPos++
 	}
 	if filters.Status != nil {
 		conditions = append(conditions, fmt.Sprintf("status = $%d", argPos))
-		args = append(args, strings.ToUpper(strings.TrimSpace(*filters.Status)))
+		args = append(args, domainutil.NormalizeStatus(*filters.Status))
 		argPos++
 	}
 

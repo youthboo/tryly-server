@@ -7,6 +7,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type AdminOrderRepository struct {
@@ -26,7 +27,7 @@ func (r *AdminOrderRepository) ListAdmin(filter domain.AdminOrderFilter) ([]doma
 		return fmt.Sprintf("$%d", len(args))
 	}
 	if filter.Status != "" {
-		where = append(where, "o.status = "+arg(strings.TrimSpace(strings.ToUpper(filter.Status))))
+		where = append(where, "o.status = "+arg(domainutil.NormalizeStatus(filter.Status)))
 	}
 	if filter.FactoryID != nil {
 		where = append(where, "o.factory_id = "+arg(*filter.FactoryID))

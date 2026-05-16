@@ -8,10 +8,11 @@ import (
 	domainstatus "github.com/yourusername/wemake/internal/domain/status"
 	"github.com/yourusername/wemake/internal/helper"
 	orderrepo "github.com/yourusername/wemake/internal/repository/order"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 func (s *OrderService) List(userID int64, role string, status string, rfqID *int64, requestKind string) ([]domain.OrderListItem, error) {
-	st := strings.TrimSpace(strings.ToUpper(status))
+	st := domainutil.NormalizeStatus(status)
 	kinds := normalizeOrderRequestKinds(requestKind)
 	if role == domain.RoleFactory {
 		return s.repo.ListEnrichedByFactoryID(userID, st, rfqID, kinds)
@@ -24,7 +25,7 @@ func normalizeOrderRequestKinds(raw string) []string {
 	out := make([]string, 0, len(parts))
 	seen := map[string]struct{}{}
 	for _, part := range parts {
-		item := strings.TrimSpace(strings.ToUpper(part))
+		item := domainutil.NormalizeStatus(part)
 		switch item {
 		case domain.RequestKindProduction, domain.RequestKindProductSample, domain.RequestKindMaterialSample:
 		default:

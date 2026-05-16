@@ -10,6 +10,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
 	userservice "github.com/yourusername/wemake/internal/service/user"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type AddressHandler struct {
@@ -21,7 +22,7 @@ func NewAddressHandler(service *userservice.AddressService) *AddressHandler {
 }
 
 func normalizeAddressType(raw string) (string, bool) {
-	typ := strings.TrimSpace(strings.ToUpper(raw))
+	typ := domainutil.NormalizeStatus(raw)
 	switch typ {
 	case "B", "S", "C", "M":
 		return typ, true
@@ -86,10 +87,10 @@ func (h *AddressHandler) PatchAddress(c *fiber.Ctx) error {
 		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_USER_ID", "invalid X-User-ID header"))
 	}
 
-	addressID, err := c.ParamsInt("address_id")
-	if err != nil {
-		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_ADDRESS_ID", "invalid address_id"))
-	}
+	addressID, err := helper.RequireInt64Param(c, "address_id")
+		if err != nil {
+			return err
+		}
 
 	var req dto.PatchAddressRequest
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -134,10 +135,10 @@ func (h *AddressHandler) DeleteAddress(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_USER_ID", "invalid X-User-ID header"))
 	}
-	addressID, err := c.ParamsInt("address_id")
-	if err != nil {
-		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_ADDRESS_ID", "invalid address_id"))
-	}
+	addressID, err := helper.RequireInt64Param(c, "address_id")
+		if err != nil {
+			return err
+		}
 	if err := h.service.Delete(userID, int64(addressID)); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return helper.WriteAPIError(c, helper.NotFoundAPIError("ADDRESS_NOT_FOUND", "address not found"))

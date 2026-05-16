@@ -4,10 +4,11 @@ import (
 	"strings"
 
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 func NormalizeCode(value string) string {
-	return strings.ToUpper(strings.TrimSpace(value))
+	return domainutil.NormalizeStatus(value)
 }
 
 func NormalizeOrder(value string) string {
@@ -84,6 +85,66 @@ func IsCancellableOrder(value string) bool {
 		domain.OrderStatusPaymentPending,
 		domain.OrderStatusProduction,
 		domain.OrderStatusWaitingFinalPayment:
+		return true
+	default:
+		return false
+	}
+}
+
+func IsValidQuotation(value string) bool {
+	switch NormalizeCode(value) {
+	case domain.QuotationStatusPending,
+		domain.QuotationStatusAccepted,
+		domain.QuotationStatusPrepared,
+		domain.QuotationStatusDeclined,
+		domain.QuotationStatusRejected,
+		domain.QuotationStatusExpired:
+		return true
+	default:
+		return false
+	}
+}
+
+func IsValidRFQ(value string) bool {
+	switch NormalizeCode(value) {
+	case domain.RFQStatusOpen,
+		domain.RFQStatusInReview,
+		domain.RFQStatusClosed,
+		domain.RFQStatusDismissed:
+		return true
+	default:
+		return false
+	}
+}
+
+func IsValidTransaction(value string) bool {
+	switch NormalizeCode(value) {
+	case domain.TransactionStatusSubmitted,
+		domain.TransactionStatusProcessed,
+		domain.TransactionStatusRejected:
+		return true
+	default:
+		return false
+	}
+}
+
+func IsValidSettlement(value string) bool {
+	switch NormalizeCode(value) {
+	case domain.SettlementStatusPending,
+		domain.SettlementStatusApproved,
+		domain.SettlementStatusRejected,
+		domain.SettlementStatusComplete:
+		return true
+	default:
+		return false
+	}
+}
+
+func IsValidWithdrawal(value string) bool {
+	switch NormalizeCode(value) {
+	case domain.WithdrawalStatusApproved,
+		domain.WithdrawalStatusRejected,
+		domain.WithdrawalStatusComplete:
 		return true
 	default:
 		return false

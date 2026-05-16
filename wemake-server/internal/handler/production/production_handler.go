@@ -40,10 +40,10 @@ func (h *ProductionHandler) ListUpdates(c *fiber.Ctx) error {
 	if err != nil {
 		return productionError(c, fiber.StatusUnauthorized, "UNAUTHORIZED", "unauthorized", nil)
 	}
-	orderID, err := c.ParamsInt("order_id")
-	if err != nil {
-		return productionError(c, fiber.StatusBadRequest, "INVALID_ORDER_ID", "invalid order_id", nil)
-	}
+	orderID, err := helper.RequireInt64Param(c, "order_id")
+		if err != nil {
+			return err
+		}
 	item, err := h.service.ListByOrderID(int64(orderID), userID)
 	if err != nil {
 		return productionServiceError(c, err)
@@ -56,10 +56,10 @@ func (h *ProductionHandler) CreateUpdate(c *fiber.Ctx) error {
 	if err != nil {
 		return productionError(c, fiber.StatusUnauthorized, "UNAUTHORIZED", "unauthorized", nil)
 	}
-	orderID, err := c.ParamsInt("order_id")
-	if err != nil {
-		return productionError(c, fiber.StatusBadRequest, "INVALID_ORDER_ID", "invalid order_id", nil)
-	}
+	orderID, err := helper.RequireInt64Param(c, "order_id")
+		if err != nil {
+			return err
+		}
 	var req dto.CreateProductionUpdateRequest
 	if err := helper.ParseBody(c, &req, "invalid request payload"); err != nil {
 		return productionError(c, fiber.StatusBadRequest, "INVALID_PAYLOAD", "invalid request payload", nil)
@@ -91,10 +91,10 @@ func (h *ProductionHandler) RejectUpdate(c *fiber.Ctx) error {
 	if err != nil {
 		return productionError(c, fiber.StatusUnauthorized, "UNAUTHORIZED", "unauthorized", nil)
 	}
-	updateID, err := c.ParamsInt("update_id")
-	if err != nil {
-		return productionError(c, fiber.StatusBadRequest, "INVALID_UPDATE_ID", "invalid update_id", nil)
-	}
+	updateID, err := helper.RequireInt64Param(c, "update_id")
+		if err != nil {
+			return err
+		}
 	var req dto.RejectProductionUpdateRequest
 	if err := helper.ParseBody(c, &req, "invalid request payload"); err != nil {
 		return productionError(c, fiber.StatusBadRequest, "INVALID_PAYLOAD", "invalid request payload", nil)

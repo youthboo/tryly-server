@@ -53,10 +53,10 @@ func (h *FactoryHandler) List(c *fiber.Ctx) error {
 }
 
 func (h *FactoryHandler) GetByID(c *fiber.Ctx) error {
-	factoryID, err := c.ParamsInt("factory_id")
-	if err != nil || factoryID <= 0 {
-		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_FACTORY_ID", errMsgInvalidFactoryID))
-	}
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
+		if err != nil {
+			return err
+		}
 	item, err := h.service.GetPublicDetail(int64(factoryID))
 	if err != nil {
 		if repository.IsNotFoundError(err) {
@@ -72,10 +72,10 @@ func (h *FactoryHandler) PatchProfile(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
 	}
-	factoryID, err := c.ParamsInt("factory_id")
-	if err != nil || factoryID <= 0 {
-		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_FACTORY_ID", errMsgInvalidFactoryID))
-	}
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
+		if err != nil {
+			return err
+		}
 	if int64(factoryID) != userID {
 		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
 	}
@@ -137,10 +137,10 @@ func (h *FactoryHandler) PatchProfile(c *fiber.Ctx) error {
 }
 
 func (h *FactoryHandler) ListCategories(c *fiber.Ctx) error {
-	factoryID, err := c.ParamsInt("factory_id")
-	if err != nil || factoryID <= 0 {
-		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_FACTORY_ID", errMsgInvalidFactoryID))
-	}
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
+		if err != nil {
+			return err
+		}
 	ok, err := h.service.FactoryExistsActive(int64(factoryID))
 	if err != nil {
 		return helper.WriteAPIError(c, helper.InternalServerError("VERIFY_FACTORY_FAILED", "failed to verify factory"))
@@ -191,10 +191,10 @@ func (h *FactoryHandler) AddCategory(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
 	}
-	factoryID, err := c.ParamsInt("factory_id")
-	if err != nil || factoryID <= 0 {
-		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_FACTORY_ID", errMsgInvalidFactoryID))
-	}
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
+		if err != nil {
+			return err
+		}
 	if int64(factoryID) != userID {
 		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
 	}
@@ -220,10 +220,10 @@ func (h *FactoryHandler) RemoveCategory(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
 	}
-	factoryID, err := c.ParamsInt("factory_id")
-	if err != nil || factoryID <= 0 {
-		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_FACTORY_ID", errMsgInvalidFactoryID))
-	}
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
+		if err != nil {
+			return err
+		}
 	if int64(factoryID) != userID {
 		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
 	}
@@ -246,10 +246,10 @@ func (h *FactoryHandler) ReplaceCategories(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
 	}
-	factoryID, err := c.ParamsInt("factory_id")
-	if err != nil || factoryID <= 0 {
-		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_FACTORY_ID", errMsgInvalidFactoryID))
-	}
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
+		if err != nil {
+			return err
+		}
 	if int64(factoryID) != userID {
 		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
 	}
@@ -277,10 +277,10 @@ func (h *FactoryHandler) ReplaceCategories(c *fiber.Ctx) error {
 }
 
 func (h *FactoryHandler) ListSubCategories(c *fiber.Ctx) error {
-	factoryID, err := c.ParamsInt("factory_id")
-	if err != nil || factoryID <= 0 {
-		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_FACTORY_ID", errMsgInvalidFactoryID))
-	}
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
+		if err != nil {
+			return err
+		}
 	ok, err := h.service.FactoryExistsActive(int64(factoryID))
 	if err != nil {
 		return helper.WriteAPIError(c, helper.InternalServerError("VERIFY_FACTORY_FAILED", "failed to verify factory"))
@@ -304,10 +304,10 @@ func (h *FactoryHandler) AddSubCategory(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
 	}
-	factoryID, err := c.ParamsInt("factory_id")
-	if err != nil || factoryID <= 0 {
-		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_FACTORY_ID", errMsgInvalidFactoryID))
-	}
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
+		if err != nil {
+			return err
+		}
 	if int64(factoryID) != userID {
 		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
 	}
@@ -333,10 +333,10 @@ func (h *FactoryHandler) RemoveSubCategory(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
 	}
-	factoryID, err := c.ParamsInt("factory_id")
-	if err != nil || factoryID <= 0 {
-		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_FACTORY_ID", errMsgInvalidFactoryID))
-	}
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
+		if err != nil {
+			return err
+		}
 	if int64(factoryID) != userID {
 		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
 	}
@@ -359,10 +359,10 @@ func (h *FactoryHandler) ReplaceSubCategories(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.WriteAPIError(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
 	}
-	factoryID, err := c.ParamsInt("factory_id")
-	if err != nil || factoryID <= 0 {
-		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_FACTORY_ID", errMsgInvalidFactoryID))
-	}
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
+		if err != nil {
+			return err
+		}
 	if int64(factoryID) != userID {
 		return helper.WriteAPIError(c, helper.ForbiddenAPIError("FORBIDDEN", "forbidden"))
 	}

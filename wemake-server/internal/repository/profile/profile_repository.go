@@ -171,12 +171,12 @@ func (r *ProfileRepository) ListTransactions(userID int64, page, limit int, txTy
 	argPos := 2
 	if txType != "" && strings.ToLower(txType) != "all" {
 		where = append(where, fmt.Sprintf("t.type = $%d", argPos))
-		args = append(args, strings.ToUpper(strings.TrimSpace(txType)))
+		args = append(args, domainutil.NormalizeStatus(txType))
 		argPos++
 	}
 	if status != "" {
 		where = append(where, fmt.Sprintf("t.status = $%d", argPos))
-		args = append(args, strings.ToUpper(strings.TrimSpace(status)))
+		args = append(args, domainutil.NormalizeStatus(status))
 		argPos++
 	}
 	cond := strings.Join(where, " AND ")

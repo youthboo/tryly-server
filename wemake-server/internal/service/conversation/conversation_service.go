@@ -129,7 +129,7 @@ func (s *ConversationService) ShareRFQ(convID, userID, rfqID int64) (*domain.Mes
 	if rfq.UserID != userID {
 		return nil, nil, ErrShareRFQForbidden
 	}
-	switch strings.ToUpper(strings.TrimSpace(rfq.Status)) {
+	switch domainutil.NormalizeStatus(rfq.Status) {
 	case "OP", "PD":
 	default:
 		return nil, nil, ErrShareRFQClosed

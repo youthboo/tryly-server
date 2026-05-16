@@ -2,9 +2,9 @@ package wallet
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/helper"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 )
@@ -53,7 +53,7 @@ func (s *WithdrawalService) ListByFactoryID(factoryID int64) ([]domain.Withdrawa
 }
 
 func (s *WithdrawalService) UpdateStatus(requestID int64, status string, note *string) error {
-	status = strings.ToUpper(strings.TrimSpace(status))
+	status = domainutil.NormalizeStatus(status)
 	if status != "AP" && status != "RJ" && status != "CP" {
 		return ErrInvalidWithdrawalStatus
 	}

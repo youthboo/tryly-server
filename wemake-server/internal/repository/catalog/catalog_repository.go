@@ -1,10 +1,9 @@
 package catalog
 
 import (
-	"strings"
-
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type CatalogRepository struct {
@@ -17,7 +16,7 @@ func NewCatalogRepository(db *sqlx.DB) *CatalogRepository {
 
 func (r *CatalogRepository) GetCategories(scope string) ([]domain.Category, error) {
 	var categories []domain.Category
-	scope = strings.TrimSpace(strings.ToUpper(scope))
+	scope = domainutil.NormalizeStatus(scope)
 	query := "SELECT category_id, name, COALESCE(scope, $1) AS scope FROM lbi_categories"
 	args := []interface{}{}
 	if scope == "" {

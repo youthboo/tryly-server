@@ -34,9 +34,9 @@ func (h *ConversationHandler) Get(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.Unauthorized(c)
 	}
-	convID, err := c.ParamsInt("conv_id")
+	convID, err := helper.RequireInt64Param(c, "conv_id")
 	if err != nil {
-		return helper.BadRequest(c, "invalid conv_id")
+		return err
 	}
 	item, err := h.service.GetByID(int64(convID), userID)
 	if err != nil {
@@ -96,9 +96,9 @@ func (h *ConversationHandler) MarkAsRead(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.Unauthorized(c)
 	}
-	convID, err := c.ParamsInt("conv_id")
+	convID, err := helper.RequireInt64Param(c, "conv_id")
 	if err != nil {
-		return helper.BadRequest(c, "invalid conv_id")
+		return err
 	}
 	if err := h.service.MarkAsRead(int64(convID), userID); err != nil {
 		return helper.MapServiceError(c, err, conversationMarkAsReadFallback, conversationMarkAsReadResponses)
@@ -114,10 +114,10 @@ func (h *ConversationHandler) ShareRFQ(c *fiber.Ctx) error {
 	if role := helper.OptionalRoleFromContext(c); role != "" && role != domain.RoleCustomer {
 		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "buyer role required"})
 	}
-	convID, err := c.ParamsInt("conv_id")
-	if err != nil || convID <= 0 {
-		return helper.BadRequest(c, "invalid conv_id")
-	}
+	convID, err := helper.RequireInt64Param(c, "conv_id")
+		if err != nil {
+			return err
+		}
 	var req dto.ShareRFQRequest
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err

@@ -2,10 +2,10 @@ package wallet
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/yourusername/wemake/internal/domain"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 var ErrInvalidDisputeStatus = errors.New("status must be RS or CL")
@@ -35,7 +35,7 @@ func (s *DisputeService) GetByOrderID(orderID int64) (*domain.Dispute, error) {
 }
 
 func (s *DisputeService) UpdateStatus(disputeID int64, status string, resolution *string) error {
-	status = strings.ToUpper(strings.TrimSpace(status))
+	status = domainutil.NormalizeStatus(status)
 	if status != "RS" && status != "CL" {
 		return ErrInvalidDisputeStatus
 	}

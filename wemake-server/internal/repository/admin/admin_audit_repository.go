@@ -39,7 +39,7 @@ func (r *AdminAuditRepository) List(filter domain.AdminAuditFilter) ([]domain.Ad
 		where = append(where, "l.actor_id = "+addArg(*filter.ActorID))
 	}
 	if filter.Action != "" {
-		where = append(where, "l.action = "+addArg(strings.TrimSpace(strings.ToUpper(filter.Action))))
+		where = append(where, "l.action = "+addArg(domainutil.NormalizeStatus(filter.Action)))
 	}
 	if filter.TargetType != "" {
 		where = append(where, "l.target_type = "+addArg(strings.TrimSpace(filter.TargetType)))

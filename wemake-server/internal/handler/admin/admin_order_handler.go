@@ -14,6 +14,7 @@ import (
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
 	orderservice "github.com/yourusername/wemake/internal/service/order"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type AdminOrderHandler struct {
@@ -128,7 +129,7 @@ func (h *AdminOrderHandler) PatchWithdrawal(c *fiber.Ctx) error {
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
-	status := strings.ToUpper(strings.TrimSpace(req.Status))
+	status := domainutil.NormalizeStatus(req.Status)
 	if status != domain.WithdrawalStatusApproved &&
 		status != domain.WithdrawalStatusRejected &&
 		status != domain.WithdrawalStatusComplete {
@@ -165,7 +166,7 @@ func (h *AdminOrderHandler) PatchDispute(c *fiber.Ctx) error {
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
-	status := strings.ToUpper(strings.TrimSpace(req.Status))
+	status := domainutil.NormalizeStatus(req.Status)
 	if status != "RS" && status != "CL" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "status must be RS or CL"})
 	}

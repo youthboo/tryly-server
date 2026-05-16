@@ -10,6 +10,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 var (
@@ -64,7 +65,7 @@ func OptionalUserIDFromHeader(c *fiber.Ctx) int64 {
 func OptionalRoleFromContext(c *fiber.Ctx) string {
 	if localValue := c.Locals("role"); localValue != nil {
 		if value, ok := localValue.(string); ok {
-			return strings.TrimSpace(strings.ToUpper(value))
+			return domainutil.NormalizeStatus(value)
 		}
 	}
 	return ""

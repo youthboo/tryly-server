@@ -10,6 +10,7 @@ import (
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/dto"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type AdminRFQHandler struct {
@@ -76,7 +77,7 @@ func (h *AdminRFQHandler) PatchStatus(c *fiber.Ctx) error {
 	if err := helper.RequireBody(c, &req); err != nil {
 		return err
 	}
-	status := strings.ToUpper(strings.TrimSpace(req.Status))
+	status := domainutil.NormalizeStatus(req.Status)
 	if status != "CL" && status != "CC" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "status must be CL or CC"})
 	}

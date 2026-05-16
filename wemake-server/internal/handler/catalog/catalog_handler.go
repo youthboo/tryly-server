@@ -1,10 +1,9 @@
 package catalog
 
 import (
-	"strings"
-
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/helper"
 	catalogservice "github.com/yourusername/wemake/internal/service/catalog"
 )
@@ -26,7 +25,7 @@ func (h *CatalogHandler) GetCategories(c *fiber.Ctx) error {
 }
 
 func (h *CatalogHandler) GetLBICategories(c *fiber.Ctx) error {
-	scope := strings.TrimSpace(strings.ToUpper(c.Query("scope")))
+	scope := domainutil.NormalizeStatus(c.Query("scope"))
 	if scope == "" {
 		scope = domain.CatalogScopeProduct
 	}

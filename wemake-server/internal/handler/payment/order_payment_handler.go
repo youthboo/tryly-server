@@ -22,9 +22,9 @@ func (h *OrderPaymentHandler) PayDeposit(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	orderID, err := c.ParamsInt("order_id")
-	if err != nil || orderID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error_code": "INVALID_ORDER_ID", "message": "invalid order_id"})
+	orderID, err := helper.RequireInt64Param(c, "order_id")
+	if err != nil {
+		return err
 	}
 
 	var req dto.PayDepositRequest

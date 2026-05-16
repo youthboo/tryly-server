@@ -14,6 +14,7 @@ import (
 	domainstatus "github.com/yourusername/wemake/internal/domain/status"
 	"github.com/yourusername/wemake/internal/helper"
 	walletrepo "github.com/yourusername/wemake/internal/repository/wallet"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 type ConfirmReceiptInput struct {
@@ -51,7 +52,7 @@ func (s *OrderService) CreatePayment(orderID, userID int64, role, paymentType st
 		return nil, err
 	}
 
-	paymentType = strings.TrimSpace(strings.ToUpper(paymentType))
+	paymentType = domainutil.NormalizeStatus(paymentType)
 	if paymentType == domain.PaymentTypeDeposit {
 		if err := s.ensureDepositPayable(order); err != nil {
 			return nil, err

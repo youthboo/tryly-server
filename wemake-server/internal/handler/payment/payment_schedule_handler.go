@@ -21,9 +21,9 @@ func NewPaymentScheduleHandler(svc *paymentservice.PaymentScheduleService) *Paym
 
 // GET /orders/:order_id/payment-schedules
 func (h *PaymentScheduleHandler) List(c *fiber.Ctx) error {
-	orderID, err := c.ParamsInt("order_id")
-	if err != nil || orderID <= 0 {
-		return helper.BadRequest(c, "invalid order_id")
+	orderID, err := helper.RequireInt64Param(c, "order_id")
+	if err != nil {
+		return err
 	}
 	items, err := h.service.ListByOrderID(int64(orderID))
 	if err != nil {
@@ -34,9 +34,9 @@ func (h *PaymentScheduleHandler) List(c *fiber.Ctx) error {
 
 // POST /orders/:order_id/payment-schedules
 func (h *PaymentScheduleHandler) Create(c *fiber.Ctx) error {
-	orderID, err := c.ParamsInt("order_id")
-	if err != nil || orderID <= 0 {
-		return helper.BadRequest(c, "invalid order_id")
+	orderID, err := helper.RequireInt64Param(c, "order_id")
+	if err != nil {
+		return err
 	}
 	var req dto.CreatePaymentScheduleRequest
 	if err := helper.RequireBody(c, &req); err != nil {

@@ -15,6 +15,7 @@ import (
 	"github.com/yourusername/wemake/internal/domain"
 	domainstatus "github.com/yourusername/wemake/internal/domain/status"
 	"github.com/yourusername/wemake/internal/helper"
+	"github.com/yourusername/wemake/internal/domainutil"
 )
 
 var (
@@ -98,8 +99,8 @@ func NewOrderPaymentService(db *sqlx.DB) *OrderPaymentService {
 }
 
 func (s *OrderPaymentService) PayDeposit(input OrderPaymentInput) (*OrderPaymentResponse, error) {
-	input.Type = strings.ToUpper(strings.TrimSpace(input.Type))
-	input.PaymentMethod = strings.ToUpper(strings.TrimSpace(input.PaymentMethod))
+	input.Type = domainutil.NormalizeStatus(input.Type)
+	input.PaymentMethod = domainutil.NormalizeStatus(input.PaymentMethod)
 	input.IdempotencyKey = strings.TrimSpace(input.IdempotencyKey)
 
 	if input.Type != domain.PaymentTypeDeposit && input.Type != domain.PaymentTypeFull {

@@ -128,7 +128,7 @@ func (s *RFQService) ListMatchingForFactory(factoryID int64, status string, kind
 			return []domain.RFQ{}, nil
 		}
 	}
-	normalizedKind := strings.TrimSpace(strings.ToUpper(kind))
+	normalizedKind := domainutil.NormalizeStatus(kind)
 	if normalizedKind != "" && normalizeRFQKind(normalizedKind) == "" {
 		return nil, ErrRFQKindInvalid
 	}
@@ -319,11 +319,11 @@ func (s *RFQService) Patch(userID, rfqID int64, rfq *domain.RFQ) error {
 }
 
 func normalizeRFQKind(kind string) string {
-	switch strings.TrimSpace(strings.ToUpper(kind)) {
+	switch domainutil.NormalizeStatus(kind) {
 	case "":
 		return domain.RequestKindProduction
 	case domain.RequestKindProduction, domain.RequestKindProductSample, domain.RequestKindMaterialSample:
-		return strings.TrimSpace(strings.ToUpper(kind))
+		return domainutil.NormalizeStatus(kind)
 	default:
 		return ""
 	}

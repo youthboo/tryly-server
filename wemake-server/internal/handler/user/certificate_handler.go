@@ -24,9 +24,9 @@ var certificateNotFoundErrorMap = map[error]helper.ErrorResponse{
 }
 
 func (h *CertificateHandler) ListByFactory(c *fiber.Ctx) error {
-	factoryID, err := c.ParamsInt("factory_id")
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
 	if err != nil {
-		return helper.BadRequest(c, "invalid factory_id")
+		return err
 	}
 	items, err := h.service.ListByFactoryID(int64(factoryID))
 	if err != nil {
@@ -36,9 +36,9 @@ func (h *CertificateHandler) ListByFactory(c *fiber.Ctx) error {
 }
 
 func (h *CertificateHandler) Create(c *fiber.Ctx) error {
-	factoryID, err := c.ParamsInt("factory_id")
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid factory_id"})
+		return err
 	}
 	userID, err := helper.UserIDFromHeader(c)
 	if err != nil {
@@ -67,7 +67,7 @@ func (h *CertificateHandler) Delete(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.Unauthorized(c)
 	}
-	factoryID, err := c.ParamsInt("factory_id")
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
 	if err != nil || int64(factoryID) != userID {
 		return helper.JSONError(c, fiber.StatusForbidden, "forbidden")
 	}
@@ -92,7 +92,7 @@ func (h *CertificateHandler) DeleteByCertID(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.Unauthorized(c)
 	}
-	factoryID, err := c.ParamsInt("factory_id")
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
 	if err != nil || int64(factoryID) != userID {
 		return helper.JSONError(c, fiber.StatusForbidden, "forbidden")
 	}
@@ -111,7 +111,7 @@ func (h *CertificateHandler) PatchByCertID(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.Unauthorized(c)
 	}
-	factoryID, err := c.ParamsInt("factory_id")
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
 	if err != nil || int64(factoryID) != userID {
 		return helper.JSONError(c, fiber.StatusForbidden, "forbidden")
 	}

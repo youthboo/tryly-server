@@ -401,7 +401,7 @@ func (r *OrderRepository) listEnriched(ownerClause string, ownerID int64, status
 }
 
 func orderTypeFromRequestKind(kind string) string {
-	switch strings.TrimSpace(strings.ToUpper(kind)) {
+	switch domainutil.NormalizeStatus(kind) {
 	case "PS", "MS":
 		return "sample"
 	default:
@@ -582,7 +582,7 @@ func splitOrderStatuses(raw string) []string {
 	out := make([]string, 0, len(parts))
 	seen := make(map[string]struct{}, len(parts))
 	for _, part := range parts {
-		item := strings.TrimSpace(strings.ToUpper(part))
+		item := domainutil.NormalizeStatus(part)
 		if item == "" {
 			continue
 		}

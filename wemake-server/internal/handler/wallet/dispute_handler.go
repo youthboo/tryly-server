@@ -23,9 +23,9 @@ func (h *DisputeHandler) Create(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "unauthorized"})
 	}
-	orderID, err := c.ParamsInt("order_id")
-	if err != nil || orderID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
+	orderID, err := helper.RequireInt64Param(c, "order_id")
+	if err != nil {
+		return err
 	}
 	var req dto.CreateDisputeRequest
 	if err := helper.RequireBody(c, &req); err != nil {
@@ -40,9 +40,9 @@ func (h *DisputeHandler) Create(c *fiber.Ctx) error {
 
 // GET /orders/:order_id/disputes
 func (h *DisputeHandler) GetByOrderID(c *fiber.Ctx) error {
-	orderID, err := c.ParamsInt("order_id")
-	if err != nil || orderID <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid order_id"})
+	orderID, err := helper.RequireInt64Param(c, "order_id")
+	if err != nil {
+		return err
 	}
 	item, err := h.service.GetByOrderID(int64(orderID))
 	if err != nil {
