@@ -19,7 +19,6 @@ INSERT INTO lbi_factory_types (type_name, status) VALUES
   ('โรงงานผลิตอุปกรณ์สัตว์เลี้ยง',   '1'),
   ('โรงงานแปรรูปวัตถุดิบ',           '1'),
   ('อื่นๆ',                           '1')
-ON CONFLICT (type_name) DO NOTHING;
 
 -- ─── 2. lbi_certificates ──────────────────────────────────────
 INSERT INTO lbi_certificates (cert_name, description, status) VALUES
@@ -33,13 +32,11 @@ INSERT INTO lbi_certificates (cert_name, description, status) VALUES
   ('FAMI-QS',    'Feed Additives & Premixtures Quality System',                                              '1'),
   ('BRC',        'British Retail Consortium Global Standard for Food Safety',                                '1'),
   ('GHP',        'Good Hygiene Practice — หลักปฏิบัติด้านสุขลักษณะที่ดี',                                    '1')
-ON CONFLICT (cert_name) DO NOTHING;
 
 -- ─── 3. lbi_shipping_methods ──────────────────────────────────
 INSERT INTO lbi_shipping_methods (method_name, status) VALUES
   ('ลูกค้ารับเองที่โรงงาน',  '1'),
   ('จัดส่งเดลิเวอร์รี่',     '1')
-ON CONFLICT (method_name) DO NOTHING;
 
 -- ─── 4. lbi_production (ขั้นตอนการผลิต) ──────────────────────
 INSERT INTO lbi_production (step_name, step_name_th, description, sort_order, step_code) VALUES
@@ -48,7 +45,6 @@ INSERT INTO lbi_production (step_name, step_name_th, description, sort_order, st
   ('Quality Control (QC)',    'ตรวจสอบคุณภาพ',         'ตรวจสอบคุณภาพสินค้าก่อนบรรจุ ทดสอบค่าโภชนาการและความปลอดภัย',    3,  'QC'),
   ('READY_TO_SHIP',           'เตรียมจัดส่ง',         'จัดเรียงสินค้า แพ็คลัง เตรียมเอกสารจัดส่ง',                        4,  'READY_TO_SHIP'),
   ('Shipped',                 'จัดส่งแล้ว',           'จัดส่งสินค้าไปยังลูกค้า',                                            5,  'SHIPPED')
-ON CONFLICT (step_code) DO NOTHING;
 
 -- ─── 5. lbi_categories ────────────────────────────────────────
 -- scope: PD = Product, MT = Material
@@ -69,7 +65,6 @@ INSERT INTO lbi_categories (name, scope) VALUES
   ('วัตถุเจือปนอาหารและสารกันเสีย', 'MT'),
   ('วัตถุดิบเส้นใย / ธัญพืช',       'MT'),
   ('วัตถุดิบบรรจุภัณฑ์',            'MT')
-ON CONFLICT (name) DO NOTHING;
 
 -- ─── 6. lbi_provinces ──────────────────────────────────────────
 INSERT INTO lbi_provinces (name_th, name_en, status) VALUES
@@ -83,14 +78,12 @@ INSERT INTO lbi_provinces (name_th, name_en, status) VALUES
   ('ฉะเชิงเทรา',  'Chachoengsao',      '1'),
   ('ชลบุรี',       'Chon Buri',         '1'),
   ('ชัยนาท',       'Chai Nat',          '1')
-ON CONFLICT (name_th) DO NOTHING;
 
 -- ─── 7. lbi_districts (กรุงเทพ — สำหรับ seed ที่อยู่) ───────────
 INSERT INTO lbi_districts (row_id, province_id, name_th, name_en, status) VALUES
   (1, 1, 'เขตพระนคร', 'Phra Nakhon', '1'),
   (2, 1, 'เขตบางรัก', 'Bang Rak',    '1'),
   (3, 1, 'เขตสาทร',   'Sathon',      '1')
-ON CONFLICT (name_th) DO NOTHING;
 
 SELECT setval(pg_get_serial_sequence('lbi_districts', 'row_id'), GREATEST((SELECT MAX(row_id) FROM lbi_districts), 3));
 SELECT setval(pg_get_serial_sequence('lbi_provinces', 'row_id'), GREATEST((SELECT MAX(row_id) FROM lbi_provinces), 10));
@@ -198,7 +191,6 @@ INSERT INTO lbi_sub_categories (category_id, name, status, sort_order) VALUES
   (16, 'ฉลากและสติกเกอร์',           '1', 4),
   (16, 'ซิปล็อค / Zip Lock',         '1', 5),
   (16, 'อื่นๆ',                         '1', 99)
-ON CONFLICT (category_id, name) DO NOTHING;
 
 SELECT setval(pg_get_serial_sequence('lbi_sub_categories', 'sub_category_id'), GREATEST((SELECT MAX(sub_category_id) FROM lbi_sub_categories), 1));
 
@@ -222,7 +214,6 @@ INSERT INTO lbi_sub_districts (district_id, name_th, name_en, zip_code, status) 
   (3, 'ทุ่งมหาเมฆ',     'Thung Maha Mek',             '10120', '1'),
   (3, 'ทุ่งวัดดอน',     'Thung Wat Don',              '10120', '1'),
   (3, 'ยานนาวา',         'Yan Nawa',                   '10120', '1')
-ON CONFLICT (district_id, name_th) DO NOTHING;
 
 SELECT setval(pg_get_serial_sequence('lbi_sub_districts', 'row_id'), GREATEST((SELECT MAX(row_id) FROM lbi_sub_districts), 1));
 
