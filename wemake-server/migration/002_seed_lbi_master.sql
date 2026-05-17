@@ -39,12 +39,12 @@ INSERT INTO lbi_shipping_methods (method_name, status) VALUES
   ('จัดส่งเดลิเวอร์รี่',     '1');
 
 -- ─── 4. lbi_production (ขั้นตอนการผลิต) ──────────────────────
-INSERT INTO lbi_production (step_name, step_name_th, description, sort_order, step_code) VALUES
-  ('Material Preparation',    'จัดเตรียมวัตถุดิบ',    'ตรวจรับและเตรียมวัตถุดิบก่อนเริ่มการผลิต',                          1,  'MAT_PREP'),
-  ('Processing / Production', 'ขั้นตอนการผลิต',       'กระบวนการผลิตหลัก เช่น อัดเม็ด อบ ฟรีซดราย ฯลฯ',                  2,  'PROCESSING'),
-  ('Quality Control (QC)',    'ตรวจสอบคุณภาพ',         'ตรวจสอบคุณภาพสินค้าก่อนบรรจุ ทดสอบค่าโภชนาการและความปลอดภัย',    3,  'QC'),
-  ('READY_TO_SHIP',           'เตรียมจัดส่ง',         'จัดเรียงสินค้า แพ็คลัง เตรียมเอกสารจัดส่ง',                        4,  'READY_TO_SHIP'),
-  ('Shipped',                 'จัดส่งแล้ว',           'จัดส่งสินค้าไปยังลูกค้า',                                            5,  'SHIPPED');
+INSERT INTO lbi_production (step_name, step_name_th, description, sort_order) VALUES
+  ('Material Preparation',    'จัดเตรียมวัตถุดิบ',    'ตรวจรับและเตรียมวัตถุดิบก่อนเริ่มการผลิต',                          1),
+  ('Processing / Production', 'ขั้นตอนการผลิต',       'กระบวนการผลิตหลัก เช่น อัดเม็ด อบ ฟรีซดราย ฯลฯ',                  2),
+  ('Quality Control (QC)',    'ตรวจสอบคุณภาพ',         'ตรวจสอบคุณภาพสินค้าก่อนบรรจุ ทดสอบค่าโภชนาการและความปลอดภัย',    3),
+  ('READY_TO_SHIP',           'เตรียมจัดส่ง',         'จัดเรียงสินค้า แพ็คลัง เตรียมเอกสารจัดส่ง',                        4),
+  ('Shipped',                 'จัดส่งแล้ว',           'จัดส่งสินค้าไปยังลูกค้า',                                            5);
 
 -- ─── 5. lbi_categories ────────────────────────────────────────
 -- scope: PD = Product, MT = Material
