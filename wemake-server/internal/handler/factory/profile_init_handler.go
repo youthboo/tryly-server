@@ -75,7 +75,7 @@ func (h *ProfileInitHandler) GetProfileInit(c *fiber.Ctx) error {
 
 	go func() {
 		defer wg.Done()
-		data, err := h.catalog.GetCategories(domain.CatalogScopeAll)
+		data, err := h.catalog.GetCategories(domain.CatalogScopeAll, 0)
 		categoriesRes = result[[]domain.Category]{data, err}
 	}()
 
