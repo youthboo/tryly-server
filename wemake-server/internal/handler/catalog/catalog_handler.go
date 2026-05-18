@@ -52,6 +52,18 @@ func (h *CatalogHandler) GetSubCategories(c *fiber.Ctx) error {
 	return c.JSON(items)
 }
 
+func (h *CatalogHandler) GetAllLBISubCategories(c *fiber.Ctx) error {
+	scope := domainutil.NormalizeStatus(helper.QueryString(c, "scope"))
+	if scope != "" && !domainutil.StatusIn(scope, domain.CatalogScopeProduct, domain.CatalogScopeMaterial, domain.CatalogScopeAll) {
+		return helper.BadRequestError(c, "INVALID_SCOPE")
+	}
+	items, err := h.service.GetAllSubCategories(scope)
+	if err != nil {
+		return helper.JSONInternal(c, "failed to fetch sub-categories")
+	}
+	return c.JSON(items)
+}
+
 func (h *CatalogHandler) GetUnits(c *fiber.Ctx) error {
 	items, err := h.service.GetUnits()
 	if err != nil {

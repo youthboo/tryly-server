@@ -59,9 +59,13 @@ type FactoryProfileSubCategory struct {
 }
 
 type FactoryProfileCertificate struct {
-	CertID       int64  `db:"cert_id" json:"cert_id"`
-	CertName     string `db:"cert_name" json:"cert_name"`
-	VerifyStatus string `db:"verify_status" json:"verify_status"`
+	MapID        int64   `db:"map_id" json:"map_id"`
+	CertID       int64   `db:"cert_id" json:"cert_id"`
+	CertName     string  `db:"cert_name" json:"cert_name"`
+	VerifyStatus string  `db:"verify_status" json:"verify_status"`
+	DocumentURL  *string `db:"document_url" json:"document_url,omitempty"`
+	CertNumber   *string `db:"cert_number" json:"cert_number,omitempty"`
+	ExpireDate   *string `db:"expire_date" json:"expire_date,omitempty"`
 }
 
 type FactoryProfileReview struct {

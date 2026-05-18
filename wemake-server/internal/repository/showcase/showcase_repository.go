@@ -44,7 +44,7 @@ const showcaseExploreBaseSQL = `
 		fp.factory_name,
 		fp.image_url AS factory_image_url,
 		fp.rating::float8 AS factory_rating,
-		COALESCE(fp.is_verified, FALSE) AS factory_verified,
+		( fp.approval_status = 'AP') AS factory_verified,
 		c.name AS category_name,
 		sc.name AS sub_category_name
 	FROM factory_showcases fs
@@ -275,7 +275,7 @@ func (r *ShowcaseRepository) GetDetail(showcaseID int64) (*domain.ShowcaseDetail
 			fp.factory_name,
 			fp.image_url         AS factory_image_url,
 			fp.rating::float8    AS factory_rating,
-			COALESCE(fp.is_verified, FALSE) AS factory_verified,
+			( fp.approval_status = 'AP') AS factory_verified,
 			ft.type_name    AS factory_specialization,
 			fp.review_count      AS factory_review_count,
 			p.name_th            AS province_name,

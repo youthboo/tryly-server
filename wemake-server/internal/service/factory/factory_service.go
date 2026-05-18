@@ -5,6 +5,9 @@ import (
 	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
 )
 
+// ErrFactoryProfileExists is exported from the repository for handler use.
+var ErrFactoryProfileExists = factoryrepo.ErrFactoryProfileExists
+
 type FactoryService struct {
 	repo *factoryrepo.FactoryRepository
 }
@@ -19,6 +22,10 @@ func (s *FactoryService) ListPublic() ([]domain.FactoryListItem, error) {
 
 func (s *FactoryService) GetPublicDetail(factoryID int64) (*domain.FactoryPublicDetail, error) {
 	return s.repo.GetPublicDetail(factoryID)
+}
+
+func (s *FactoryService) CreateProfile(userID int64, factoryName string, factoryTypeID int64, taxID string, provinceID *int64, categoryIDs []int64, subCategoryIDs []int64, certID int64, documentURL string, certNumber string, certExpireDate string) error {
+	return s.repo.CreateProfile(userID, factoryName, factoryTypeID, taxID, provinceID, categoryIDs, subCategoryIDs, certID, documentURL, certNumber, certExpireDate)
 }
 
 func (s *FactoryService) PatchProfile(factoryID int64, fields map[string]interface{}) error {

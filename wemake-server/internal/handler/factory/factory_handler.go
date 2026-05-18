@@ -57,7 +57,29 @@ func (h *FactoryHandler) GetMe(c *fiber.Ctx) error {
 		}
 		return helper.WriteAPIError(c, helper.InternalServerAPIError("FETCH_FACTORY_FAILED", "failed to fetch factory"))
 	}
-	return helper.WriteListResponse(c, []interface{}{item}, 1)
+	return c.JSON(item)
+}
+
+func (h *FactoryHandler) Create(c *fiber.Ctx) error {
+	userID, err := helper.RequireAPIUserID(c, helper.UnauthorizedAPIError("UNAUTHORIZED", "unauthorized"))
+	if err != nil {
+		return err
+	}
+	var req dto.CreateFactoryRequest
+	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
+		"FactoryName":   "factory_name is required",
+		"FactoryTypeID": "factory_type_id must be > 0",
+	}); err != nil {
+		return err
+	}
+	if err := h.service.CreateProfile(userID, req.FactoryName, req.FactoryTypeID, req.TaxID, req.ProvinceID, req.CategoryIDs, req.SubCategoryIDs, req.CertID, req.DocumentURL, req.CertNumber, req.CertExpireDate); err != nil {
+		if err == factoryservice.ErrFactoryProfileExists {
+			return helper.WriteAPIError(c, helper.ConflictAPIError("FACTORY_EXISTS", "factory profile already exists for this user"))
+		}
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("CREATE_FACTORY_FAILED", "failed to create factory profile"))
+	}
+	c.Status(fiber.StatusCreated)
+	return c.JSON(fiber.Map{"factory_id": userID, "user_id": userID})
 }
 
 func (h *FactoryHandler) List(c *fiber.Ctx) error {
