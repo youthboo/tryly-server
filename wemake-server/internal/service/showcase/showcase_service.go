@@ -199,6 +199,9 @@ func mergeShowcaseInput(item *domain.FactoryShowcase, input domain.ShowcaseWrite
 	if input.MOQ != nil {
 		item.MOQ = input.MOQ
 	}
+	if input.LeadTimeDays != nil {
+		item.LeadTimeDays = input.LeadTimeDays
+	}
 	if input.BasePrice != nil {
 		item.BasePrice = input.BasePrice
 	}
