@@ -378,7 +378,7 @@ func (v *showcaseValidationCollector) validateContentLength(item *domain.Factory
 }
 
 func (v *showcaseValidationCollector) validateActiveRequirements(item *domain.FactoryShowcase) {
-	if item.ImageURL == nil || strings.TrimSpace(*item.ImageURL) == "" {
+	if item.ContentType != "ID" && (item.ImageURL == nil || strings.TrimSpace(*item.ImageURL) == "") {
 		v.add("image_url", "is required when showcase is active")
 	}
 	switch item.ContentType {
