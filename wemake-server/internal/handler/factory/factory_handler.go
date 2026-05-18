@@ -157,6 +157,15 @@ func (h *FactoryHandler) PatchProfile(c *fiber.Ctx) error {
 		}
 		fields["factory_type_id"] = *req.FactoryTypeID
 	}
+	if req.MinOrder != nil {
+		if *req.MinOrder < 0 {
+			return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_MIN_ORDER", "min_order must be >= 0"))
+		}
+		fields["min_order"] = *req.MinOrder
+	}
+	if req.LeadTimeDesc != nil {
+		fields["lead_time_desc"] = helper.DereferenceString(req.LeadTimeDesc, "")
+	}
 
 	if err := h.service.PatchProfile(int64(factoryID), fields); err != nil {
 		if dbutil.IsNotFoundError(err) {
@@ -428,6 +437,90 @@ func (h *FactoryHandler) GetDashboard(c *fiber.Ctx) error {
 	item, err := h.service.GetDashboard(userID)
 	if err != nil {
 		return helper.WriteAPIError(c, helper.InternalServerAPIError("FETCH_DASHBOARD_FAILED", "failed to fetch dashboard"))
+	}
+	return c.JSON(item)
+}
+
+// PUT /factories/:factory_id/profile — save all profile data in one request
+func (h *FactoryHandler) SaveProfile(c *fiber.Ctx) error {
+	factoryID, err := helper.RequireInt64Param(c, "factory_id")
+	if err != nil {
+		return err
+	}
+	if _, err := h.requireOwnerFactory(c, factoryID); err != nil {
+		return err
+	}
+
+	var req dto.SaveProfileRequest
+	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
+		"FactoryName": "factory_name is required",
+	}); err != nil {
+		return err
+	}
+
+	// Build patch fields
+	fields := map[string]interface{}{
+		"factory_name": req.FactoryName,
+	}
+	if req.TaxID != nil {
+		fields["tax_id"] = helper.DereferenceString(req.TaxID, "")
+	}
+	if req.Description != nil {
+		fields["description"] = helper.DereferenceString(req.Description, "")
+	}
+	if req.FactoryTypeID != nil && *req.FactoryTypeID > 0 {
+		fields["factory_type_id"] = *req.FactoryTypeID
+	}
+	if req.ImageURL != nil {
+		v := helper.DereferenceString(req.ImageURL, "")
+		if v == "" {
+			fields["image_url"] = nil
+		} else {
+			fields["image_url"] = v
+		}
+	}
+	if req.BackgroundImageURL != nil {
+		v := helper.DereferenceString(req.BackgroundImageURL, "")
+		if v == "" {
+			fields["background_image_url"] = nil
+		} else {
+			fields["background_image_url"] = v
+		}
+	}
+	if req.MinOrder != nil {
+		fields["min_order"] = *req.MinOrder
+	}
+	if req.LeadTimeDesc != nil {
+		fields["lead_time_desc"] = helper.DereferenceString(req.LeadTimeDesc, "")
+	}
+
+	if err := h.service.PatchProfile(int64(factoryID), fields); err != nil {
+		if dbutil.IsNotFoundError(err) {
+			return helper.WriteAPIError(c, helper.NotFoundAPIError("FACTORY_NOT_FOUND", "factory profile not found"))
+		}
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("SAVE_PROFILE_FAILED", "failed to update factory profile"))
+	}
+
+	// Replace categories
+	categoryIDs, _ := validatePositiveUniqueIDs(req.CategoryIDs)
+	if len(categoryIDs) > 0 {
+		if err := h.service.ReplaceFactoryCategories(int64(factoryID), categoryIDs); err != nil {
+			return helper.WriteAPIError(c, helper.InternalServerAPIError("SAVE_CATEGORIES_FAILED", "profile saved but failed to update categories"))
+		}
+	}
+
+	// Replace sub-categories (allow empty list to clear all)
+	subCategoryIDs := make([]int64, 0)
+	if len(req.SubCategoryIDs) > 0 {
+		subCategoryIDs, _ = validatePositiveUniqueIDs(req.SubCategoryIDs)
+	}
+	if err := h.service.ReplaceFactorySubCategories(int64(factoryID), subCategoryIDs); err != nil {
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("SAVE_SUB_CATEGORIES_FAILED", "profile saved but failed to update sub-categories"))
+	}
+
+	item, err := h.service.GetPublicDetail(int64(factoryID))
+	if err != nil {
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("FETCH_LATEST_FAILED", "saved but failed to fetch latest data"))
 	}
 	return c.JSON(item)
 }

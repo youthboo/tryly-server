@@ -22,6 +22,21 @@ type PatchFactoryProfileRequest struct {
 	FactoryTypeID      *int64  `json:"factory_type_id"`
 	ImageURL           *string `json:"image_url"`
 	BackgroundImageURL *string `json:"background_image_url"`
+	MinOrder           *int64  `json:"min_order"`
+	LeadTimeDesc       *string `json:"lead_time_desc"`
+}
+
+type SaveProfileRequest struct {
+	FactoryName        string  `json:"factory_name" validate:"notblank"`
+	TaxID              *string `json:"tax_id"`
+	Description        *string `json:"description"`
+	FactoryTypeID      *int64  `json:"factory_type_id"`
+	ImageURL           *string `json:"image_url"`
+	BackgroundImageURL *string `json:"background_image_url"`
+	MinOrder           *int64  `json:"min_order"`
+	LeadTimeDesc       *string `json:"lead_time_desc"`
+	CategoryIDs        []int64 `json:"category_ids"`
+	SubCategoryIDs     []int64 `json:"sub_category_ids"`
 }
 
 type AddCategoryRequest struct {

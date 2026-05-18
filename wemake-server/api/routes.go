@@ -121,6 +121,7 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	factories.Patch("/:factory_id/certificates/:cert_id", h.certificate.PatchByCertID)
 	factories.Delete("/:factory_id/certificates/by-cert/:cert_id", h.certificate.DeleteByCertID)
 	factories.Get("/:factory_id/showcases", h.showcase.ListByFactory)
+	factories.Put("/:factory_id/profile", h.factory.SaveProfile)
 	factories.Patch("/:factory_id", h.factory.PatchProfile)
 	factories.Put("/:factory_id", h.factory.PatchProfile)
 	factories.Get("/:factory_id", h.factory.GetByID)
