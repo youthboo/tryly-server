@@ -9,16 +9,16 @@ import (
 func (r *ShowcaseRepository) Create(showcase *domain.FactoryShowcase) error {
 	query := `
 		INSERT INTO factory_showcases
-			(factory_id, content_type, title, excerpt,
+			(factory_id, content_type, title,
 			 category_id, sub_category_id, moq,
 			 base_price, promo_price, start_date, end_date,
-			 content, linked_showcases, tags, status,
+			 content, linked_showcases, status,
 			 published_at, updated_at)
 		VALUES
-			(:factory_id, :content_type, :title, :excerpt,
+			(:factory_id, :content_type, :title,
 			 :category_id, :sub_category_id, :moq,
 			 :base_price, :promo_price, :start_date, :end_date,
-			 :content, :linked_showcases, :tags,
+			 :content, :linked_showcases,
 			 COALESCE(NULLIF(:status, ''), 'DR'),
 			 CASE WHEN COALESCE(NULLIF(:status, ''), 'DR') = 'AC' THEN NOW() ELSE NULL END,
 			 NOW())
@@ -40,7 +40,6 @@ func (r *ShowcaseRepository) Update(s *domain.FactoryShowcase) error {
 		UPDATE factory_showcases
 		SET content_type    = :content_type,
 		    title           = :title,
-		    excerpt         = :excerpt,
 		    category_id     = :category_id,
 		    sub_category_id = :sub_category_id,
 		    moq             = :moq,
@@ -50,7 +49,6 @@ func (r *ShowcaseRepository) Update(s *domain.FactoryShowcase) error {
 		    end_date        = :end_date,
 		    content         = :content,
 		    linked_showcases = :linked_showcases,
-		    tags            = :tags,
 		    status          = CASE WHEN :status = '' THEN status ELSE :status END,
 		    published_at    = CASE
 		                        WHEN :status = 'AC' AND published_at IS NULL THEN NOW()
