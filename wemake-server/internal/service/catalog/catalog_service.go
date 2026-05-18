@@ -13,8 +13,8 @@ func NewCatalogService(repo *catalogrepo.CatalogRepository) *CatalogService {
 	return &CatalogService{repo: repo}
 }
 
-func (s *CatalogService) GetCategories(scope string) ([]domain.Category, error) {
-	return s.repo.GetCategories(scope)
+func (s *CatalogService) GetCategories(scope string, limit int) ([]domain.Category, error) {
+	return s.repo.GetCategories(scope, limit)
 }
 
 func (s *CatalogService) GetSubCategories(categoryID int64) ([]domain.SubCategory, error) {

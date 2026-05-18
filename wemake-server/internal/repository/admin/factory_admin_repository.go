@@ -28,7 +28,11 @@ func (r *AdminFactoryRepository) ListAdmin(filter domain.AdminFactoryFilter) ([]
 		conditions = append(conditions, sq.Eq{"fp.approval_status": domainutil.NormalizeStatus(filter.ApprovalStatus)})
 	}
 	if filter.IsVerified != nil {
-		conditions = append(conditions, sq.Eq{"COALESCE(fp.is_verified, FALSE)": *filter.IsVerified})
+		if *filter.IsVerified {
+			conditions = append(conditions, sq.Eq{"fp.approval_status": "AP"})
+		} else {
+			conditions = append(conditions, sq.NotEq{"fp.approval_status": "AP"})
+		}
 	}
 	if filter.Search != "" {
 		searchTerm := "%" + domainutil.NormalizeLower(filter.Search) + "%"
@@ -61,7 +65,7 @@ func (r *AdminFactoryRepository) ListAdmin(filter domain.AdminFactoryFilter) ([]
 		"ft.type_name AS factory_type_name",
 		"p.name_th AS province_name",
 		"COALESCE(fp.approval_status, 'PE') AS approval_status",
-		"COALESCE(fp.is_verified, FALSE) AS is_verified",
+		"(fp.approval_status = 'AP') AS is_verified",
 		"fp.submitted_at",
 		"fp.verified_at",
 		"fp.verified_by",
@@ -107,7 +111,7 @@ func (r *AdminFactoryRepository) GetAdminDetail(factoryID int64) (*domain.AdminF
 			fp.image_url,
 			fp.description,
 			COALESCE(fp.approval_status, 'PE') AS approval_status,
-			COALESCE(fp.is_verified, FALSE) AS is_verified,
+			(fp.approval_status = 'AP') AS is_verified,
 			fp.submitted_at,
 			fp.verified_at,
 			fp.verified_by,
@@ -137,7 +141,6 @@ func (r *AdminFactoryRepository) UpdateApprovalStatus(factoryID int64, status st
 	query := `
 		UPDATE factory_profiles
 		SET approval_status = $1,
-		    is_verified = CASE WHEN $1 = 'AP' THEN TRUE ELSE FALSE END,
 		    verified_at = CASE WHEN $1 = 'AP' THEN NOW() ELSE NULL END,
 		    verified_by = CASE WHEN $1 = 'AP' THEN $2 ELSE verified_by END,
 		    rejection_reason = CASE WHEN $1 IN ('RJ','SU') THEN $3 ELSE NULL END

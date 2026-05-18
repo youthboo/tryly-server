@@ -1,6 +1,8 @@
 package catalog
 
 import (
+	"fmt"
+
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
@@ -14,7 +16,7 @@ func NewCatalogRepository(db *sqlx.DB) *CatalogRepository {
 	return &CatalogRepository{db: db}
 }
 
-func (r *CatalogRepository) GetCategories(scope string) ([]domain.Category, error) {
+func (r *CatalogRepository) GetCategories(scope string, limit int) ([]domain.Category, error) {
 	var categories []domain.Category
 	scope = domainutil.NormalizeStatus(scope)
 	query := "SELECT category_id, name, COALESCE(scope, $1) AS scope FROM lbi_categories"
@@ -28,6 +30,10 @@ func (r *CatalogRepository) GetCategories(scope string) ([]domain.Category, erro
 		args = append(args, scope)
 	}
 	query += " ORDER BY category_id ASC"
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT $%d", len(args)+1)
+		args = append(args, limit)
+	}
 	err := r.db.Select(&categories, query, args...)
 	return categories, err
 }

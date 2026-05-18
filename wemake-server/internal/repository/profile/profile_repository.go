@@ -60,7 +60,7 @@ func (r *ProfileRepository) GetProfile(userID int64) (*domain.ProfileResponse, e
 		var factory domain.FactoryProfile
 		if err := r.db.Get(&factory, `
 			SELECT fp.user_id, fp.factory_name, fp.factory_type_id, fp.tax_id, fp.province_id, ft.type_name AS specialization, fp.min_order, fp.lead_time_desc,
-			       fp.is_verified, fp.verified_at, fp.description, NULL::text AS price_range
+			       (fp.approval_status = 'AP') AS is_verified, fp.verified_at, fp.description, NULL::text AS price_range
 			FROM factory_profiles fp
 			LEFT JOIN lbi_factory_types ft ON ft.factory_type_id = fp.factory_type_id
 			WHERE fp.user_id = $1

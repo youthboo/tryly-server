@@ -61,7 +61,7 @@ func (r *FactoryRepository) ListPublicVerified() ([]domain.FactoryListItem, erro
 			COALESCE(rev.review_cnt, fp.review_count, 0)::bigint AS review_count,
 			fp.min_order,
 			fp.lead_time_desc,
-			COALESCE(fp.is_verified, FALSE) AS is_verified,
+			(fp.approval_status = 'AP') AS is_verified,
 			COALESCE(fp.completed_orders, 0)::bigint AS completed_orders,
 			fp.image_url,
 			fp.background_image_url,
@@ -80,7 +80,7 @@ func (r *FactoryRepository) ListPublicVerified() ([]domain.FactoryListItem, erro
 			FROM factory_reviews
 			GROUP BY factory_id
 		) rev ON rev.factory_id = fp.user_id
-		WHERE COALESCE(fp.is_verified, FALSE) = TRUE
+		WHERE fp.approval_status = 'AP'
 		ORDER BY COALESCE(rev.avg_rating, fp.rating) DESC NULLS LAST, fp.factory_name ASC
 	`
 	err := r.db.Select(&items, query)
@@ -135,7 +135,7 @@ func (r *FactoryRepository) getFactoryDetailHead(factoryID int64) (factoryDetail
 			ft.type_name AS specialization,
 			fp.min_order,
 			fp.lead_time_desc,
-			COALESCE(fp.is_verified, FALSE) AS is_verified,
+			(fp.approval_status = 'AP') AS is_verified,
 			COALESCE(rev.avg_rating, fp.rating, 0)::float8 AS rating,
 			COALESCE(rev.review_cnt, fp.review_count, 0)::bigint AS review_count,
 			COALESCE(fp.completed_orders, 0)::bigint AS completed_orders,

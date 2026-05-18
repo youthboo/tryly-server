@@ -237,6 +237,13 @@ type PromoSlide struct {
 	Status   string `db:"status" json:"status"`
 }
 
+type HomePromoSlide struct {
+	SlideID  int64   `db:"slide_id" json:"slide_id"`
+	Title    string  `db:"title" json:"title"`
+	ImageURL *string `db:"image_url" json:"image_url"`
+	LinkTo   string  `db:"link_to" json:"link_to"`
+}
+
 type ShowcaseAnalytics struct {
 	ShowcaseID      int64   `db:"showcase_id" json:"showcase_id"`
 	FactoryID       int64   `db:"factory_id" json:"factory_id"`

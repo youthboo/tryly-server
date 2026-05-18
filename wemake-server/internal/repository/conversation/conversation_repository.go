@@ -32,7 +32,7 @@ const conversationPartySelect = `
 		cust.last_name AS customer_last_name,
 		fp.factory_name AS factory_name,
 		fp.image_url AS factory_image_url,
-		fp.is_verified AS factory_is_verified,
+		(fp.approval_status = 'AP') AS factory_is_verified,
 		ft.type_name AS factory_specialization`
 
 func (r *ConversationRepository) ListByUserID(userID int64) ([]domain.ConversationRow, error) {
