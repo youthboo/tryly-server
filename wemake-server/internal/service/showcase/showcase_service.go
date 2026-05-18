@@ -505,6 +505,14 @@ func (s *ShowcaseService) RecordView(showcaseID int64) error {
 	return s.repo.IncrementViewCount(showcaseID)
 }
 
+func (s *ShowcaseService) GetHomeShowcases(types []string, limitPerType int) (map[string][]domain.ShowcaseExploreItem, error) {
+	return s.repo.GetHomeShowcases(types, limitPerType)
+}
+
+func (s *ShowcaseService) ListHomePromoSlides(limit int) ([]domain.HomePromoSlide, error) {
+	return s.repo.ListHomePromoSlides(limit)
+}
+
 func (s *ShowcaseService) ListPromoSlides() ([]domain.PromoSlide, error) {
 	return s.repo.ListPromoSlides()
 }

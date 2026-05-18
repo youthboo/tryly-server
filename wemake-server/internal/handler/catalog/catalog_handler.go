@@ -17,7 +17,12 @@ func NewCatalogHandler(service *catalogservice.CatalogService) *CatalogHandler {
 }
 
 func (h *CatalogHandler) GetCategories(c *fiber.Ctx) error {
-	items, err := h.service.GetCategories(helper.QueryString(c, "scope"))
+	scope := helper.QueryString(c, "scope")
+	limit := helper.QueryParams(c).Int("limit", 0)
+	if limit > 0 && scope == "" {
+		scope = domain.CatalogScopeAll
+	}
+	items, err := h.service.GetCategories(scope, limit)
 	if err != nil {
 		return helper.JSONInternal(c, "failed to fetch categories")
 	}
@@ -32,7 +37,7 @@ func (h *CatalogHandler) GetLBICategories(c *fiber.Ctx) error {
 	if !domainutil.StatusIn(scope, domain.CatalogScopeProduct, domain.CatalogScopeMaterial, domain.CatalogScopeAll) {
 		return helper.BadRequestError(c, "INVALID_SCOPE")
 	}
-	items, err := h.service.GetCategories(scope)
+	items, err := h.service.GetCategories(scope, 0)
 	if err != nil {
 		return helper.JSONInternal(c, "failed to fetch categories")
 	}

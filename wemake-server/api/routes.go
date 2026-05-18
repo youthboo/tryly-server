@@ -275,7 +275,7 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	showcases.Get("/:showcase_id", h.showcase.GetDetail)
 
 	promoSlides := api.Group("/promo-slides")
-	promoSlides.Get("/", h.showcase.ListPromoSlides)
+	promoSlides.Get("/", h.showcase.ListHomePromoSlides)
 
 	favorites := api.Group("/favorites")
 	favorites.Get("/", h.favorite.List)

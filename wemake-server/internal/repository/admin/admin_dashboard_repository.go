@@ -127,8 +127,8 @@ func (r *AdminDashboardRepository) GetSummary(from, to time.Time, period string)
 		if err := r.db.Get(&out.Factories, `
 			SELECT
 				COUNT(*)::bigint AS total_registered,
-				COUNT(*) FILTER (WHERE COALESCE(is_verified, FALSE) = FALSE)::bigint AS pending_approval,
-				COUNT(*) FILTER (WHERE COALESCE(is_verified, FALSE) = TRUE)::bigint AS approved,
+				COUNT(*) FILTER (WHERE approval_status IS DISTINCT FROM 'AP')::bigint AS pending_approval,
+				COUNT(*) FILTER (WHERE approval_status = 'AP')::bigint AS approved,
 				0::bigint AS rejected,
 				0::bigint AS suspended
 			FROM factory_profiles

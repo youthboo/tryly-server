@@ -249,6 +249,25 @@ func parseContentTypeQuery(c *fiber.Ctx, invalidMsg string) (string, error) {
 }
 
 func (h *ShowcaseHandler) List(c *fiber.Ctx) error {
+	// Home page grouped mode: ?types=PD,MT&limit=8
+	if typesParam := helper.QueryString(c, "types"); typesParam != "" {
+		rawTypes := strings.Split(typesParam, ",")
+		validTypes := make([]string, 0, len(rawTypes))
+		for _, t := range rawTypes {
+			t = strings.ToUpper(strings.TrimSpace(t))
+			if _, ok := showcaseTypeQueryAllowed[t]; !ok {
+				return helper.BadRequestError(c, errInvalidTypeQuery)
+			}
+			validTypes = append(validTypes, t)
+		}
+		limit := helper.QueryParams(c).Int("limit", 8)
+		grouped, err := h.service.GetHomeShowcases(validTypes, limit)
+		if err != nil {
+			return helper.JSONInternal(c, errFetchShowcases)
+		}
+		return c.JSON(grouped)
+	}
+
 	contentType, err := parseContentTypeQuery(c, errInvalidTypeQuery)
 	if err != nil {
 		return helper.BadRequestError(c, err.Error())
@@ -452,6 +471,15 @@ func (h *ShowcaseHandler) RecordView(c *fiber.Ctx) error {
 
 func (h *ShowcaseHandler) ListPromoSlides(c *fiber.Ctx) error {
 	items, err := h.service.ListPromoSlides()
+	if err != nil {
+		return helper.JSONInternal(c, "failed to fetch promo slides")
+	}
+	return c.JSON(items)
+}
+
+func (h *ShowcaseHandler) ListHomePromoSlides(c *fiber.Ctx) error {
+	limit := helper.QueryParams(c).Int("limit", 5)
+	items, err := h.service.ListHomePromoSlides(limit)
 	if err != nil {
 		return helper.JSONInternal(c, "failed to fetch promo slides")
 	}
