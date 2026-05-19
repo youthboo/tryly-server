@@ -84,6 +84,7 @@ type routeHandlers struct {
 	master            *masterhandler.MasterHandler
 	transaction       *wallethandler.TransactionHandler
 	frontend          *frontendhandler.FrontendHandler
+	session           *frontendhandler.SessionHandler
 	media             *handler.MediaHandler
 	review            *userhandler.ReviewHandler
 	conversation      *conversationhandler.ConversationHandler
@@ -124,6 +125,7 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 	masterRepo := masterrepo.NewMasterRepository(db)
 	transactionRepo := walletrepo.NewTransactionRepository(db)
 	frontendRepo := frontendrepo.NewFrontendRepository(db)
+	sessionRepo := frontendrepo.NewSessionRepository(db)
 	reviewRepo := userrepo.NewReviewRepository(db)
 	conversationRepo := conversationrepo.NewConversationRepository(db)
 	notificationRepo := notificationrepo.NewNotificationRepository(db)
@@ -207,6 +209,7 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 		master:            masterhandler.NewMasterHandler(masterService),
 		transaction:       wallethandler.NewTransactionHandler(transactionService),
 		frontend:          frontendhandler.NewFrontendHandler(frontendService),
+		session:           frontendhandler.NewSessionHandler(sessionRepo),
 		media:             handler.NewMediaHandler(cfg.PublicBaseURL, cld),
 		review:            userhandler.NewReviewHandler(reviewService),
 		conversation:      conversationhandler.NewConversationHandler(conversationService),

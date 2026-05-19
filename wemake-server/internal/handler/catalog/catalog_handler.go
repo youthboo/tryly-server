@@ -19,6 +19,15 @@ func NewCatalogHandler(service *catalogservice.CatalogService) *CatalogHandler {
 func (h *CatalogHandler) GetCategories(c *fiber.Ctx) error {
 	scope := helper.QueryString(c, "scope")
 	limit := helper.QueryParams(c).Int("limit", 0)
+
+	if helper.QueryString(c, "include_sub") == "true" {
+		items, err := h.service.GetCategoriesWithSubs(scope, limit)
+		if err != nil {
+			return helper.JSONInternal(c, "failed to fetch categories")
+		}
+		return c.JSON(items)
+	}
+
 	if limit > 0 && scope == "" {
 		scope = domain.CatalogScopeAll
 	}

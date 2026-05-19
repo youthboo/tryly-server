@@ -249,7 +249,6 @@ func parseContentTypeQuery(c *fiber.Ctx, invalidMsg string) (string, error) {
 }
 
 func (h *ShowcaseHandler) List(c *fiber.Ctx) error {
-	// Home page grouped mode: ?types=PD,MT&limit=8
 	if typesParam := helper.QueryString(c, "types"); typesParam != "" {
 		rawTypes := strings.Split(typesParam, ",")
 		validTypes := make([]string, 0, len(rawTypes))
@@ -260,6 +259,30 @@ func (h *ShowcaseHandler) List(c *fiber.Ctx) error {
 			}
 			validTypes = append(validTypes, t)
 		}
+
+		// Paginated flat list: ?types=PD,MT&page=1&limit=20
+		if page := helper.QueryParams(c).Int("page", 0); page > 0 {
+			limit := helper.QueryParams(c).Int("limit", 20)
+			keyword := helper.QueryString(c, "q")
+			sort := helper.QueryString(c, "sort")
+			catID, _ := helper.ParseOptionalPositiveInt64Query(c, "category")
+			subCatID, _ := helper.ParseOptionalPositiveInt64Query(c, "sub_cat")
+			result, err := h.service.ListPaginated(domain.ShowcasePaginatedFilter{
+				Types:         validTypes,
+				Keyword:       keyword,
+				CategoryID:    catID,
+				SubCategoryID: subCatID,
+				Sort:          sort,
+				Limit:         limit,
+				Page:          page,
+			})
+			if err != nil {
+				return helper.JSONInternal(c, errFetchShowcases)
+			}
+			return c.JSON(result)
+		}
+
+		// Grouped mode: ?types=PD,MT&limit=8
 		limit := helper.QueryParams(c).Int("limit", 8)
 		grouped, err := h.service.GetHomeShowcases(validTypes, limit)
 		if err != nil {

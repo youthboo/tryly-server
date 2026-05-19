@@ -308,6 +308,8 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	boqs.Post("/:rfq_id/accept", h.boq.Accept)
 	boqs.Post("/:rfq_id/decline", h.boq.Decline)
 
+	api.Get("/me/session", h.session.GetSession)
+
 	frontend := api.Group("/frontend")
 	frontend.Get("/bootstrap", h.frontend.GetBootstrap)
 	frontend.Get("/mock-data", h.frontend.GetMockData)
