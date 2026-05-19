@@ -234,6 +234,6 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 		adminUser:         adminhandler.NewAdminUserHandler(authService, authRepo),
 		adminCustomer:     adminhandler.NewAdminCustomerHandler(customerAdminRepo, settlementAdminRepo),
 		meRFQOrders:       mehandler.NewMeRFQOrdersHandler(db),
-		factoryRFQBoard:   rfqhandler.NewFactoryRFQBoardHandler(rfqService, authService, db),
+		factoryRFQBoard:   rfqhandler.NewFactoryRFQBoardHandler(rfqService, quotationService, authService, db),
 	}
 }

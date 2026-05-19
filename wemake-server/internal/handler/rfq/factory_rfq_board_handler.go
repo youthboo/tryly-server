@@ -5,30 +5,43 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/jmoiron/sqlx"
-	authservice "github.com/yourusername/wemake/internal/service/auth"
-	rfqservice "github.com/yourusername/wemake/internal/service/rfq"
+	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/helper"
+	authservice "github.com/yourusername/wemake/internal/service/auth"
+	quotationservice "github.com/yourusername/wemake/internal/service/quotation"
+	rfqservice "github.com/yourusername/wemake/internal/service/rfq"
 )
 
-// FactoryRFQBoardHandler serves GET /factory/rfq-board — a single endpoint that
-// returns both the matching RFQ list and the factory's own category IDs so that
-// the front-end only needs one round-trip to render the board page.
+// FactoryRFQBoardHandler provides unified endpoints for the factory RFQ board
+// and detail pages, consolidating multiple round-trips into single calls.
 type FactoryRFQBoardHandler struct {
-	rfqService *rfqservice.RFQService
-	auth       *authservice.AuthService
-	db         *sqlx.DB
+	rfqService       *rfqservice.RFQService
+	quotationService *quotationservice.QuotationService
+	auth             *authservice.AuthService
+	db               *sqlx.DB
 }
 
-func NewFactoryRFQBoardHandler(rfqService *rfqservice.RFQService, auth *authservice.AuthService, db *sqlx.DB) *FactoryRFQBoardHandler {
-	return &FactoryRFQBoardHandler{rfqService: rfqService, auth: auth, db: db}
+func NewFactoryRFQBoardHandler(
+	rfqService *rfqservice.RFQService,
+	quotationService *quotationservice.QuotationService,
+	auth *authservice.AuthService,
+	db *sqlx.DB,
+) *FactoryRFQBoardHandler {
+	return &FactoryRFQBoardHandler{
+		rfqService:       rfqService,
+		quotationService: quotationService,
+		auth:             auth,
+		db:               db,
+	}
 }
 
 type factoryRFQBoardResponse struct {
-	RFQs              interface{} `json:"rfqs"`
-	FactoryCategoryIDs []int64    `json:"factory_category_ids"`
+	RFQs               interface{} `json:"rfqs"`
+	FactoryCategoryIDs []int64     `json:"factory_category_ids"`
 }
 
 // GetBoard handles GET /factory/rfq-board
+// Returns matching RFQs + factory's own category IDs in one call.
 func (h *FactoryRFQBoardHandler) GetBoard(c *fiber.Ctx) error {
 	userID, _, err := helper.RequireFactoryUser(c, h.auth)
 	if err != nil {
@@ -55,7 +68,43 @@ func (h *FactoryRFQBoardHandler) GetBoard(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(factoryRFQBoardResponse{
-		RFQs:              rfqs,
+		RFQs:               rfqs,
 		FactoryCategoryIDs: catIDs,
+	})
+}
+
+type factoryRFQDetailResponse struct {
+	RFQ        *domain.RFQ        `json:"rfq"`
+	Quotations []domain.Quotation `json:"quotations"`
+}
+
+// GetDetail handles GET /factory/rfqs/:rfq_id/detail
+// Returns RFQ detail + all quotations for that RFQ in one call.
+func (h *FactoryRFQBoardHandler) GetDetail(c *fiber.Ctx) error {
+	userID, _, err := helper.RequireFactoryUser(c, h.auth)
+	if err != nil {
+		return err
+	}
+	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
+	if err != nil {
+		return err
+	}
+
+	rfq, err := h.rfqService.GetForViewer(userID, domain.RoleFactory, rfqID)
+	if err != nil {
+		return helper.JSONError(c, fiber.StatusNotFound, "rfq not found")
+	}
+
+	quotations, err := h.quotationService.ListByRFQID(rfqID)
+	if err != nil {
+		quotations = []domain.Quotation{}
+	}
+	if quotations == nil {
+		quotations = []domain.Quotation{}
+	}
+
+	return c.JSON(factoryRFQDetailResponse{
+		RFQ:        rfq,
+		Quotations: quotations,
 	})
 }
