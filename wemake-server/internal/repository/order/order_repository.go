@@ -373,7 +373,6 @@ const orderListEnrichedSelect = `
 	CROSS JOIN LATERAL (
 		SELECT COUNT(*)::bigint AS total_count
 		FROM lbi_production
-		WHERE COALESCE(is_active, FALSE) = TRUE
 	) total_steps
 `
 

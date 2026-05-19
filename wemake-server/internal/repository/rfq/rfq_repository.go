@@ -153,9 +153,12 @@ func (r *RFQRepository) GetByID(userID, rfqID int64) (*domain.RFQ, error) {
 	return &rfq, nil
 }
 
+// Cancel lets the customer withdraw an RFQ entirely (OP → CL).
+// Pending quotations are expired so factories receive no further actions.
+// CC is reserved for system auto-cancel only (see background expireRFQs job).
 func (r *RFQRepository) Cancel(userID, rfqID int64) error {
 	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
-		if _, err := tx.Exec("UPDATE rfqs SET status = 'CC', updated_at = NOW() WHERE user_id = $1 AND rfq_id = $2", userID, rfqID); err != nil {
+		if _, err := tx.Exec("UPDATE rfqs SET status = 'CL', updated_at = NOW() WHERE user_id = $1 AND rfq_id = $2", userID, rfqID); err != nil {
 			return err
 		}
 		if _, err := tx.Exec("UPDATE quotations SET status = 'EX', log_timestamp = NOW() WHERE rfq_id = $1 AND status = 'PD'", rfqID); err != nil {
@@ -165,7 +168,10 @@ func (r *RFQRepository) Cancel(userID, rfqID int64) error {
 	})
 }
 
-// CloseOpenRFQForUserTx sets RFQ status from OP to CL when the customer awards an order (same transaction as order create).
+// CloseOpenRFQForUserTx is intentionally NOT called during order creation.
+// Customers may place orders against multiple quotations on the same RFQ,
+// so the RFQ stays OP until the customer explicitly closes it (CloseRFQ).
+// Kept for potential future use; do not call automatically on order create.
 func (r *RFQRepository) CloseOpenRFQForUserTx(tx *sqlx.Tx, rfqID, userID int64) error {
 	_, err := tx.Exec(`
 		UPDATE rfqs

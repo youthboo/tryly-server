@@ -7,6 +7,7 @@ import (
 	adminhandler "github.com/yourusername/wemake/internal/handler/admin"
 	authhandler "github.com/yourusername/wemake/internal/handler/auth"
 	boqhandler "github.com/yourusername/wemake/internal/handler/boq"
+	mehandler "github.com/yourusername/wemake/internal/handler/me"
 	cataloghandler "github.com/yourusername/wemake/internal/handler/catalog"
 	conversationhandler "github.com/yourusername/wemake/internal/handler/conversation"
 	factoryhandler "github.com/yourusername/wemake/internal/handler/factory"
@@ -108,6 +109,7 @@ type routeHandlers struct {
 	adminConfig       *adminhandler.AdminConfigHandler
 	adminUser         *adminhandler.AdminUserHandler
 	adminCustomer     *adminhandler.AdminCustomerHandler
+	meRFQOrders       *mehandler.MeRFQOrdersHandler
 }
 
 func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
@@ -230,5 +232,6 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 		adminConfig:       adminhandler.NewAdminConfigHandler(commissionRepo, adminAuditRepo),
 		adminUser:         adminhandler.NewAdminUserHandler(authService, authRepo),
 		adminCustomer:     adminhandler.NewAdminCustomerHandler(customerAdminRepo, settlementAdminRepo),
+		meRFQOrders:       mehandler.NewMeRFQOrdersHandler(db),
 	}
 }

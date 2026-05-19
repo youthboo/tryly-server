@@ -307,6 +307,11 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	boqs.Post("/:rfq_id/accept", h.boq.Accept)
 	boqs.Post("/:rfq_id/decline", h.boq.Decline)
 
+	// Unified endpoints for the /orders page — reduces multiple API calls to one.
+	me := api.Group("/me")
+	me.Get("/rfq-orders", h.meRFQOrders.ListRFQOrders)
+	me.Get("/rfq-orders/:rfq_id", h.meRFQOrders.GetRFQOrderDetail)
+
 	frontend := api.Group("/frontend")
 	frontend.Get("/bootstrap", h.frontend.GetBootstrap)
 	frontend.Get("/mock-data", h.frontend.GetMockData)
