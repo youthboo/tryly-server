@@ -91,7 +91,6 @@ type RFQ struct {
 	CertificationsRequired pq.StringArray `db:"certifications_required" json:"certifications_required,omitempty"`
 
 	ReferenceImages   pq.StringArray `db:"reference_images" json:"reference_images,omitempty"`
-	ImageURLs         pq.StringArray `db:"-" json:"image_urls"`
 	Address           *Address       `db:"-" json:"address,omitempty"`
 	RFQType           string         `db:"rfq_type" json:"rfq_type"`
 	InitiatedBy       string         `db:"initiated_by" json:"initiated_by"`
@@ -143,7 +142,6 @@ func EnrichRFQBudgetFields(rfq *RFQ) {
 	if rfq == nil {
 		return
 	}
-	rfq.ImageURLs = rfq.ReferenceImages
 	rfq.BudgetTotal = nil
 	rfq.BudgetPerPiece = nil
 	rfq.EstimatedTotal = nil

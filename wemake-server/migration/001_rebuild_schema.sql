@@ -157,6 +157,13 @@ CREATE TABLE IF NOT EXISTS factory_commission_exemptions (
     CONSTRAINT factory_commission_exemptions_pkey PRIMARY KEY (exemption_id)
 );
 
+CREATE TABLE IF NOT EXISTS factory_rfq_dismissals (
+    factory_id BIGINT NOT NULL,
+    rfq_id     BIGINT NOT NULL,
+    dismissed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT factory_rfq_dismissals_pkey PRIMARY KEY (factory_id, rfq_id)
+);
+
 CREATE TABLE IF NOT EXISTS factory_profiles (
     user_id BIGINT NOT NULL,
     approval_status CHAR(2) NOT NULL,

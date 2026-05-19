@@ -298,9 +298,9 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 	query := `
 		SELECT DISTINCT
 		       ` + rfqSelectColumnsR + `,
-		       FALSE AS is_dismissed,
-		       NULL::timestamptz AS dismissed_at,
-		       TRUE AS can_dismiss,
+		       (frd.factory_id IS NOT NULL)              AS is_dismissed,
+		       frd.dismissed_at                          AS dismissed_at,
+		       (COALESCE(q.status, '') NOT IN ('AC','PD')) AS can_dismiss,
 		       q.status          AS my_quote_status,
 		       q.quote_id        AS my_quote_id,
 		       q.price_per_piece AS my_quoted_price
@@ -308,10 +308,13 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 		LEFT JOIN quotations q
 		       ON q.rfq_id = r.rfq_id AND q.factory_id = $1
 		LEFT JOIN lbi_sub_categories sc ON sc.sub_category_id = r.sub_category_id
+		LEFT JOIN factory_rfq_dismissals frd
+		       ON frd.rfq_id = r.rfq_id AND frd.factory_id = $1
 		WHERE
 		  COALESCE(q.status, '') != 'AC'
 		  AND (r.status = 'OP' OR q.quote_id IS NOT NULL)
 		  AND COALESCE(r.request_kind, 'PR') = ANY($2)
+		  AND ($3 OR frd.factory_id IS NULL)
 		  AND (
 			(
 				COALESCE(r.request_kind, 'PR') IN ('PR', 'PS')
@@ -346,7 +349,7 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 		  )
 		ORDER BY r.created_at DESC
 	`
-	err := r.db.Select(&rfqs, query, factoryID, pq.Array(kinds))
+	err := r.db.Select(&rfqs, query, factoryID, pq.Array(kinds), showDismissed)
 	if err != nil {
 		return rfqs, err
 	}
@@ -358,7 +361,6 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 	}
 	return rfqs, nil
 }
-
 
 func (r *RFQRepository) ListMatchingFactoryIDs(rfq *domain.RFQ) ([]int64, error) {
 	if rfq == nil {
