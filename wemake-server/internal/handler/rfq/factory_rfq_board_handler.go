@@ -7,6 +7,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/helper"
+	platformrepo "github.com/yourusername/wemake/internal/repository/platform_config"
 	authservice "github.com/yourusername/wemake/internal/service/auth"
 	quotationservice "github.com/yourusername/wemake/internal/service/quotation"
 	rfqservice "github.com/yourusername/wemake/internal/service/rfq"
@@ -19,6 +20,7 @@ type FactoryRFQBoardHandler struct {
 	quotationService *quotationservice.QuotationService
 	auth             *authservice.AuthService
 	db               *sqlx.DB
+	platformConfig   *platformrepo.PlatformConfigRepository
 }
 
 func NewFactoryRFQBoardHandler(
@@ -26,12 +28,14 @@ func NewFactoryRFQBoardHandler(
 	quotationService *quotationservice.QuotationService,
 	auth *authservice.AuthService,
 	db *sqlx.DB,
+	platformConfig *platformrepo.PlatformConfigRepository,
 ) *FactoryRFQBoardHandler {
 	return &FactoryRFQBoardHandler{
 		rfqService:       rfqService,
 		quotationService: quotationService,
 		auth:             auth,
 		db:               db,
+		platformConfig:   platformConfig,
 	}
 }
 
@@ -73,9 +77,15 @@ func (h *FactoryRFQBoardHandler) GetBoard(c *fiber.Ctx) error {
 	})
 }
 
+type commissionConfigPayload struct {
+	VatRate        float64 `json:"vat_rate"`
+	CommissionRate float64 `json:"commission_rate"`
+}
+
 type factoryRFQDetailResponse struct {
-	RFQ        *domain.RFQ        `json:"rfq"`
-	Quotations []domain.Quotation `json:"quotations"`
+	RFQ              *domain.RFQ             `json:"rfq"`
+	Quotations       []domain.Quotation      `json:"quotations"`
+	CommissionConfig commissionConfigPayload `json:"commission_config"`
 }
 
 // GetDetail handles GET /factory/rfqs/:rfq_id/detail
@@ -103,8 +113,15 @@ func (h *FactoryRFQBoardHandler) GetDetail(c *fiber.Ctx) error {
 		quotations = []domain.Quotation{}
 	}
 
+	commCfg := commissionConfigPayload{VatRate: 7, CommissionRate: 5}
+	if cfg, cfgErr := h.platformConfig.GetByFactoryID(userID); cfgErr == nil && cfg != nil {
+		commCfg.VatRate = cfg.VatRate
+		commCfg.CommissionRate = cfg.DefaultCommissionRate
+	}
+
 	return c.JSON(factoryRFQDetailResponse{
-		RFQ:        rfq,
-		Quotations: quotations,
+		RFQ:              rfq,
+		Quotations:       quotations,
+		CommissionConfig: commCfg,
 	})
 }

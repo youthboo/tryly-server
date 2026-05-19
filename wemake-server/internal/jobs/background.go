@@ -74,9 +74,8 @@ func runOrderAutoClose(orderService *orderservice.OrderService) {
 	}
 }
 
-// expireRFQs auto-cancels OP RFQs that have not been updated for 30+ days.
-// This represents system-initiated cancellation (status CC) when the customer
-// has not manually closed the request and no activity has occurred.
+// expireRFQs auto-cancels OP RFQs that were created more than 30 days ago.
+// This represents system-initiated cancellation (status CC).
 // Any pending quotations on those RFQs are also expired (PD → EX).
 func expireRFQs(db *sqlx.DB) {
 	// Step 1: collect RFQ IDs that are about to be cancelled so we can expire their quotations.
@@ -88,7 +87,7 @@ func expireRFQs(db *sqlx.DB) {
 		SELECT rfq_id
 		FROM rfqs
 		WHERE status = 'OP'
-		  AND updated_at <= NOW() - INTERVAL '30 days'
+		  AND created_at + INTERVAL '30 days' < NOW()
 	`)
 	if err != nil {
 		logger.Error("rfq auto-cancel: stale rfq query failed", "err", err)
@@ -169,7 +168,7 @@ func expireQuotations(db *sqlx.DB) {
 	}
 
 	// RFQ stays OP until the customer explicitly closes it (→ CL) or the system
-	// auto-cancels it after 30 days of inactivity (→ CC via expireRFQs).
+	// auto-cancels it 30 days after creation (→ CC via expireRFQs).
 	// Do NOT auto-close based on quotation state — customers may order from
 	// multiple quotations and should remain in control of when the RFQ is closed.
 }
