@@ -110,6 +110,7 @@ type routeHandlers struct {
 	adminUser         *adminhandler.AdminUserHandler
 	adminCustomer     *adminhandler.AdminCustomerHandler
 	meRFQOrders       *mehandler.MeRFQOrdersHandler
+	factoryRFQBoard   *rfqhandler.FactoryRFQBoardHandler
 }
 
 func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
@@ -233,5 +234,6 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 		adminUser:         adminhandler.NewAdminUserHandler(authService, authRepo),
 		adminCustomer:     adminhandler.NewAdminCustomerHandler(customerAdminRepo, settlementAdminRepo),
 		meRFQOrders:       mehandler.NewMeRFQOrdersHandler(db),
+		factoryRFQBoard:   rfqhandler.NewFactoryRFQBoardHandler(rfqService, authService, db),
 	}
 }

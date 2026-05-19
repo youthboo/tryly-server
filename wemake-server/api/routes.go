@@ -133,6 +133,8 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	addresses.Patch("/:address_id", h.address.PatchAddress)
 	addresses.Delete("/:address_id", h.address.DeleteAddress)
 
+	api.Get("/factory/rfq-board", h.factoryRFQBoard.GetBoard)
+
 	rfqs := api.Group("/rfqs")
 	rfqs.Post("/", h.rfq.CreateRFQ)
 	rfqs.Get("/preview-factories", h.rfq.PreviewFactories)
