@@ -19,6 +19,12 @@ type Category struct {
 	Scope      string `db:"scope" json:"scope,omitempty"`
 }
 
+type ExploreResponse struct {
+	Categories  []Category                   `json:"categories"`
+	Showcases   map[string][]ShowcaseExploreItem `json:"showcases"`
+	PromoSlides []HomePromoSlide             `json:"promoSlides"`
+}
+
 type SubCategory struct {
 	SubCategoryID int64  `db:"sub_category_id" json:"sub_category_id"`
 	CategoryID    int64  `db:"category_id" json:"category_id,omitempty"`

@@ -71,6 +71,7 @@ type routeHandlers struct {
 	authService *authservice.AuthService
 
 	auth              *authhandler.AuthHandler
+	explore           *cataloghandler.ExploreHandler
 	catalog           *cataloghandler.CatalogHandler
 	address           *userhandler.AddressHandler
 	wallet            *wallethandler.WalletHandler
@@ -193,6 +194,7 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 	return &routeHandlers{
 		authService:       authService,
 		auth:              authhandler.NewAuthHandler(authService),
+		explore:           cataloghandler.NewExploreHandler(catalogService, showcaseService),
 		catalog:           cataloghandler.NewCatalogHandler(catalogService),
 		address:           userhandler.NewAddressHandler(addressService),
 		wallet:            wallethandler.NewWalletHandler(walletService),

@@ -91,6 +91,7 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	auth.Post("/forgot-password", h.auth.ForgotPassword)
 	auth.Post("/reset-password", h.auth.ResetPassword)
 
+	api.Get("/explore", h.explore.GetExplore)
 	api.Get("/categories", h.catalog.GetCategories)
 	api.Get("/lbi/categories", h.catalog.GetLBICategories)
 	api.Get("/lbi/sub-categories", h.catalog.GetAllLBISubCategories)
