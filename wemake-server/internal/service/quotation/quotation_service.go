@@ -274,7 +274,7 @@ func (s *QuotationService) PatchBody(
 	var validUntilPtr *time.Time
 	if validityDays > 0 {
 		validityDaysPtr = &validityDays
-		vu := time.Now().UTC().AddDate(0, 0, validityDays)
+		vu := q.CreateTime.AddDate(0, 0, validityDays)
 		validUntilPtr = &vu
 	}
 	if err := s.repo.UpdateBody(quoteID, pricePerPiece, moldCost, shippingCost, packagingCost, toolingMoldCost, leadTimeDays, shippingMethodID, factoryUserID, newVersion, paymentTerms, nextHighlight, validityDaysPtr, validUntilPtr); err != nil {

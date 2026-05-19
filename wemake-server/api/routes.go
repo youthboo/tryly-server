@@ -162,7 +162,7 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	quotations.Post("/", middleware.RequireRole(h.authService, domain.RoleFactory), h.quotation.CreateDetailed)
 	quotations.Get("/", middleware.RequireRole(h.authService, domain.RoleFactory), h.quotation.ListCollection)
 	quotations.Get("/me", middleware.RequireRole(h.authService, domain.RoleFactory), h.quotation.ListMine)
-	quotations.Get("/:quotation_id/history", middleware.RequireRole(h.authService, domain.RoleFactory), h.quotation.ListHistory)
+	quotations.Get("/:quotation_id/history", middleware.RequireAuth, h.quotation.ListHistory)
 	quotations.Get("/:quotation_id", h.quotation.GetQuotation)
 	quotations.Post("/:quotation_id/revision", middleware.RequireRole(h.authService, domain.RoleFactory), h.quotation.CreateRevision)
 	quotations.Post("/:quotation_id/accept", h.quotation.Accept)

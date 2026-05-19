@@ -155,8 +155,8 @@ func expireQuotations(db *sqlx.DB) {
 		  AND COALESCE(is_locked, false) = false
 		  AND COALESCE(
 		        valid_until,
-		        create_time + COALESCE(validity_days, 7) * INTERVAL '1 day'
-		      ) < NOW()
+		        (create_time + COALESCE(validity_days, 7) * INTERVAL '1 day')::date
+		      ) < NOW()::date
 	`)
 	if err != nil {
 		logger.Error("quotation expiration job failed", "err", err)
