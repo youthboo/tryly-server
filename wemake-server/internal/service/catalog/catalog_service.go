@@ -21,6 +21,10 @@ func (s *CatalogService) GetSubCategories(categoryID int64) ([]domain.SubCategor
 	return s.repo.GetSubCategories(categoryID)
 }
 
+func (s *CatalogService) GetAllSubCategories(scope string) ([]domain.SubCategory, error) {
+	return s.repo.GetAllSubCategories(scope)
+}
+
 func (s *CatalogService) GetUnits() ([]domain.Unit, error) {
 	return s.repo.GetUnits()
 }

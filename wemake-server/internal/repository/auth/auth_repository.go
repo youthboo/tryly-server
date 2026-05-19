@@ -75,7 +75,7 @@ func (r *AuthRepository) CreateCustomerUser(user *domain.User, customer *domain.
 	})
 }
 
-func (r *AuthRepository) CreateFactoryUser(user *domain.User, factory *domain.FactoryProfile) error {
+func (r *AuthRepository) CreateFactoryUser(user *domain.User, factory *domain.FactoryProfile, categoryIDs []int64, subCategoryIDs []int64, certID int64, documentURL string, certNumber string, certExpireDate string) error {
 	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
 		const userInsert = `
 			INSERT INTO users (role, email, phone, password_hash, is_active, created_at, updated_at)
@@ -84,27 +84,62 @@ func (r *AuthRepository) CreateFactoryUser(user *domain.User, factory *domain.Fa
 		`
 		if err := tx.QueryRow(
 			userInsert,
-			user.Role,
-			user.Email,
-			user.Phone,
-			user.PasswordHash,
-			user.IsActive,
-			user.CreatedAt,
-			user.UpdatedAt,
+			user.Role, user.Email, user.Phone, user.PasswordHash, user.IsActive, user.CreatedAt, user.UpdatedAt,
 		).Scan(&user.UserID); err != nil {
 			return err
 		}
 
-		const factoryInsert = `
-			INSERT INTO factory_profiles (user_id, factory_name, factory_type_id, tax_id, province_id, approval_status, submitted_at)
-			VALUES ($1, $2, $3, $4, $5, 'PE', NOW())
-		`
 		var provinceID sql.NullInt64
 		if factory.ProvinceID != nil && *factory.ProvinceID > 0 {
 			provinceID = sql.NullInt64{Int64: *factory.ProvinceID, Valid: true}
 		}
-		if _, err := tx.Exec(factoryInsert, user.UserID, factory.FactoryName, factory.FactoryTypeID, factory.TaxID, provinceID); err != nil {
+		var factoryID int64
+		if err := tx.QueryRow(`
+			INSERT INTO factory_profiles
+				(user_id, factory_name, factory_type_id, tax_id, province_id, review_count, completed_orders, approval_status, submitted_at)
+			VALUES ($1, $2, $3, $4, $5, 0, 0, 'PE', NOW())
+			RETURNING user_id
+		`, user.UserID, factory.FactoryName, factory.FactoryTypeID, factory.TaxID, provinceID).Scan(&factoryID); err != nil {
 			return err
+		}
+
+		for _, catID := range categoryIDs {
+			if _, err := tx.Exec(
+				`INSERT INTO map_factory_categories (factory_id, category_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+				factoryID, catID,
+			); err != nil {
+				return err
+			}
+		}
+		for _, subID := range subCategoryIDs {
+			if _, err := tx.Exec(
+				`INSERT INTO map_factory_sub_categories (factory_id, sub_category_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+				factoryID, subID,
+			); err != nil {
+				return err
+			}
+		}
+
+		// Insert certificate if provided
+		if certID > 0 && documentURL != "" {
+			var expireDateVal sql.NullTime
+			if certExpireDate != "" {
+				t, err := time.Parse("2006-01-02", certExpireDate)
+				if err == nil {
+					expireDateVal = sql.NullTime{Time: t, Valid: true}
+				}
+			}
+			certNumberVal := sql.NullString{}
+			if certNumber != "" {
+				certNumberVal = sql.NullString{String: certNumber, Valid: true}
+			}
+			if _, err := tx.Exec(`
+				INSERT INTO map_factory_certificates
+					(factory_id, cert_id, document_url, expire_date, cert_number, verify_status)
+				VALUES ($1, $2, $3, $4, $5, 'PE')
+			`, factoryID, certID, documentURL, expireDateVal, certNumberVal); err != nil {
+				return err
+			}
 		}
 		return nil
 	})

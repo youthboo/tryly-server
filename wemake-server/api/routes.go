@@ -93,11 +93,14 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 
 	api.Get("/categories", h.catalog.GetCategories)
 	api.Get("/lbi/categories", h.catalog.GetLBICategories)
+	api.Get("/lbi/sub-categories", h.catalog.GetAllLBISubCategories)
 	api.Get("/categories/:id/sub-categories", h.catalog.GetSubCategories)
 	api.Get("/units", h.catalog.GetUnits)
 
 	api.Get("/factories", h.factory.List)
+	api.Post("/factories", h.factory.Create)
 	api.Get("/factories/me", h.factory.GetMe)
+	api.Get("/factories/me/profile-init", h.profileInit.GetProfileInit)
 	api.Get("/factories/me/dashboard", h.factory.GetDashboard)
 	api.Get("/factories/me/analytics", h.factory.GetAnalytics)
 
@@ -119,6 +122,7 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	factories.Patch("/:factory_id/certificates/:cert_id", h.certificate.PatchByCertID)
 	factories.Delete("/:factory_id/certificates/by-cert/:cert_id", h.certificate.DeleteByCertID)
 	factories.Get("/:factory_id/showcases", h.showcase.ListByFactory)
+	factories.Put("/:factory_id/profile", h.factory.SaveProfile)
 	factories.Patch("/:factory_id", h.factory.PatchProfile)
 	factories.Put("/:factory_id", h.factory.PatchProfile)
 	factories.Get("/:factory_id", h.factory.GetByID)

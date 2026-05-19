@@ -29,16 +29,23 @@ type AuthService struct {
 }
 
 type RegisterInput struct {
-	Role          string
-	Email         string
-	Phone         string
-	Password      string
-	FirstName     string
-	LastName      string
-	FactoryName   string
-	FactoryTypeID int64
-	TaxID         string
-	ProvinceID    *int64
+	Role           string
+	Email          string
+	Phone          string
+	Password       string
+	FirstName      string
+	LastName       string
+	FactoryName    string
+	FactoryTypeID  int64
+	TaxID          string
+	ProvinceID     *int64
+	CategoryIDs    []int64
+	SubCategoryIDs []int64
+	// Cert fields for FT role
+	CertID         int64
+	DocumentURL    string
+	CertNumber     string
+	CertExpireDate string
 }
 
 type LoginResult struct {
@@ -106,7 +113,7 @@ func (s *AuthService) Register(input RegisterInput) (*LoginResult, error) {
 			TaxID:         strings.TrimSpace(input.TaxID),
 			ProvinceID:    input.ProvinceID,
 		}
-		if err := s.repo.CreateFactoryUser(user, factory); err != nil {
+		if err := s.repo.CreateFactoryUser(user, factory, input.CategoryIDs, input.SubCategoryIDs, input.CertID, input.DocumentURL, input.CertNumber, input.CertExpireDate); err != nil {
 			return nil, err
 		}
 	}

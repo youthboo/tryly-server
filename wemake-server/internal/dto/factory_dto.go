@@ -1,6 +1,20 @@
 package dto
 
 // Factory Request DTOs
+type CreateFactoryRequest struct {
+	FactoryName    string  `json:"factory_name" validate:"notblank"`
+	FactoryTypeID  int64   `json:"factory_type_id" validate:"gt=0"`
+	TaxID          string  `json:"tax_id"`
+	ProvinceID     *int64  `json:"province_id"`
+	CategoryIDs    []int64 `json:"category_ids"`
+	SubCategoryIDs []int64 `json:"sub_category_ids"`
+	// Cert fields (optional — skipped if CertID == 0 or DocumentURL == "")
+	CertID         int64  `json:"cert_id"`
+	DocumentURL    string `json:"document_url"`
+	CertNumber     string `json:"cert_number"`
+	CertExpireDate string `json:"cert_expire_date"` // "YYYY-MM-DD" or ""
+}
+
 type PatchFactoryProfileRequest struct {
 	FactoryName        *string `json:"factory_name"`
 	TaxID              *string `json:"tax_id"`
@@ -8,6 +22,21 @@ type PatchFactoryProfileRequest struct {
 	FactoryTypeID      *int64  `json:"factory_type_id"`
 	ImageURL           *string `json:"image_url"`
 	BackgroundImageURL *string `json:"background_image_url"`
+	MinOrder           *int64  `json:"min_order"`
+	LeadTimeDesc       *string `json:"lead_time_desc"`
+}
+
+type SaveProfileRequest struct {
+	FactoryName        string  `json:"factory_name" validate:"notblank"`
+	TaxID              *string `json:"tax_id"`
+	Description        *string `json:"description"`
+	FactoryTypeID      *int64  `json:"factory_type_id"`
+	ImageURL           *string `json:"image_url"`
+	BackgroundImageURL *string `json:"background_image_url"`
+	MinOrder           *int64  `json:"min_order"`
+	LeadTimeDesc       *string `json:"lead_time_desc"`
+	CategoryIDs        []int64 `json:"category_ids"`
+	SubCategoryIDs     []int64 `json:"sub_category_ids"`
 }
 
 type AddCategoryRequest struct {

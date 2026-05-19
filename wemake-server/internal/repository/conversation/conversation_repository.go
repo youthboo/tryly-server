@@ -22,8 +22,8 @@ const conversationPartySelect = `
 		c.conv_id,
 		c.customer_id,
 		c.factory_id,
-		c.source_showcase_id,
-		c.conv_type,
+		NULL::bigint AS source_showcase_id,
+		''::text AS conv_type,
 		c.last_message,
 		COALESCE(c.unread_customer, 0) AS unread_customer,
 		COALESCE(c.unread_factory, 0) AS unread_factory,
@@ -81,16 +81,7 @@ func (r *ConversationRepository) Create(conv *domain.Conversation) error {
 		conv.UpdatedAt = existing.UpdatedAt
 		conv.SourceShowcaseID = existing.SourceShowcaseID
 		conv.ConvType = existing.ConvType
-		if existing.SourceShowcaseID == nil && conv.SourceShowcaseID != nil {
-			if _, upErr := r.db.Exec(`
-				UPDATE conversations
-				SET source_showcase_id = $2,
-				    conv_type = CASE WHEN $2 IS NOT NULL THEN 'showcase_inquiry' ELSE conv_type END
-				WHERE conv_id = $1
-			`, existing.ConvID, *conv.SourceShowcaseID); upErr == nil {
-				conv.ConvType = "showcase_inquiry"
-			}
-		}
+		// source_showcase_id / conv_type columns not in schema — skip update
 		return nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
@@ -98,8 +89,8 @@ func (r *ConversationRepository) Create(conv *domain.Conversation) error {
 	}
 
 	query := `
-		INSERT INTO conversations (customer_id, factory_id, source_showcase_id, conv_type)
-		VALUES (:customer_id, :factory_id, :source_showcase_id, :conv_type)
+		INSERT INTO conversations (customer_id, factory_id)
+		VALUES (:customer_id, :factory_id)
 		RETURNING conv_id, updated_at
 	`
 	rows, err := r.db.NamedQuery(query, conv)

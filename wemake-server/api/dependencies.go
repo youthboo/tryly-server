@@ -91,6 +91,7 @@ type routeHandlers struct {
 	boq               *boqhandler.BOQHandler
 	profile           *profilehandler.ProfileHandler
 	factory           *factoryhandler.FactoryHandler
+	profileInit       *factoryhandler.ProfileInitHandler
 	favorite          *userhandler.FavoriteHandler
 	certificate       *userhandler.CertificateHandler
 	settlement        *wallethandler.SettlementHandler
@@ -212,6 +213,7 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 		boq:               boqhandler.NewBOQHandler(boqService),
 		profile:           profilehandler.NewProfileHandler(profileService, cfg.PublicBaseURL, cld),
 		factory:           factoryhandler.NewFactoryHandler(factoryService, authService),
+		profileInit:       factoryhandler.NewProfileInitHandler(factoryService, masterService, catalogService, addressService, authService),
 		favorite:          userhandler.NewFavoriteHandler(favoriteService),
 		certificate:       userhandler.NewCertificateHandler(certificateService),
 		settlement:        wallethandler.NewSettlementHandler(settlementService),

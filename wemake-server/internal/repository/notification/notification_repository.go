@@ -16,7 +16,7 @@ func NewNotificationRepository(db *sqlx.DB) *NotificationRepository {
 
 func (r *NotificationRepository) ListByUserID(userID int64) ([]domain.Notification, error) {
 	var items []domain.Notification
-	query := `SELECT noti_id, user_id, type, title, message, link_to, is_read, read_at,
+	query := `SELECT noti_id, user_id, type, title, COALESCE(message, '') AS message, COALESCE(link_to, '') AS link_to, is_read, read_at,
 			NULL::jsonb AS data, NULL::bigint AS reference_id, deleted_at, created_at
 		FROM notifications WHERE user_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC`
 	err := r.db.Select(&items, query, userID)
@@ -91,8 +91,8 @@ func (r *NotificationRepository) ListPaginated(userID int64, page, limit int, un
 		"user_id",
 		"type",
 		"title",
-		"message",
-		"link_to",
+		"COALESCE(message, '') AS message",
+		"COALESCE(link_to, '') AS link_to",
 		"is_read",
 		"read_at",
 		"NULL::jsonb AS data",

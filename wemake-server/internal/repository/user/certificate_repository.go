@@ -68,8 +68,8 @@ func (r *CertificateRepository) DeleteByCertID(factoryID, certID int64) error {
 
 func (r *CertificateRepository) Create(cert *domain.FactoryCertificate) error {
 	query := `
-		INSERT INTO map_factory_certificates (factory_id, cert_id, document_url, expire_date, cert_number)
-		VALUES (:factory_id, :cert_id, :document_url, :expire_date, :cert_number)
+		INSERT INTO map_factory_certificates (factory_id, cert_id, document_url, expire_date, cert_number, verify_status)
+		VALUES (:factory_id, :cert_id, :document_url, :expire_date, :cert_number, 'PE')
 		RETURNING map_id, verify_status, uploaded_at
 	`
 	rows, err := r.db.NamedQuery(query, cert)
