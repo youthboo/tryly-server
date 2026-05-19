@@ -3,7 +3,6 @@ package rfq
 import (
 	"database/sql"
 	"strings"
-	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
@@ -299,25 +298,20 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 	query := `
 		SELECT DISTINCT
 		       ` + rfqSelectColumnsR + `,
-		       (frd.factory_id IS NOT NULL) AS is_dismissed,
-		       frd.dismissed_at,
-		       (q.quote_id IS NULL OR q.status NOT IN ('PD','AC')) AS can_dismiss,
-		       -- quotation overlay for this factory
-		       q.status         AS my_quote_status,
-		       q.quote_id       AS my_quote_id,
+		       FALSE AS is_dismissed,
+		       NULL::timestamptz AS dismissed_at,
+		       TRUE AS can_dismiss,
+		       q.status          AS my_quote_status,
+		       q.quote_id        AS my_quote_id,
 		       q.price_per_piece AS my_quoted_price
 		FROM rfqs r
 		LEFT JOIN quotations q
 		       ON q.rfq_id = r.rfq_id AND q.factory_id = $1
 		LEFT JOIN lbi_sub_categories sc ON sc.sub_category_id = r.sub_category_id
-		LEFT JOIN factory_rfq_dismissals frd ON frd.rfq_id = r.rfq_id AND frd.factory_id = $1
 		WHERE
-		  -- Rule 3: ซ่อน quotation ที่ถูกยอมรับแล้ว (กลายเป็น order)
 		  COALESCE(q.status, '') != 'AC'
-		  -- Rule 1 + 2: แสดง OP ที่ยังไม่เสนอ OR RFQ ที่เสนอแล้ว (ไม่ว่า rfq status จะเป็นอะไร)
 		  AND (r.status = 'OP' OR q.quote_id IS NOT NULL)
 		  AND COALESCE(r.request_kind, 'PR') = ANY($2)
-		  AND ($3::boolean OR frd.factory_id IS NULL)
 		  AND (
 			(
 				COALESCE(r.request_kind, 'PR') IN ('PR', 'PS')
@@ -352,7 +346,7 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 		  )
 		ORDER BY r.created_at DESC
 	`
-	err := r.db.Select(&rfqs, query, factoryID, pq.Array(kinds), showDismissed)
+	err := r.db.Select(&rfqs, query, factoryID, pq.Array(kinds))
 	if err != nil {
 		return rfqs, err
 	}
@@ -365,37 +359,6 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 	return rfqs, nil
 }
 
-func (r *RFQRepository) EnrichFactoryDismissalState(rfq *domain.RFQ, factoryID int64) error {
-	if rfq == nil {
-		return nil
-	}
-	type row struct {
-		IsDismissed bool       `db:"is_dismissed"`
-		DismissedAt *time.Time `db:"dismissed_at"`
-		CanDismiss  bool       `db:"can_dismiss"`
-	}
-	var state row
-	if err := r.db.Get(&state, `
-		SELECT
-			(frd.factory_id IS NOT NULL) AS is_dismissed,
-			frd.dismissed_at,
-			NOT EXISTS (
-				SELECT 1 FROM quotations q
-				WHERE q.rfq_id = $2
-				  AND q.factory_id = $1
-				  AND q.status IN ('PD', 'AC')
-			) AS can_dismiss
-		FROM rfqs r
-		LEFT JOIN factory_rfq_dismissals frd ON frd.rfq_id = r.rfq_id AND frd.factory_id = $1
-		WHERE r.rfq_id = $2
-	`, factoryID, rfq.RFQID); err != nil {
-		return err
-	}
-	rfq.IsDismissed = state.IsDismissed
-	rfq.DismissedAt = state.DismissedAt
-	rfq.CanDismiss = state.CanDismiss
-	return nil
-}
 
 func (r *RFQRepository) ListMatchingFactoryIDs(rfq *domain.RFQ) ([]int64, error) {
 	if rfq == nil {

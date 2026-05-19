@@ -198,9 +198,6 @@ func (s *RFQService) GetForViewer(userID int64, role string, rfqID int64) (*doma
 		if err != nil {
 			return nil, err
 		}
-		if err := s.repo.EnrichFactoryDismissalState(rfq, userID); err != nil {
-			return nil, err
-		}
 		return rfq, nil
 	}
 	return s.GetByID(userID, rfqID)
