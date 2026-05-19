@@ -45,6 +45,7 @@ type ShowcaseExploreItem struct {
 	PromoPrice      *float64        `db:"promo_price" json:"promo_price,omitempty"`
 	StartDate       *time.Time      `db:"start_date" json:"start_date,omitempty"`
 	EndDate         *time.Time      `db:"end_date" json:"end_date,omitempty"`
+	LeadTimeDays    *int            `db:"lead_time_days" json:"lead_time_days,omitempty"`
 	LinkedShowcases JSONLinkArray   `db:"linked_showcases" json:"linked_showcases"`
 	Tags            JSONStringArray `db:"tags" json:"tags"`
 	LikesCount      int             `db:"likes_count" json:"likes_count"`
@@ -59,6 +60,23 @@ type ShowcaseExploreItem struct {
 	FactoryVerified bool            `db:"factory_verified" json:"factory_verified"`
 	CategoryName    *string         `db:"category_name" json:"category_name,omitempty"`
 	SubCategoryName *string         `db:"sub_category_name" json:"sub_category_name,omitempty"`
+}
+
+type ShowcasePaginatedFilter struct {
+	Types         []string
+	Keyword       string
+	CategoryID    *int64
+	SubCategoryID *int64
+	Sort          string
+	Limit         int
+	Page          int
+}
+
+type ShowcasePaginatedResponse struct {
+	Total int64                `json:"total"`
+	Page  int                  `json:"page"`
+	Limit int                  `json:"limit"`
+	Items []ShowcaseExploreItem `json:"items"`
 }
 
 // ShowcaseByFactoryItem is the list payload for GET /factories/:id/showcases.

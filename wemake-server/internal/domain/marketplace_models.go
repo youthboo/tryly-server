@@ -20,6 +20,19 @@ type Category struct {
 	Scope      string `db:"scope" json:"scope,omitempty"`
 }
 
+type ExploreResponse struct {
+	Categories  []Category                       `json:"categories"`
+	Showcases   map[string][]ShowcaseExploreItem `json:"showcases"`
+	PromoSlides []HomePromoSlide                 `json:"promoSlides"`
+}
+
+type CategoryWithSubs struct {
+	CategoryID    int64         `json:"category_id"`
+	Name          string        `json:"name"`
+	Scope         string        `json:"scope,omitempty"`
+	SubCategories []SubCategory `json:"sub_categories"`
+}
+
 type SubCategory struct {
 	SubCategoryID int64  `db:"sub_category_id" json:"sub_category_id"`
 	CategoryID    int64  `db:"category_id" json:"category_id,omitempty"`

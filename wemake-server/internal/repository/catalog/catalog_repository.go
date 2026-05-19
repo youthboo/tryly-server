@@ -68,6 +68,35 @@ func (r *CatalogRepository) GetAllSubCategories(scope string) ([]domain.SubCateg
 	return subs, err
 }
 
+func (r *CatalogRepository) GetCategoriesWithSubs(scope string, limit int) ([]domain.CategoryWithSubs, error) {
+	cats, err := r.GetCategories(scope, limit)
+	if err != nil {
+		return nil, err
+	}
+	allSubs, err := r.GetAllSubCategories(scope)
+	if err != nil {
+		return nil, err
+	}
+	subsByCategory := make(map[int64][]domain.SubCategory, len(cats))
+	for _, sub := range allSubs {
+		subsByCategory[sub.CategoryID] = append(subsByCategory[sub.CategoryID], sub)
+	}
+	result := make([]domain.CategoryWithSubs, 0, len(cats))
+	for _, cat := range cats {
+		subs := subsByCategory[cat.CategoryID]
+		if subs == nil {
+			subs = []domain.SubCategory{}
+		}
+		result = append(result, domain.CategoryWithSubs{
+			CategoryID:    cat.CategoryID,
+			Name:          cat.Name,
+			Scope:         cat.Scope,
+			SubCategories: subs,
+		})
+	}
+	return result, nil
+}
+
 func (r *CatalogRepository) GetUnits() ([]domain.Unit, error) {
 	var units []domain.Unit
 	query := `

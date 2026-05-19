@@ -28,15 +28,14 @@ func NewFrontendService(repo *frontendrepo.FrontendRepository, factoryRepo *fact
 func (s *FrontendService) GetBootstrap(userID int64) (*domain.FrontendBootstrapResponse, error) {
 	logger.Debug("building frontend bootstrap", "user_id", userID)
 
-	// anonymous request → return public data only
 	if userID <= 0 {
-		logger.Debug("frontend bootstrap using guest data", "user_id", userID)
-		return s.getGuestBootstrap()
+		return &domain.FrontendBootstrapResponse{
+			RFQs:    []domain.FrontendRFQCard{},
+			Orders:  []domain.FrontendOrderCard{},
+			Threads: []domain.FrontendMessageThread{},
+		}, nil
 	}
 
-	// authenticated request — currentUser อาจเป็น nil ถ้า user ไม่พบในฐานข้อมูล
-	// (เช่น db.Get() fail เพราะ LEFT JOIN คืนหลาย row)
-	// ในกรณีนั้นยังโหลด public data + user-specific data ต่อได้
 	var currentUser *domain.FrontendCurrentUser
 	{
 		cu, err := s.GetCurrentUser(userID)
@@ -46,69 +45,39 @@ func (s *FrontendService) GetBootstrap(userID int64) (*domain.FrontendBootstrapR
 				logger.Error("frontend current user lookup returned non-not-found error", "user_id", userID, "err", err)
 				return nil, err
 			}
-			// user not found → currentUser stays nil, load data as guest
 		} else {
 			logger.Debug("frontend current user loaded", "user_id", cu.ID, "name", cu.Name)
 			currentUser = cu
 		}
 	}
 
-	categoryRows, err := s.repo.ListCategories()
-	if err != nil {
-		logger.Error("frontend categories query failed", "user_id", userID, "err", err)
-		return nil, err
-	}
-	logger.Debug("frontend categories loaded", "user_id", userID, "count", len(categoryRows))
-
-	factoryRows, err := s.repo.ListFactories()
-	if err != nil {
-		logger.Error("frontend factories query failed", "user_id", userID, "err", err)
-		return nil, err
-	}
-	logger.Debug("frontend factories loaded", "user_id", userID, "count", len(factoryRows))
-
 	var rfqRows []frontendrepo.FrontendRFQRow
 	var orderRows []frontendrepo.FrontendOrderRow
 	var threadRows []frontendrepo.FrontendMessageThreadRow
-	if userID > 0 {
-		if rows, e := s.repo.ListRFQsByUserID(userID); e == nil {
-			rfqRows = rows
-			logger.Debug("frontend rfqs loaded", "user_id", userID, "count", len(rfqRows))
-		} else {
-			logger.Warn("frontend rfqs query failed, continuing", "user_id", userID, "err", e)
-		}
-		if rows, e := s.repo.ListOrdersByUserID(userID); e == nil {
-			orderRows = rows
-			logger.Debug("frontend orders loaded", "user_id", userID, "count", len(orderRows))
-		} else {
-			logger.Warn("frontend orders query failed, continuing", "user_id", userID, "err", e)
-		}
-		if rows, e := s.repo.ListMessageThreads(userID); e == nil {
-			threadRows = rows
-			logger.Debug("frontend message threads loaded", "user_id", userID, "count", len(threadRows))
-		} else {
-			logger.Warn("frontend message threads query failed, continuing", "user_id", userID, "err", e)
-		}
+
+	if rows, e := s.repo.ListRFQsByUserID(userID); e == nil {
+		rfqRows = rows
+	} else {
+		logger.Warn("frontend rfqs query failed, continuing", "user_id", userID, "err", e)
+	}
+	if rows, e := s.repo.ListOrdersByUserID(userID); e == nil {
+		orderRows = rows
+	} else {
+		logger.Warn("frontend orders query failed, continuing", "user_id", userID, "err", e)
+	}
+	if rows, e := s.repo.ListMessageThreads(userID); e == nil {
+		threadRows = rows
+	} else {
+		logger.Warn("frontend message threads query failed, continuing", "user_id", userID, "err", e)
 	}
 
 	response := &domain.FrontendBootstrapResponse{
 		CurrentUser: currentUser,
-		Categories:  make([]domain.FrontendCategory, 0, len(categoryRows)),
-		Factories:   make([]domain.FrontendFactoryCard, 0, len(factoryRows)),
 		RFQs:        make([]domain.FrontendRFQCard, 0, len(rfqRows)),
 		Orders:      make([]domain.FrontendOrderCard, 0, len(orderRows)),
 		Threads:     make([]domain.FrontendMessageThread, 0, len(threadRows)),
 	}
 
-	for _, item := range categoryRows {
-		response.Categories = append(response.Categories, domain.FrontendCategory{
-			ID:   item.ID,
-			Name: item.Name,
-		})
-	}
-	for _, item := range factoryRows {
-		response.Factories = append(response.Factories, mapFactoryCard(item))
-	}
 	for _, item := range rfqRows {
 		response.RFQs = append(response.RFQs, mapRFQCard(item))
 	}
@@ -122,35 +91,6 @@ func (s *FrontendService) GetBootstrap(userID int64) (*domain.FrontendBootstrapR
 	}
 	response.Threads = threads
 
-	return response, nil
-}
-
-func (s *FrontendService) getGuestBootstrap() (*domain.FrontendBootstrapResponse, error) {
-	categoryRows, err := s.repo.ListCategories()
-	if err != nil {
-		return nil, err
-	}
-	factoryRows, err := s.repo.ListFactories()
-	if err != nil {
-		return nil, err
-	}
-	response := &domain.FrontendBootstrapResponse{
-		CurrentUser: nil,
-		Categories:  make([]domain.FrontendCategory, 0, len(categoryRows)),
-		Factories:   make([]domain.FrontendFactoryCard, 0, len(factoryRows)),
-		RFQs:        []domain.FrontendRFQCard{},
-		Orders:      []domain.FrontendOrderCard{},
-		Threads:     []domain.FrontendMessageThread{},
-	}
-	for _, item := range categoryRows {
-		response.Categories = append(response.Categories, domain.FrontendCategory{
-			ID:   item.ID,
-			Name: item.Name,
-		})
-	}
-	for _, item := range factoryRows {
-		response.Factories = append(response.Factories, mapFactoryCard(item))
-	}
 	return response, nil
 }
 

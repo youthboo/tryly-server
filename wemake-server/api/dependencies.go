@@ -72,6 +72,7 @@ type routeHandlers struct {
 	authService *authservice.AuthService
 
 	auth              *authhandler.AuthHandler
+	explore           *cataloghandler.ExploreHandler
 	catalog           *cataloghandler.CatalogHandler
 	address           *userhandler.AddressHandler
 	wallet            *wallethandler.WalletHandler
@@ -84,6 +85,7 @@ type routeHandlers struct {
 	master            *masterhandler.MasterHandler
 	transaction       *wallethandler.TransactionHandler
 	frontend          *frontendhandler.FrontendHandler
+	session           *frontendhandler.SessionHandler
 	media             *handler.MediaHandler
 	review            *userhandler.ReviewHandler
 	conversation      *conversationhandler.ConversationHandler
@@ -126,6 +128,7 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 	masterRepo := masterrepo.NewMasterRepository(db)
 	transactionRepo := walletrepo.NewTransactionRepository(db)
 	frontendRepo := frontendrepo.NewFrontendRepository(db)
+	sessionRepo := frontendrepo.NewSessionRepository(db)
 	reviewRepo := userrepo.NewReviewRepository(db)
 	conversationRepo := conversationrepo.NewConversationRepository(db)
 	notificationRepo := notificationrepo.NewNotificationRepository(db)
@@ -196,6 +199,7 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 	return &routeHandlers{
 		authService:       authService,
 		auth:              authhandler.NewAuthHandler(authService),
+		explore:           cataloghandler.NewExploreHandler(catalogService, showcaseService),
 		catalog:           cataloghandler.NewCatalogHandler(catalogService),
 		address:           userhandler.NewAddressHandler(addressService),
 		wallet:            wallethandler.NewWalletHandler(walletService),
@@ -208,6 +212,7 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 		master:            masterhandler.NewMasterHandler(masterService),
 		transaction:       wallethandler.NewTransactionHandler(transactionService),
 		frontend:          frontendhandler.NewFrontendHandler(frontendService),
+		session:           frontendhandler.NewSessionHandler(sessionRepo),
 		media:             handler.NewMediaHandler(cfg.PublicBaseURL, cld),
 		review:            userhandler.NewReviewHandler(reviewService),
 		conversation:      conversationhandler.NewConversationHandler(conversationService),

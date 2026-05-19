@@ -366,6 +366,101 @@ func (r *ShowcaseRepository) GetAnalytics(showcaseID, factoryID int64) (*domain.
 	return &item, nil
 }
 
+const showcasePaginatedBaseSQL = `
+	SELECT
+		fs.showcase_id,
+		fs.factory_id,
+		fs.content_type,
+		fs.title,
+		NULL::text AS excerpt,
+		NULLIF(fs.linked_showcases->>0, '') AS image_url,
+		fs.category_id,
+		fs.sub_category_id,
+		fs.moq,
+		fs.base_price,
+		fs.promo_price,
+		fs.lead_time_days,
+		fs.start_date,
+		fs.end_date,
+		fs.linked_showcases,
+		'[]'::jsonb AS tags,
+		fs.likes_count,
+		0::bigint AS view_count,
+		fs.status,
+		fs.created_at,
+		fs.updated_at,
+		fs.published_at,
+		fp.factory_name,
+		fp.image_url AS factory_image_url,
+		fp.rating::float8 AS factory_rating,
+		(fp.approval_status = 'AP') AS factory_verified,
+		c.name AS category_name,
+		sc.name AS sub_category_name
+	FROM factory_showcases fs
+	INNER JOIN factory_profiles fp ON fs.factory_id = fp.user_id
+	LEFT JOIN lbi_categories c ON fs.category_id = c.category_id
+	LEFT JOIN lbi_sub_categories sc ON fs.sub_category_id = sc.sub_category_id
+`
+
+func (r *ShowcaseRepository) ListPaginated(filter domain.ShowcasePaginatedFilter) ([]domain.ShowcaseExploreItem, int64, error) {
+	clauses := []string{"fs.status = 'AC'"}
+	args := []interface{}{}
+	argPos := 1
+
+	if len(filter.Types) > 0 {
+		clauses = append(clauses, fmt.Sprintf("fs.content_type = ANY($%d)", argPos))
+		args = append(args, pq.Array(filter.Types))
+		argPos++
+		clauses = append(clauses, "(fs.content_type != 'PM' OR fs.end_date IS NULL OR fs.end_date >= CURRENT_DATE)")
+	}
+	if filter.Keyword != "" {
+		clauses = append(clauses, fmt.Sprintf("fs.title ILIKE $%d", argPos))
+		args = append(args, "%"+filter.Keyword+"%")
+		argPos++
+	}
+	if filter.CategoryID != nil {
+		clauses = append(clauses, fmt.Sprintf("fs.category_id = $%d", argPos))
+		args = append(args, *filter.CategoryID)
+		argPos++
+	}
+	if filter.SubCategoryID != nil {
+		clauses = append(clauses, fmt.Sprintf("fs.sub_category_id = $%d", argPos))
+		args = append(args, *filter.SubCategoryID)
+		argPos++
+	}
+
+	where := " WHERE " + strings.Join(clauses, " AND ")
+
+	var total int64
+	if err := r.db.Get(&total, "SELECT COUNT(*) FROM factory_showcases fs"+where, args...); err != nil {
+		return nil, 0, err
+	}
+
+	orderBy := "fs.published_at DESC NULLS LAST, fs.created_at DESC"
+	if filter.Sort == "popular" {
+		orderBy = "fs.likes_count DESC, " + orderBy
+	}
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	page := filter.Page
+	if page <= 0 {
+		page = 1
+	}
+	offset := (page - 1) * limit
+
+	dataArgs := append(args, limit, offset)
+	query := showcasePaginatedBaseSQL + where +
+		fmt.Sprintf(" ORDER BY %s LIMIT $%d OFFSET $%d", orderBy, argPos, argPos+1)
+
+	var items []domain.ShowcaseExploreItem
+	if err := r.db.Select(&items, query, dataArgs...); err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
 // GetHomeShowcases returns showcases grouped by content_type, limited per type (for home page).
 func (r *ShowcaseRepository) GetHomeShowcases(types []string, limitPerType int) (map[string][]domain.ShowcaseExploreItem, error) {
 	result := make(map[string][]domain.ShowcaseExploreItem, len(types))

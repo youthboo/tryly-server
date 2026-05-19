@@ -2,8 +2,6 @@ package domain
 
 type FrontendBootstrapResponse struct {
 	CurrentUser *FrontendCurrentUser    `json:"currentUser"`
-	Categories  []FrontendCategory      `json:"categories"`
-	Factories   []FrontendFactoryCard   `json:"factories"`
 	RFQs        []FrontendRFQCard       `json:"rfqs"`
 	Orders      []FrontendOrderCard     `json:"orders"`
 	Threads     []FrontendMessageThread `json:"threads"`
