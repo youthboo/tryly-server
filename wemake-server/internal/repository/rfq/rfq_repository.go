@@ -38,7 +38,7 @@ const rfqSelectColumns = `
 		0::bigint AS address_id, shipping_method_id, status, COALESCE(request_kind, 'PR') AS request_kind,
 		NULL::timestamp AS uploaded_at, created_at, updated_at,
 		material_grade, target_price, target_lead_time_days, NULL::date AS required_delivery_date, delivery_address_id,
-		certifications_required, FALSE AS sample_required, NULL::integer AS sample_qty, NULL::text AS inspection_type,
+		certifications_required,
 		NULL::bigint AS conversation_id, reference_images, 'RFQ'::text AS rfq_type, 'buyer'::text AS initiated_by,
 		NULL::bigint AS factory_user_id, NULL::bigint AS source_showcase_id, NULL::bigint AS source_conv_id,
 		NULL::text AS boq_currency, NULL::numeric AS boq_subtotal, NULL::numeric AS boq_discount_amount,
@@ -53,7 +53,7 @@ const rfqSelectColumnsR = `
 		0::bigint AS address_id, r.shipping_method_id, r.status, COALESCE(r.request_kind, 'PR') AS request_kind,
 		NULL::timestamp AS uploaded_at, r.created_at, r.updated_at,
 		r.material_grade, r.target_price, r.target_lead_time_days, NULL::date AS required_delivery_date, r.delivery_address_id,
-		r.certifications_required, FALSE AS sample_required, NULL::integer AS sample_qty, NULL::text AS inspection_type,
+		r.certifications_required,
 		NULL::bigint AS conversation_id, r.reference_images, 'RFQ'::text AS rfq_type, 'buyer'::text AS initiated_by,
 		NULL::bigint AS factory_user_id, NULL::bigint AS source_showcase_id, NULL::bigint AS source_conv_id,
 		NULL::text AS boq_currency, NULL::numeric AS boq_subtotal, NULL::numeric AS boq_discount_amount,
@@ -331,7 +331,7 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 				)
 			)
 			OR (
-				COALESCE(r.request_kind, 'PR') = 'MS'
+				COALESCE(r.request_kind, 'PR') IN ('MS', 'MR')
 				AND EXISTS (
 					SELECT 1
 					FROM factory_showcases fs

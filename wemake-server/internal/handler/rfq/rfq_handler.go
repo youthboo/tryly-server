@@ -28,7 +28,6 @@ var rfqCreateErrorMap = map[error]helper.ErrorResponse{
 	rfqservice.ErrInvalidCategory:       helper.ErrorMessage(fiber.StatusBadRequest, rfqservice.ErrInvalidCategory.Error()),
 	rfqservice.ErrInvalidShippingMethod: helper.ErrorMessage(fiber.StatusBadRequest, rfqservice.ErrInvalidShippingMethod.Error()),
 	rfqservice.ErrMaxRFQReferenceImages: helper.ErrorMessage(fiber.StatusBadRequest, rfqservice.ErrMaxRFQReferenceImages.Error()),
-	rfqservice.ErrRFQInspectionInvalid:  helper.ErrorMessage(fiber.StatusBadRequest, rfqservice.ErrRFQInspectionInvalid.Error()),
 	rfqservice.ErrRFQDetailsRequired:    helper.ErrorMessage(fiber.StatusBadRequest, rfqservice.ErrRFQDetailsRequired.Error()),
 	rfqservice.ErrRFQDetailsTooShort:    helper.ErrorMessage(fiber.StatusBadRequest, rfqservice.ErrRFQDetailsTooShort.Error()),
 	rfqservice.ErrRFQKindInvalid:        helper.ErrorMessage(fiber.StatusBadRequest, rfqservice.ErrRFQKindInvalid.Error()),
@@ -92,9 +91,6 @@ func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
 		TargetLeadTimeDays:     req.TargetLeadTimeDays,
 		DeliveryAddressID:      req.DeliveryAddressID,
 		CertificationsRequired: req.CertificationsRequired,
-		SampleRequired:         req.SampleRequired,
-		SampleQty:              req.SampleQty,
-		InspectionType:         req.InspectionType,
 		ReferenceImages:        req.ReferenceImages,
 		RequestKind:            req.RequestKind,
 	}
@@ -156,15 +152,6 @@ func (h *RFQHandler) PatchRFQ(c *fiber.Ctx) error {
 	}
 	if req.TargetLeadTimeDays != nil {
 		rfq.TargetLeadTimeDays = req.TargetLeadTimeDays
-	}
-	if req.SampleRequired != nil {
-		rfq.SampleRequired = *req.SampleRequired
-	}
-	if req.SampleQty != nil {
-		rfq.SampleQty = req.SampleQty
-	}
-	if req.InspectionType != nil {
-		rfq.InspectionType = req.InspectionType
 	}
 	if req.ReferenceImages != nil {
 		rfq.ReferenceImages = pq.StringArray(req.ReferenceImages)

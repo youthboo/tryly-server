@@ -11,6 +11,7 @@ const (
 	RequestKindProduction     = "PR"
 	RequestKindProductSample  = "PS"
 	RequestKindMaterialSample = "MS"
+	RequestKindRawMaterial    = "MR"
 )
 
 type Category struct {
@@ -88,9 +89,6 @@ type RFQ struct {
 	DeliveryAddressID    *int64     `db:"delivery_address_id" json:"delivery_address_id,omitempty"`
 
 	CertificationsRequired pq.StringArray `db:"certifications_required" json:"certifications_required,omitempty"`
-	SampleRequired         bool           `db:"sample_required" json:"sample_required"`
-	SampleQty              *int           `db:"sample_qty" json:"sample_qty,omitempty"`
-	InspectionType         *string        `db:"inspection_type" json:"inspection_type,omitempty"`
 
 	ReferenceImages   pq.StringArray `db:"reference_images" json:"reference_images,omitempty"`
 	ImageURLs         pq.StringArray `db:"-" json:"image_urls"`
