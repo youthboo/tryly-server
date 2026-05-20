@@ -292,7 +292,7 @@ func (r *RFQRepository) getAddressByID(addressID int64) (*domain.Address, error)
 func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, kind string, showDismissed bool) ([]domain.RFQ, error) {
 	kinds := splitRFQKinds(kind)
 	if len(kinds) == 0 {
-		kinds = []string{domain.RequestKindProduction, domain.RequestKindProductSample, domain.RequestKindMaterialSample}
+		kinds = []string{domain.RequestKindProduction, domain.RequestKindProductSample, domain.RequestKindMaterialSample, domain.RequestKindRawMaterial}
 	}
 	var rfqs []domain.RFQ
 	query := `
@@ -307,7 +307,6 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 		FROM rfqs r
 		LEFT JOIN quotations q
 		       ON q.rfq_id = r.rfq_id AND q.factory_id = $1
-		LEFT JOIN lbi_sub_categories sc ON sc.sub_category_id = r.sub_category_id
 		LEFT JOIN factory_rfq_dismissals frd
 		       ON frd.rfq_id = r.rfq_id AND frd.factory_id = $1
 		WHERE
@@ -318,34 +317,15 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 		    OR (NOT $3 AND frd.factory_id IS NULL AND (r.status = 'OP' OR q.quote_id IS NOT NULL))
 		  )
 		  AND (
-			(
-				COALESCE(r.request_kind, 'PR') IN ('PR', 'PS')
-				AND EXISTS (
-					SELECT 1
-					FROM map_factory_categories mfc
-					WHERE mfc.category_id = r.category_id
-					  AND mfc.factory_id = $1
-				)
-				AND (
-					r.sub_category_id IS NULL
-					OR COALESCE(sc.sort_order, 0) = 99
-					OR EXISTS (
-						SELECT 1 FROM map_factory_sub_categories ms
-						WHERE ms.factory_id = $1 AND ms.sub_category_id = r.sub_category_id
-					)
-				)
+			EXISTS (
+				SELECT 1 FROM map_factory_categories mfc
+				WHERE mfc.factory_id = $1 AND mfc.category_id = r.category_id
 			)
 			OR (
-				COALESCE(r.request_kind, 'PR') IN ('MS', 'MR')
+				r.sub_category_id IS NOT NULL
 				AND EXISTS (
-					SELECT 1
-					FROM factory_showcases fs
-					INNER JOIN lbi_categories cat ON cat.category_id = fs.category_id
-					WHERE fs.factory_id = $1
-					  AND fs.content_type = 'MT'
-					  AND fs.status = 'AC'
-					  AND COALESCE(cat.scope, 'PD') = 'MT'
-					  AND fs.category_id = r.category_id
+					SELECT 1 FROM map_factory_sub_categories ms
+					WHERE ms.factory_id = $1 AND ms.sub_category_id = r.sub_category_id
 				)
 			)
 		  )
@@ -550,7 +530,7 @@ func splitRFQKinds(raw string) []string {
 	for _, part := range parts {
 		item := domainutil.NormalizeStatus(part)
 		switch item {
-		case domain.RequestKindProduction, domain.RequestKindProductSample, domain.RequestKindMaterialSample:
+		case domain.RequestKindProduction, domain.RequestKindProductSample, domain.RequestKindMaterialSample, domain.RequestKindRawMaterial:
 		default:
 			continue
 		}
