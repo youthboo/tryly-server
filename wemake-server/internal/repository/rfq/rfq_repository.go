@@ -312,9 +312,11 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 		       ON frd.rfq_id = r.rfq_id AND frd.factory_id = $1
 		WHERE
 		  COALESCE(q.status, '') != 'AC'
-		  AND (r.status = 'OP' OR q.quote_id IS NOT NULL)
 		  AND COALESCE(r.request_kind, 'PR') = ANY($2)
-		  AND ($3 OR frd.factory_id IS NULL)
+		  AND (
+		    ($3  AND frd.factory_id IS NOT NULL AND r.status = 'OP')
+		    OR (NOT $3 AND frd.factory_id IS NULL AND (r.status = 'OP' OR q.quote_id IS NOT NULL))
+		  )
 		  AND (
 			(
 				COALESCE(r.request_kind, 'PR') IN ('PR', 'PS')

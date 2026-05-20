@@ -91,6 +91,7 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	auth.Post("/forgot-password", h.auth.ForgotPassword)
 	auth.Post("/reset-password", h.auth.ResetPassword)
 
+	api.Get("/explore", h.explore.GetExplore)
 	api.Get("/categories", h.catalog.GetCategories)
 	api.Get("/lbi/categories", h.catalog.GetLBICategories)
 	api.Get("/lbi/sub-categories", h.catalog.GetAllLBISubCategories)
@@ -312,6 +313,7 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 
 	// Unified endpoints for the /orders page — reduces multiple API calls to one.
 	me := api.Group("/me")
+	me.Get("/session", middleware.RequireAuth, h.session.GetSession)
 	me.Get("/rfq-orders", h.meRFQOrders.ListRFQOrders)
 	me.Get("/rfq-orders/:rfq_id", h.meRFQOrders.GetRFQOrderDetail)
 
