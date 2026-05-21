@@ -2,10 +2,12 @@ package payment
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
+	"github.com/yourusername/wemake/internal/logger"
 	paymentservice "github.com/yourusername/wemake/internal/service/payment"
 )
 
@@ -50,6 +52,7 @@ func orderPaymentError(c *fiber.Ctx, err error) error {
 	if rule, ok := paymentservice.AsPaymentRuleError(err); ok {
 		return helper.MapServiceErrorFunc(c, rule, orderPaymentFallback, orderPaymentRuleResponses)
 	}
+	logger.Error("payment unexpected error", "err", err, "err_type", fmt.Sprintf("%T", err))
 	return helper.MapServiceError(c, err, orderPaymentFallback, orderPaymentResponses)
 }
 
