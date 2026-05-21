@@ -252,6 +252,21 @@ func (s *ProductionService) Upsert(orderID, userID int64, input ProductionWriteI
 			now := time.Now().UTC()
 			update.CompletedAt = &now
 		}
+
+		// step_id=4: บันทึก tracking_no / courier ทันทีที่มีค่า (ก่อน early-return เพื่อให้ update ได้แม้ submit ซ้ำ)
+		if input.StepID == 4 {
+			trackingVal := strings.TrimSpace(input.TrackingNo)
+			courierVal := strings.TrimSpace(input.Courier)
+			if trackingVal != "" || courierVal != "" {
+				if _, err := tx.Exec(
+					`UPDATE orders SET tracking_no = NULLIF($1,''), courier = NULLIF($2,''), updated_at = NOW() WHERE order_id = $3`,
+					trackingVal, courierVal, orderID,
+				); err != nil {
+					return err
+				}
+			}
+		}
+
 		if current.Status == input.Status && current.Description == input.Description && equalStringArrays(current.ImageURLs, update.ImageURLs) {
 			update.UpdateID = current.UpdateID
 			update.CreatedAt = current.CreatedAt
@@ -313,20 +328,6 @@ func (s *ProductionService) Upsert(orderID, userID int64, input ProductionWriteI
 				return err
 			}
 		}
-		// step_id=4 (จัดส่งแล้ว): บันทึก tracking_no / courier ลง orders เมื่อกด CD
-		if input.StepID == 4 && input.Status == "CD" {
-			trackingVal := strings.TrimSpace(input.TrackingNo)
-			courierVal := strings.TrimSpace(input.Courier)
-			if trackingVal != "" || courierVal != "" {
-				if _, err := tx.Exec(
-					`UPDATE orders SET tracking_no = NULLIF($1,''), courier = NULLIF($2,''), updated_at = NOW() WHERE order_id = $3`,
-					trackingVal, courierVal, orderID,
-				); err != nil {
-					return err
-				}
-			}
-		}
-
 		result = &domain.ProductionUpdateResult{
 			Update:         *update,
 			OrderStatus:    newOrderStatus,
