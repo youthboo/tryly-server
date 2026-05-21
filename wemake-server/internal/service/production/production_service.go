@@ -68,6 +68,9 @@ type ProductionWriteInput struct {
 	ImageURLs              []string
 	ConfirmPaymentTrigger  bool
 	HeaderPaymentConfirmed bool
+	// step_id=4: บันทึก tracking_no / courier ลง orders
+	TrackingNo string
+	Courier    string
 }
 
 func NewProductionService(repo *productionrepo.ProductionRepository) *ProductionService {
@@ -308,6 +311,19 @@ func (s *ProductionService) Upsert(orderID, userID int64, input ProductionWriteI
 		if newOrderStatus != order.OrderStatus {
 			if _, err := tx.Exec(`UPDATE orders SET status = $1, updated_at = NOW() WHERE order_id = $2`, newOrderStatus, orderID); err != nil {
 				return err
+			}
+		}
+		// step_id=4 (จัดส่งแล้ว): บันทึก tracking_no / courier ลง orders เมื่อกด CD
+		if input.StepID == 4 && input.Status == "CD" {
+			trackingVal := strings.TrimSpace(input.TrackingNo)
+			courierVal := strings.TrimSpace(input.Courier)
+			if trackingVal != "" || courierVal != "" {
+				if _, err := tx.Exec(
+					`UPDATE orders SET tracking_no = NULLIF($1,''), courier = NULLIF($2,''), updated_at = NOW() WHERE order_id = $3`,
+					trackingVal, courierVal, orderID,
+				); err != nil {
+					return err
+				}
 			}
 		}
 

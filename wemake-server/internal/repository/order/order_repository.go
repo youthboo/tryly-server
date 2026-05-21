@@ -83,6 +83,11 @@ type OrderDetailRow struct {
 	RFQAddrDistrict   *string `db:"rfq_addr_district"`
 	RFQAddrProvince   *string `db:"rfq_addr_province"`
 	RFQAddrZipCode    *string `db:"rfq_addr_zip_code"`
+	// Customer / factory contact
+	CustomerName    string `db:"customer_name"`
+	CustomerPhone   string `db:"customer_phone"`
+	FactoryPhone    string `db:"factory_phone"`
+	FactoryProvince string `db:"factory_province"`
 	// Quotation enrichment
 	QuoteGrandTotal       float64         `db:"quote_grand_total"`
 	QuoteSubtotal         float64         `db:"quote_subtotal"`
@@ -606,6 +611,11 @@ func (r *OrderRepository) GetDetailByParticipant(orderID, userID int64, role str
 			d.name_th AS rfq_addr_district,
 			p.name_th AS rfq_addr_province,
 			COALESCE(addr.zip_code, sd.zip_code) AS rfq_addr_zip_code,
+			-- Customer / factory contact
+			COALESCE(NULLIF(TRIM(CONCAT(c.first_name, ' ', c.last_name)), ''), '') AS customer_name,
+			COALESCE(uc.phone, '') AS customer_phone,
+			COALESCE(uf.phone, '') AS factory_phone,
+			COALESCE(pf.name_th, '') AS factory_province,
 			-- Quotation enrichment
 			COALESCE(q.grand_total, 0) AS quote_grand_total,
 			COALESCE(q.subtotal, 0) AS quote_subtotal,
@@ -630,6 +640,10 @@ func (r *OrderRepository) GetDetailByParticipant(orderID, userID int64, role str
 		LEFT JOIN lbi_districts d ON d.row_id = addr.district_id
 		LEFT JOIN lbi_provinces p ON p.row_id = addr.province_id
 		LEFT JOIN factory_profiles fp ON fp.user_id = o.factory_id
+		LEFT JOIN customers c ON c.user_id = o.customer_id
+		LEFT JOIN users uc ON uc.user_id = o.customer_id
+		LEFT JOIN users uf ON uf.user_id = o.factory_id
+		LEFT JOIN lbi_provinces pf ON pf.row_id = fp.province_id
 		WHERE o.order_id = $1
 	`
 	if err := r.db.Get(&item, query, orderID); err != nil {

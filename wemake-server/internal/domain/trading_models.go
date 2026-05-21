@@ -167,6 +167,8 @@ type OrderListItem struct {
 type OrderFactorySummary struct {
 	FactoryID int64  `json:"factory_id"`
 	Name      string `json:"name"`
+	Phone     string `json:"phone,omitempty"`
+	Address   string `json:"address,omitempty"`
 }
 
 type OrderNextAction struct {
@@ -250,6 +252,8 @@ type OrderDetailResponse struct {
 	Currency          string                     `json:"currency"`
 	Factory           OrderFactorySummary        `json:"factory"`
 	CustomerUserID    int64                      `json:"customer_user_id"`
+	CustomerName      string                     `json:"customer_name,omitempty"`
+	CustomerPhone     string                     `json:"customer_phone,omitempty"`
 	EstimatedDelivery *time.Time                 `json:"estimated_delivery,omitempty"`
 	ShippingDays      int                        `json:"shipping_days"`
 	LeadTimeDays      *int                       `json:"lead_time_days,omitempty"`
