@@ -51,10 +51,6 @@ func OrderLink(orderID int64) string {
 	return fmt.Sprintf("/orders/%d", orderID)
 }
 
-func QuoteLink(quoteID int64) string {
-	return fmt.Sprintf("/quotations/%d", quoteID)
-}
-
-func RFQLink(rfqID int64) string {
-	return fmt.Sprintf("/rfqs/%d", rfqID)
-}
+func RFQLink(rfqID int64) string     { return fmt.Sprintf("/rfqs/%d", rfqID) }
+func FactoryRFQLink(rfqID int64) string { return fmt.Sprintf("/factory/rfqs/%d", rfqID) }
+func FactoryOrderLink(orderID int64) string { return fmt.Sprintf("/factory/orders/%d", orderID) }

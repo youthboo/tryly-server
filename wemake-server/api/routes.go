@@ -10,7 +10,12 @@ import (
 )
 
 func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		// SSE connections are long-lived; disable write timeout so they aren't killed.
+		WriteTimeout: 0,
+		ReadTimeout:  0,
+		IdleTimeout:  0,
+	})
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: cfg.CORSOrigins,
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-User-ID, X-Confirm-Payment-Trigger",
@@ -242,10 +247,13 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	conversations.Patch("/:conv_id/read", h.conversation.MarkAsRead)
 
 	notifications := api.Group("/notifications")
+	notifications.Get("/stream", h.notification.Stream)          // SSE — must be before /:noti_id
 	notifications.Get("/", h.notification.List)
 	notifications.Get("/unread-count", h.notification.GetUnreadCount)
-	notifications.Put("/read-all", h.notification.MarkAllRead)
-	notifications.Patch("/:noti_id/read", h.notification.MarkAsRead)
+	notifications.Post("/read-all", h.notification.MarkAllRead)  // spec
+	notifications.Put("/read-all", h.notification.MarkAllRead)   // compat
+	notifications.Post("/:noti_id/read", h.notification.MarkAsRead) // spec
+	notifications.Patch("/:noti_id/read", h.notification.MarkAsRead) // compat
 	notifications.Delete("/:noti_id", h.notification.SoftDelete)
 
 	profile := api.Group("/profile")

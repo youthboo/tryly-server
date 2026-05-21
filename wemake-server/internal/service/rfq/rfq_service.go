@@ -381,11 +381,11 @@ func (s *RFQService) notifyMatchingFactories(rfq *domain.RFQ) {
 			Type:    "RFQ_RECEIVED",
 			Title:   title,
 			Message: "มี RFQ ใหม่ที่ตรงหมวดของคุณ: " + rfqTitle,
-			LinkTo:  helper.RFQLink(rfq.RFQID),
+			LinkTo:  helper.FactoryRFQLink(rfq.RFQID),
 			Data: helper.NotificationData(map[string]interface{}{
 				"rfq_id":    rfq.RFQID,
 				"rfq_title": rfqTitle,
-				"url":       helper.RFQLink(rfq.RFQID),
+				"url":       helper.FactoryRFQLink(rfq.RFQID),
 			}),
 			ReferenceID: &rfq.RFQID,
 			CreatedAt:   rfq.CreatedAt,
