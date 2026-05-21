@@ -420,7 +420,8 @@ CREATE TABLE IF NOT EXISTS production_updates (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     completed_at TIMESTAMP,
     last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT production_updates_pkey PRIMARY KEY (update_id)
+    CONSTRAINT production_updates_pkey PRIMARY KEY (update_id),
+    CONSTRAINT uq_production_updates_order_step UNIQUE (order_id, step_id)
 );
 
 CREATE TABLE IF NOT EXISTS quotation_history (

@@ -47,7 +47,7 @@ type MarkConversationAsReadRequest struct {
 
 // Production DTOs
 type CreateProductionUpdateRequest struct {
-	StepID       int64   `json:"step_id" validate:"gt=0"`
+	StepID       int64   `json:"step_id" validate:"gte=0"` // gte=0: step_id=0 คือขั้น "ยืนยันรับงาน" พิเศษ
 	Status       string  `json:"status" validate:"notblank"`
 	CompletedAt  *string `json:"completed_at"` // RFC3339
 	Notes        *string `json:"notes"`

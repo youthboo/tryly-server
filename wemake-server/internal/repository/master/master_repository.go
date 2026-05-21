@@ -82,16 +82,19 @@ func (r *MasterRepository) GetCertificates() ([]domain.LBIMasterCertificate, err
 	return items, err
 }
 
-func (r *MasterRepository) GetProductionSteps(factoryTypeID *int64) ([]domain.LBIProduction, error) {
+func (r *MasterRepository) GetProductionSteps(_ *int64) ([]domain.LBIProduction, error) {
 	var items []domain.LBIProduction
-	query := "SELECT step_id, factory_type_id, step_name, sequence, status FROM lbi_production WHERE status = '1'"
-	args := []interface{}{}
-	if factoryTypeID != nil {
-		query += " AND factory_type_id = $1"
-		args = append(args, *factoryTypeID)
-	}
-	query += " ORDER BY sequence, step_id"
-	err := r.db.Select(&items, query, args...)
+	query := `
+		SELECT
+			step_id,
+			COALESCE(step_name, '')    AS step_name,
+			COALESCE(step_name_th, '') AS step_name_th,
+			COALESCE(description, '')  AS description,
+			COALESCE(sort_order, step_id)::bigint AS sort_order
+		FROM lbi_production
+		ORDER BY COALESCE(sort_order, step_id), step_id
+	`
+	err := r.db.Select(&items, query)
 	return items, err
 }
 

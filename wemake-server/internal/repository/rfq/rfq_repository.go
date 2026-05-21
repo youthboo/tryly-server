@@ -316,6 +316,14 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 		    ($3  AND frd.factory_id IS NOT NULL AND r.status = 'OP')
 		    OR (NOT $3 AND frd.factory_id IS NULL AND (r.status = 'OP' OR q.quote_id IS NOT NULL))
 		  )
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM quotations excl_q
+			INNER JOIN orders excl_o ON excl_o.quote_id = excl_q.quote_id
+			WHERE excl_q.rfq_id = r.rfq_id
+			  AND excl_q.status != 'PD'
+			  AND excl_o.status = 'PR'
+		  )
 		  AND (
 			EXISTS (
 				SELECT 1 FROM map_factory_categories mfc

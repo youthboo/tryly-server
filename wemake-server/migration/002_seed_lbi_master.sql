@@ -39,6 +39,11 @@ INSERT INTO lbi_shipping_methods (method_name, status) VALUES
   ('จัดส่งเดลิเวอร์รี่',     '1');
 
 -- ─── 4. lbi_production (ขั้นตอนการผลิต) ──────────────────────
+-- step_id=0 คือขั้น "ยืนยันรับงาน" พิเศษ — ไม่ต้องแนบรูป, transitions order PD→PR
+INSERT INTO lbi_production (step_id, step_name, step_name_th, description, sort_order) VALUES
+  (0, 'Accept Order',          'ยืนยันรับงาน',         'โรงงานยืนยันรับงานและเริ่มกระบวนการผลิต',                           0)
+ON CONFLICT (step_id) DO NOTHING;
+
 INSERT INTO lbi_production (step_name, step_name_th, description, sort_order) VALUES
   ('Material Preparation',    'จัดเตรียมวัตถุดิบ',    'ตรวจรับและเตรียมวัตถุดิบก่อนเริ่มการผลิต',                          1),
   ('Processing / Production', 'ขั้นตอนการผลิต',       'กระบวนการผลิตหลัก เช่น อัดเม็ด อบ ฟรีซดราย ฯลฯ',                  2),

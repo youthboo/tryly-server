@@ -237,7 +237,8 @@ func (s *OrderPaymentService) PayDeposit(input OrderPaymentInput) (*OrderPayment
 			return err
 		}
 
-		if _, err := tx.Exec(`UPDATE orders SET status = 'PR', updated_at = NOW() WHERE order_id = $1 AND status = 'PP'`, input.OrderID); err != nil {
+		// PP → PD: ชำระแล้ว รอโรงงานยืนยันรับงาน (factory ต้องกด step_id=0 ก่อนจึงจะเป็น PR)
+		if _, err := tx.Exec(`UPDATE orders SET status = 'PD', updated_at = NOW() WHERE order_id = $1 AND status = 'PP'`, input.OrderID); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(`

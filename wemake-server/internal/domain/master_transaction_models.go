@@ -59,11 +59,11 @@ type LBIMasterCertificate struct {
 }
 
 type LBIProduction struct {
-	StepID        int64  `db:"step_id" json:"step_id"`
-	FactoryTypeID int64  `db:"factory_type_id" json:"factory_type_id"`
-	StepName      string `db:"step_name" json:"step_name"`
-	Sequence      int64  `db:"sequence" json:"sequence"`
-	Status        string `db:"status" json:"status"`
+	StepID      int64  `db:"step_id"      json:"step_id"`
+	StepName    string `db:"step_name"    json:"step_name"`
+	StepNameTH  string `db:"step_name_th" json:"step_name_th"`
+	Description string `db:"description"  json:"description"`
+	SortOrder   int64  `db:"sort_order"   json:"sort_order"`
 }
 
 type LBIUnit struct {
