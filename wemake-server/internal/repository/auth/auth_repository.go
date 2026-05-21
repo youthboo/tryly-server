@@ -71,6 +71,14 @@ func (r *AuthRepository) CreateCustomerUser(user *domain.User, customer *domain.
 		if _, err := tx.Exec(customerInsert, user.UserID, customer.FirstName, customer.LastName); err != nil {
 			return err
 		}
+
+		// Create wallet for new customer (balance starts at 0)
+		if _, err := tx.Exec(`
+			INSERT INTO wallets (user_id, good_fund, pending_fund)
+			VALUES ($1, 0, 0)
+		`, user.UserID); err != nil {
+			return err
+		}
 		return nil
 	})
 }
@@ -118,6 +126,14 @@ func (r *AuthRepository) CreateFactoryUser(user *domain.User, factory *domain.Fa
 			); err != nil {
 				return err
 			}
+		}
+
+		// Create wallet for new factory (balance starts at 0)
+		if _, err := tx.Exec(`
+			INSERT INTO wallets (user_id, good_fund, pending_fund)
+			VALUES ($1, 0, 0)
+		`, user.UserID); err != nil {
+			return err
 		}
 
 		// Insert certificate if provided
