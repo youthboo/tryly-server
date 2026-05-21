@@ -185,24 +185,55 @@ type RfqImage struct {
 }
 
 type RfqNested struct {
-	RfqID          int64      `json:"rfq_id"`
-	Title          string     `json:"title"`
-	Details        string     `json:"details"`
-	Quantity       int64      `json:"quantity"`
-	UnitName       string     `json:"unit_name"`
-	BudgetPerPiece decimal.Decimal `json:"budget_per_piece"`
-	CategoryID     int64      `json:"category_id"`
-	CategoryName   string     `json:"category_name"`
-	DeadlineDate   *time.Time `json:"deadline_date,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
-	Images         []RfqImage `json:"images"`
+	RfqID               int64           `json:"rfq_id"`
+	Title               string          `json:"title"`
+	Details             string          `json:"details"`
+	Quantity            int64           `json:"quantity"`
+	UnitName            string          `json:"unit_name"`
+	BudgetPerPiece      decimal.Decimal `json:"budget_per_piece"`
+	CategoryID          int64           `json:"category_id"`
+	CategoryName        string          `json:"category_name"`
+	SubCategoryID       *int64          `json:"sub_category_id,omitempty"`
+	SubCategoryName     *string         `json:"sub_category_name,omitempty"`
+	ShippingMethodName  *string         `json:"shipping_method_name,omitempty"`
+	MaterialGrade       *string         `json:"material_grade,omitempty"`
+	Certifications      StringArray     `json:"certifications_required"`
+	TargetLeadTimeDays  *int            `json:"target_lead_time_days,omitempty"`
+	TargetPrice         *float64        `json:"target_price,omitempty"`
+	// Delivery address (nested object for summarizeRfqAddress)
+	Address    *RfqAddressNested `json:"address,omitempty"`
+	DeadlineDate *time.Time      `json:"deadline_date,omitempty"`
+	CreatedAt    time.Time       `json:"created_at"`
+	Images       []RfqImage      `json:"images"`
+}
+
+// RfqAddressNested holds the delivery address for an RFQ.
+type RfqAddressNested struct {
+	AddressDetail   string `json:"address_detail"`
+	SubDistrictName string `json:"sub_district_name"`
+	DistrictName    string `json:"district_name"`
+	ProvinceName    string `json:"province_name"`
+	ZipCode         string `json:"zip_code"`
 }
 
 type QuoteNested struct {
-	QuoteID       int64           `json:"quote_id"`
-	PricePerPiece decimal.Decimal `json:"price_per_piece"`
-	MoldCost      decimal.Decimal `json:"mold_cost"`
-	LeadTimeDays  int64           `json:"lead_time_days"`
+	QuoteID          int64           `json:"quote_id"`
+	PricePerPiece    decimal.Decimal `json:"price_per_piece"`
+	MoldCost         decimal.Decimal `json:"mold_cost"`
+	ToolingMoldCost  decimal.Decimal `json:"tooling_mold_cost"`
+	LeadTimeDays     int64           `json:"lead_time_days"`
+	GrandTotal       decimal.Decimal `json:"grand_total"`
+	Subtotal         decimal.Decimal `json:"subtotal"`
+	DiscountAmount   decimal.Decimal `json:"discount_amount"`
+	ShippingCost     decimal.Decimal `json:"shipping_cost"`
+	PackagingCost    decimal.Decimal `json:"packaging_cost"`
+	VatRate          decimal.Decimal `json:"vat_rate"`
+	VatAmount        decimal.Decimal `json:"vat_amount"`
+	ValidityDays     int             `json:"validity_days"`
+	ValidUntil       *string         `json:"valid_until,omitempty"`
+	PaymentTerms     *string         `json:"payment_terms,omitempty"`
+	ImageURLs        StringArray     `json:"image_urls"`
+	FactoryHighlight *string         `json:"factory_highlight,omitempty"`
 }
 
 // OrderDetailResponse extends the legacy order payload with FE-ready action state.

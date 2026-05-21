@@ -156,10 +156,10 @@ func (s *QuotationService) GetByID(quotationID int64) (*domain.Quotation, error)
 	}
 	if s.items != nil {
 		items, err := s.items.ListByQuotation(quotationID)
-		if err != nil {
-			return nil, err
+		if err == nil {
+			item.Items = items
 		}
-		item.Items = items
+		// Non-fatal: quotation_items table may not exist yet; continue without line items.
 	}
 	return item, nil
 }

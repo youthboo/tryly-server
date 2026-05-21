@@ -2,7 +2,9 @@ package rfq
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/lib/pq"
@@ -11,16 +13,18 @@ import (
 	"github.com/yourusername/wemake/internal/dto"
 	"github.com/yourusername/wemake/internal/helper"
 	authservice "github.com/yourusername/wemake/internal/service/auth"
+	quotationservice "github.com/yourusername/wemake/internal/service/quotation"
 	rfqservice "github.com/yourusername/wemake/internal/service/rfq"
 )
 
 type RFQHandler struct {
-	service *rfqservice.RFQService
-	auth    *authservice.AuthService
+	service          *rfqservice.RFQService
+	quotationService *quotationservice.QuotationService
+	auth             *authservice.AuthService
 }
 
-func NewRFQHandler(rfqService *rfqservice.RFQService, authService *authservice.AuthService) *RFQHandler {
-	return &RFQHandler{service: rfqService, auth: authService}
+func NewRFQHandler(rfqService *rfqservice.RFQService, quotationService *quotationservice.QuotationService, authService *authservice.AuthService) *RFQHandler {
+	return &RFQHandler{service: rfqService, quotationService: quotationService, auth: authService}
 }
 
 var rfqCreateErrorMap = map[error]helper.ErrorResponse{
@@ -290,6 +294,63 @@ func (h *RFQHandler) GetRFQ(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"rfq": rfq})
+}
+
+// GetDetail handles GET /rfqs/:rfq_id/detail
+// Returns RFQ + quotations + per-quote history in a single call.
+func (h *RFQHandler) GetDetail(c *fiber.Ctx) error {
+	userID, u, err := helper.RequireUser(c, h.auth)
+	if err != nil {
+		return err
+	}
+	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
+	if err != nil {
+		return err
+	}
+
+	rfq, err := h.service.GetForViewer(userID, u.Role, rfqID)
+	if err != nil {
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to fetch rfq"), rfqNotFoundErrorMap)
+	}
+
+	quotes, err := h.quotationService.ListByRFQID(rfqID)
+	if err != nil {
+		quotes = []domain.Quotation{}
+	}
+	if quotes == nil {
+		quotes = []domain.Quotation{}
+	}
+
+	// Fetch history for all quotations in parallel
+	type histResult struct {
+		quoteID int64
+		entries []domain.QuotationHistoryEntry
+	}
+	results := make([]histResult, len(quotes))
+	var wg sync.WaitGroup
+	for i, q := range quotes {
+		wg.Add(1)
+		go func(idx int, qid int64) {
+			defer wg.Done()
+			entries, e := h.quotationService.ListHistory(qid)
+			if e != nil || entries == nil {
+				entries = []domain.QuotationHistoryEntry{}
+			}
+			results[idx] = histResult{quoteID: qid, entries: entries}
+		}(i, q.QuotationID)
+	}
+	wg.Wait()
+
+	quoteHistories := make(map[string][]domain.QuotationHistoryEntry, len(results))
+	for _, r := range results {
+		quoteHistories[fmt.Sprintf("%d", r.quoteID)] = r.entries
+	}
+
+	return c.JSON(fiber.Map{
+		"rfq":             rfq,
+		"quotations":      quotes,
+		"quote_histories": quoteHistories,
+	})
 }
 
 func (h *RFQHandler) CancelRFQ(c *fiber.Ctx) error {

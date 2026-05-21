@@ -10,17 +10,21 @@ import (
 
 // RFQOrderSummary is the response shape for a single item in GET /v1/me/rfq-orders.
 type RFQOrderSummary struct {
-	RFQID          int64    `db:"rfq_id"          json:"rfq_id"`
-	Title          string   `db:"title"           json:"title"`
-	RequestKind    string   `db:"request_kind"    json:"request_kind"`
-	Status         string   `db:"status"          json:"status"`
-	CreatedAt      string   `db:"created_at"      json:"created_at"`
-	CategoryName   *string  `db:"category_name"   json:"category_name"`
-	QuotationCount int      `db:"quotation_count" json:"quotation_count"`
-	TargetPrice    *float64 `db:"target_price"    json:"target_price,omitempty"`
-	OrderID        *int64   `db:"order_id"        json:"order_id,omitempty"`
-	OrderStatus    *string  `db:"order_status"    json:"order_status,omitempty"`
-	TotalAmount    *float64 `db:"total_amount"    json:"total_amount,omitempty"`
+	RFQID             int64    `db:"rfq_id"             json:"rfq_id"`
+	Title             string   `db:"title"              json:"title"`
+	RequestKind       string   `db:"request_kind"       json:"request_kind"`
+	Status            string   `db:"status"             json:"status"`
+	CreatedAt         string   `db:"created_at"         json:"created_at"`
+	CategoryName      *string  `db:"category_name"      json:"category_name"`
+	QuotationCount    int      `db:"quotation_count"    json:"quotation_count"`
+	TargetPrice       *float64 `db:"target_price"       json:"target_price,omitempty"`
+	OrderID           *int64   `db:"order_id"           json:"order_id,omitempty"`
+	OrderStatus       *string  `db:"order_status"       json:"order_status,omitempty"`
+	TotalAmount       *float64 `db:"total_amount"       json:"total_amount,omitempty"`
+	FactoryID         *int64   `db:"factory_id"         json:"factory_id,omitempty"`
+	FactoryName       *string  `db:"factory_name"       json:"factory_name,omitempty"`
+	EstimatedDelivery *string  `db:"estimated_delivery" json:"estimated_delivery,omitempty"`
+	OrderCreatedAt    *string  `db:"order_created_at"   json:"order_created_at,omitempty"`
 }
 
 // QuotationSummary is used inside the detail response.
@@ -83,13 +87,29 @@ func (h *MeRFQOrdersHandler) ListRFQOrders(c *fiber.Ctx) error {
 			lc.name AS category_name,
 			COUNT(DISTINCT q.quote_id)::int AS quotation_count,
 			r.target_price,
-			MAX(o.order_id) AS order_id,
+			(SELECT o2.order_id FROM orders o2 WHERE o2.quote_id IN (
+				SELECT q2.quote_id FROM quotations q2 WHERE q2.rfq_id = r.rfq_id
+			) AND o2.customer_id = r.user_id ORDER BY o2.created_at DESC LIMIT 1) AS order_id,
 			(SELECT o2.status FROM orders o2 WHERE o2.quote_id IN (
 				SELECT q2.quote_id FROM quotations q2 WHERE q2.rfq_id = r.rfq_id
 			) AND o2.customer_id = r.user_id ORDER BY o2.created_at DESC LIMIT 1) AS order_status,
-			(SELECT o3.total_amount FROM orders o3 WHERE o3.quote_id IN (
-				SELECT q3.quote_id FROM quotations q3 WHERE q3.rfq_id = r.rfq_id
-			) AND o3.customer_id = r.user_id ORDER BY o3.created_at DESC LIMIT 1) AS total_amount
+			(SELECT o2.total_amount FROM orders o2 WHERE o2.quote_id IN (
+				SELECT q2.quote_id FROM quotations q2 WHERE q2.rfq_id = r.rfq_id
+			) AND o2.customer_id = r.user_id ORDER BY o2.created_at DESC LIMIT 1) AS total_amount,
+			(SELECT o2.factory_id FROM orders o2 WHERE o2.quote_id IN (
+				SELECT q2.quote_id FROM quotations q2 WHERE q2.rfq_id = r.rfq_id
+			) AND o2.customer_id = r.user_id ORDER BY o2.created_at DESC LIMIT 1) AS factory_id,
+			(SELECT fp2.factory_name FROM orders o2
+				JOIN factory_profiles fp2 ON fp2.user_id = o2.factory_id
+				WHERE o2.quote_id IN (
+					SELECT q2.quote_id FROM quotations q2 WHERE q2.rfq_id = r.rfq_id
+				) AND o2.customer_id = r.user_id ORDER BY o2.created_at DESC LIMIT 1) AS factory_name,
+			(SELECT TO_CHAR(o2.estimated_delivery, 'YYYY-MM-DD') FROM orders o2 WHERE o2.quote_id IN (
+				SELECT q2.quote_id FROM quotations q2 WHERE q2.rfq_id = r.rfq_id
+			) AND o2.customer_id = r.user_id ORDER BY o2.created_at DESC LIMIT 1) AS estimated_delivery,
+			(SELECT TO_CHAR(o2.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') FROM orders o2 WHERE o2.quote_id IN (
+				SELECT q2.quote_id FROM quotations q2 WHERE q2.rfq_id = r.rfq_id
+			) AND o2.customer_id = r.user_id ORDER BY o2.created_at DESC LIMIT 1) AS order_created_at
 		FROM rfqs r
 		LEFT JOIN lbi_categories lc ON lc.category_id = r.category_id
 		LEFT JOIN quotations q ON q.rfq_id = r.rfq_id

@@ -143,6 +143,7 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	rfqs.Get("/matching", h.rfq.ListMatching)
 	rfqs.Get("/", h.rfq.ListRFQs)
 	rfqs.Get("/:rfq_id", h.rfq.GetRFQ)
+	rfqs.Get("/:rfq_id/detail", h.rfq.GetDetail)
 	rfqs.Patch("/:rfq_id", h.rfq.PatchRFQ)
 	rfqs.Patch("/:rfq_id/cancel", h.rfq.CancelRFQ)
 	rfqs.Patch("/:rfq_id/close", h.rfq.CloseRFQ)

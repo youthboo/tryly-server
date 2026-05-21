@@ -112,7 +112,7 @@ func (r *ProductionRepository) ListActiveStepsByFactoryTypeTx(tx *sqlx.Tx, _ *in
 func (r *ProductionRepository) GetOrderByID(orderID int64) (*ProductionOrderContext, error) {
 	var item ProductionOrderContext
 	err := r.db.Get(&item, `
-		SELECT o.order_id, o.user_id, o.factory_id, fp.factory_type_id, o.status,
+		SELECT o.order_id, o.customer_id AS user_id, o.factory_id, fp.factory_type_id, o.status,
 		       o.deposit_amount, o.total_amount, o.created_at,
 		       (SELECT ps.due_date FROM payment_schedules ps
 		        WHERE ps.order_id = o.order_id AND ps.installment_no = 1
@@ -130,7 +130,7 @@ func (r *ProductionRepository) GetOrderByID(orderID int64) (*ProductionOrderCont
 func (r *ProductionRepository) GetOrderForUpdateTx(tx *sqlx.Tx, orderID int64) (*ProductionOrderContext, error) {
 	var item ProductionOrderContext
 	err := tx.Get(&item, `
-		SELECT o.order_id, o.user_id, o.factory_id, fp.factory_type_id, o.status,
+		SELECT o.order_id, o.customer_id AS user_id, o.factory_id, fp.factory_type_id, o.status,
 		       o.deposit_amount, o.total_amount, o.created_at,
 		       (SELECT ps.due_date FROM payment_schedules ps
 		        WHERE ps.order_id = o.order_id AND ps.installment_no = 1
@@ -161,7 +161,7 @@ func (r *ProductionRepository) ListByOrderID(orderID int64) ([]domain.Production
 			COALESCE(pu.description, '') AS description,
 			COALESCE(pu.image_urls::text, '[]') AS image_urls,
 			pu.completed_at,
-			pu.rejected_reason,
+			NULL::text AS rejected_reason,
 			pu.updated_by_user_id,
 			pu.last_updated_at,
 			pu.created_at
@@ -189,7 +189,7 @@ func (r *ProductionRepository) ListByOrderIDTx(tx *sqlx.Tx, orderID int64) ([]do
 			COALESCE(pu.description, '') AS description,
 			COALESCE(pu.image_urls::text, '[]') AS image_urls,
 			pu.completed_at,
-			pu.rejected_reason,
+			NULL::text AS rejected_reason,
 			pu.updated_by_user_id,
 			pu.last_updated_at,
 			pu.created_at
@@ -217,11 +217,11 @@ func (r *ProductionRepository) GetUpdateByID(updateID int64) (*ProductionUpdateC
 			COALESCE(pu.description, '') AS description,
 			COALESCE(pu.image_urls::text, '[]') AS image_urls,
 			pu.completed_at,
-			pu.rejected_reason,
+			NULL::text AS rejected_reason,
 			pu.updated_by_user_id,
 			pu.last_updated_at,
 			pu.created_at,
-			o.user_id AS order_user_id,
+			o.customer_id AS order_user_id,
 			o.factory_id AS order_factory_id
 		FROM production_updates pu
 		INNER JOIN orders o ON o.order_id = pu.order_id
@@ -250,11 +250,11 @@ func (r *ProductionRepository) GetUpdateByIDForUpdateTx(tx *sqlx.Tx, updateID in
 			COALESCE(pu.description, '') AS description,
 			COALESCE(pu.image_urls::text, '[]') AS image_urls,
 			pu.completed_at,
-			pu.rejected_reason,
+			NULL::text AS rejected_reason,
 			pu.updated_by_user_id,
 			pu.last_updated_at,
 			pu.created_at,
-			o.user_id AS order_user_id,
+			o.customer_id AS order_user_id,
 			o.factory_id AS order_factory_id
 		FROM production_updates pu
 		INNER JOIN orders o ON o.order_id = pu.order_id
@@ -278,17 +278,15 @@ func (r *ProductionRepository) UpsertTx(tx *sqlx.Tx, item *domain.ProductionUpda
 			description,
 			image_urls,
 			completed_at,
-			rejected_reason,
 			updated_by_user_id,
 			created_at
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
 		ON CONFLICT (order_id, step_id) DO UPDATE SET
 			status = EXCLUDED.status,
 			description = EXCLUDED.description,
 			image_urls = EXCLUDED.image_urls,
 			completed_at = EXCLUDED.completed_at,
-			rejected_reason = EXCLUDED.rejected_reason,
 			updated_by_user_id = EXCLUDED.updated_by_user_id
 		RETURNING update_id, created_at, last_updated_at
 	`
@@ -300,7 +298,6 @@ func (r *ProductionRepository) UpsertTx(tx *sqlx.Tx, item *domain.ProductionUpda
 		item.Description,
 		item.ImageURLs,
 		domainutil.Nullable(item.CompletedAt),
-		item.RejectedReason,
 		item.UpdatedByUserID,
 	).Scan(&item.UpdateID, &item.CreatedAt, &item.LastUpdatedAt)
 }
@@ -311,14 +308,14 @@ func (r *ProductionRepository) RejectTx(tx *sqlx.Tx, updateID int64, reason stri
 		UPDATE production_updates
 		SET status = 'RJ',
 			completed_at = NULL,
-			rejected_reason = $2,
-			updated_by_user_id = $3
+			updated_by_user_id = $2
 		WHERE update_id = $1
 		RETURNING update_id, order_id, step_id, status, COALESCE(description, '') AS description,
 		          COALESCE(image_urls::text, '[]') AS image_urls,
-		          completed_at, rejected_reason, updated_by_user_id, last_updated_at, created_at
+		          completed_at, NULL::text AS rejected_reason, updated_by_user_id, last_updated_at, created_at
 	`
-	if err := tx.Get(&item, query, updateID, reason, updatedBy); err != nil {
+	_ = reason
+	if err := tx.Get(&item, query, updateID, updatedBy); err != nil {
 		return nil, err
 	}
 	return &item, nil

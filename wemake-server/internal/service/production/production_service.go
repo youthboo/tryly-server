@@ -115,6 +115,7 @@ func (s *ProductionService) ListByOrderID(orderID, userID int64) (*domain.Produc
 		Updates:          s.repo.InflateUpdates(orderID, steps, persisted),
 		OrderStatus:      status,
 		ProductionLocked: false,
+		TemplatePreview:  steps,
 	}, nil
 }
 

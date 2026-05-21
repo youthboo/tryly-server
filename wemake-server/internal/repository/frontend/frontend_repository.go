@@ -414,7 +414,7 @@ func (r *FrontendRepository) ListOrdersByUserID(userID int64) ([]FrontendOrderRo
 		INNER JOIN quotations q ON q.quote_id = o.quote_id
 		INNER JOIN rfqs rfq ON rfq.rfq_id = q.rfq_id
 		INNER JOIN factory_profiles fp ON fp.user_id = o.factory_id
-		WHERE o.user_id = $1
+		WHERE o.customer_id = $1
 		ORDER BY o.created_at DESC
 	`
 	err := r.db.Select(&items, query, userID)
@@ -445,7 +445,7 @@ func (r *FrontendRepository) GetOrderByUserID(userID, orderID int64) (*FrontendO
 		INNER JOIN quotations q ON q.quote_id = o.quote_id
 		INNER JOIN rfqs rfq ON rfq.rfq_id = q.rfq_id
 		INNER JOIN factory_profiles fp ON fp.user_id = o.factory_id
-		WHERE o.user_id = $1 AND o.order_id = $2
+		WHERE o.customer_id = $1 AND o.order_id = $2
 	`
 	if err := r.db.Get(&item, query, userID, orderID); err != nil {
 		return nil, err

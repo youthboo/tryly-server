@@ -203,7 +203,7 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 		catalog:           cataloghandler.NewCatalogHandler(catalogService),
 		address:           userhandler.NewAddressHandler(addressService),
 		wallet:            wallethandler.NewWalletHandler(walletService),
-		rfq:               rfqhandler.NewRFQHandler(rfqService, authService),
+		rfq:               rfqhandler.NewRFQHandler(rfqService, quotationService, authService),
 		quotation:         quotationhandler.NewQuotationHandler(quotationService, authService),
 		order:             orderhandler.NewOrderHandler(orderService, authService),
 		orderPayment:      paymenthandler.NewOrderPaymentHandler(orderPaymentService),
