@@ -5,6 +5,9 @@ import (
 	notificationrepo "github.com/yourusername/wemake/internal/repository/notification"
 )
 
+// re-export PollRow so callers don't need to import the repo package
+type PollRow = notificationrepo.PollRow
+
 type NotificationService struct {
 	repo *notificationrepo.NotificationRepository
 }
@@ -39,4 +42,20 @@ func (s *NotificationService) MarkAllRead(userID int64) (int64, error) {
 
 func (s *NotificationService) SoftDelete(notiID, userID int64) error {
 	return s.repo.SoftDelete(notiID, userID)
+}
+
+func (s *NotificationService) ListWithFilter(userID int64, filterTypes []string, limit, offset int) ([]domain.Notification, int64, int64, error) {
+	return s.repo.ListWithFilter(userID, filterTypes, limit, offset)
+}
+
+func (s *NotificationService) MarkAsReadReturnCount(notiID, userID int64) (int64, error) {
+	return s.repo.MarkAsReadReturnCount(notiID, userID)
+}
+
+func (s *NotificationService) MarkAllReadWithFilter(userID int64, filterTypes []string) (int64, int64, error) {
+	return s.repo.MarkAllReadWithFilter(userID, filterTypes)
+}
+
+func (s *NotificationService) PollNew(userID, lastNotiID int64) ([]notificationrepo.PollRow, error) {
+	return s.repo.PollNew(userID, lastNotiID)
 }

@@ -257,11 +257,11 @@ func (s *OrderService) VerifyPayment(orderID, userID int64, role, txID string) (
 		Type:    "PAYMENT_RECEIVED",
 		Title:   "รับชำระเงินแล้ว",
 		Message: fmt.Sprintf("ได้รับการชำระเงิน ฿%.2f สำหรับ Order #%d", paymentTx.Amount, order.OrderID),
-		LinkTo:  helper.OrderLink(order.OrderID),
+		LinkTo:  helper.FactoryOrderLink(order.OrderID),
 		Data: helper.NotificationData(map[string]interface{}{
 			"order_id": order.OrderID,
 			"amount":   paymentTx.Amount,
-			"url":      helper.OrderLink(order.OrderID),
+			"url":      helper.FactoryOrderLink(order.OrderID),
 		}),
 		ReferenceID: &order.OrderID,
 		CreatedAt:   now,

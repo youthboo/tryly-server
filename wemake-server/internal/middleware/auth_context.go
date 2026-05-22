@@ -24,6 +24,14 @@ func AuthContext(jwtSecret string) fiber.Handler {
 					c.Locals("role", role)
 				}
 			}
+		} else if queryToken := strings.TrimSpace(c.Query("token")); queryToken != "" {
+			// ?token= for SSE (EventSource cannot set Authorization header)
+			if userID, role, ok := parseUserAndRoleFromToken(queryToken, jwtSecret); ok {
+				c.Locals("user_id", userID)
+				if role != "" {
+					c.Locals("role", role)
+				}
+			}
 		}
 
 		return c.Next()
