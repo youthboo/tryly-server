@@ -366,7 +366,7 @@ const orderListEnrichedSelect = `
 		r.quantity AS rfq_quantity,
 		'' AS unit_name,
 		COALESCE(NULLIF(TRIM(CONCAT(c.first_name, ' ', c.last_name)), ''), 'ลูกค้า #' || o.customer_id::text) AS customer_display_name,
-		cur.step_id AS current_step_id,
+		COALESCE(cur.step_id, CASE WHEN o.status IN ('PD', 'PR') THEN 0 END) AS current_step_id,
 		cur.step_name_th AS current_step_name_th,
 		cur.status AS current_update_status,
 		COALESCE(prod.completed_count, 0) AS completed_count,
@@ -387,9 +387,8 @@ const orderListEnrichedSelect = `
 		FROM production_updates pu
 		INNER JOIN lbi_production lp ON lp.step_id = pu.step_id
 		WHERE pu.order_id = o.order_id
-		  AND pu.status IN ('IP', 'CD', 'RJ')
+		  AND pu.status = 'CD'
 		ORDER BY
-			CASE pu.status WHEN 'IP' THEN 3 WHEN 'RJ' THEN 2 WHEN 'CD' THEN 1 ELSE 0 END DESC,
 			COALESCE(lp.sort_order, lp.step_id) DESC,
 			COALESCE(pu.last_updated_at, pu.created_at) DESC
 		LIMIT 1

@@ -323,6 +323,17 @@ func (s *ProductionService) Upsert(orderID, userID int64, input ProductionWriteI
 		if input.StepID == 0 && input.Status == "CD" && domainstatus.NormalizeOrder(order.OrderStatus) == domain.OrderStatusPaymentDone {
 			newOrderStatus = domain.OrderStatusProduction
 		}
+		// step 3 CD → QC, step 4 CD → SH, step 5 CD → CP
+		if input.Status == "CD" {
+			switch input.StepID {
+			case 3:
+				newOrderStatus = domain.OrderStatusQualityCheck
+			case 4:
+				newOrderStatus = domain.OrderStatusShipping
+			case 5:
+				newOrderStatus = domain.OrderStatusComplete
+			}
+		}
 		if newOrderStatus != order.OrderStatus {
 			if _, err := tx.Exec(`UPDATE orders SET status = $1, updated_at = NOW() WHERE order_id = $2`, newOrderStatus, orderID); err != nil {
 				return err

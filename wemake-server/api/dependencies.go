@@ -205,7 +205,7 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 		wallet:            wallethandler.NewWalletHandler(walletService),
 		rfq:               rfqhandler.NewRFQHandler(rfqService, quotationService, authService),
 		quotation:         quotationhandler.NewQuotationHandler(quotationService, authService),
-		order:             orderhandler.NewOrderHandler(orderService, authService),
+		order:             orderhandler.NewOrderHandler(orderService, authService, productionService),
 		orderPayment:      paymenthandler.NewOrderPaymentHandler(orderPaymentService),
 		production:        productionhandler.NewProductionHandler(productionService),
 		message:           messagehandler.NewMessageHandler(messageService),

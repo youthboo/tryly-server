@@ -543,6 +543,7 @@ func mapOrderCard(row frontendrepo.FrontendOrderRow) domain.FrontendOrderCard {
 		Status:            domainstatus.FrontendOrder(row.Status),
 		EstimatedDelivery: row.EstimatedDelivery,
 		CreatedAt:         row.CreatedAt,
+		CurrentStepID:     row.CurrentStepID,
 	}
 }
 

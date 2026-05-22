@@ -12,15 +12,17 @@ import (
 	"github.com/yourusername/wemake/internal/helper"
 	authservice "github.com/yourusername/wemake/internal/service/auth"
 	orderservice "github.com/yourusername/wemake/internal/service/order"
+	productionservice "github.com/yourusername/wemake/internal/service/production"
 )
 
 type OrderHandler struct {
-	service *orderservice.OrderService
-	auth    *authservice.AuthService
+	service    *orderservice.OrderService
+	auth       *authservice.AuthService
+	production *productionservice.ProductionService
 }
 
-func NewOrderHandler(orderService *orderservice.OrderService, authService *authservice.AuthService) *OrderHandler {
-	return &OrderHandler{service: orderService, auth: authService}
+func NewOrderHandler(orderService *orderservice.OrderService, authService *authservice.AuthService, productionService *productionservice.ProductionService) *OrderHandler {
+	return &OrderHandler{service: orderService, auth: authService, production: productionService}
 }
 
 func (h *OrderHandler) CreateOrder(c *fiber.Ctx) error {
@@ -105,7 +107,27 @@ func (h *OrderHandler) GetOrder(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.WriteServiceErrorWithNotFound(c, err, "failed to fetch order", "order not found")
 	}
-	return c.JSON(detail)
+
+	// Compose: embed production bundle + review state into the order response.
+	type composedResponse struct {
+		*domain.OrderDetailResponse
+		Production  *domain.ProductionUpdatesList `json:"production,omitempty"`
+		ReviewState *domain.OrderReviewState      `json:"review_state,omitempty"`
+	}
+	out := composedResponse{OrderDetailResponse: detail}
+
+	if h.production != nil {
+		if prod, prodErr := h.production.ListByOrderID(int64(orderID), userID); prodErr == nil {
+			out.Production = prod
+		}
+	}
+	if u.Role == domain.RoleCustomer {
+		if rs, rsErr := h.service.GetReviewState(int64(orderID), userID, u.Role); rsErr == nil {
+			out.ReviewState = rs
+		}
+	}
+
+	return c.JSON(out)
 }
 
 func (h *OrderHandler) ListActivity(c *fiber.Ctx) error {
@@ -244,6 +266,9 @@ func (h *OrderHandler) ConfirmReceipt(c *fiber.Ctx) error {
 	userID, u, err := helper.RequireUser(c, h.auth)
 	if err != nil {
 		return err
+	}
+	if u == nil {
+		return helper.JSONError(c, fiber.StatusUnauthorized, "user not found")
 	}
 	orderID, err := helper.RequirePathID(c, "order_id")
 	if err != nil {

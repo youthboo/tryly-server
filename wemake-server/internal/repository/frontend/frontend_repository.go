@@ -14,6 +14,25 @@ type FrontendRepository struct {
 	db *sqlx.DB
 }
 
+// productionCurrentStepJoin — logic เดียวกับ orderListEnrichedSelect (GET /orders factory)
+// ขั้นล่าสุดที่ CD แล้ว (เช่น step 4 = CD, step 5 = IP → ส่ง 4 ไม่ใช่ 5)
+const productionCurrentStepJoin = `
+		LEFT JOIN LATERAL (
+			SELECT pu.step_id
+			FROM production_updates pu
+			INNER JOIN lbi_production lp ON lp.step_id = pu.step_id
+			WHERE pu.order_id = o.order_id
+			  AND pu.status = 'CD'
+			ORDER BY
+				COALESCE(lp.sort_order, lp.step_id) DESC,
+				COALESCE(pu.last_updated_at, pu.created_at) DESC
+			LIMIT 1
+		) cur ON TRUE`
+
+// ก่อนมี production_updates: PD/PR ยังไม่มี row → default step 0 (ยืนยันรับงาน)
+const productionCurrentStepSelect = `
+			COALESCE(cur.step_id, CASE WHEN o.status IN ('PD', 'PR') THEN 0 END) AS current_step_id`
+
 type FrontendCurrentUserRow struct {
 	ID             int64           `db:"id"`
 	Role           string          `db:"role"`
@@ -111,6 +130,8 @@ type FrontendOrderRow struct {
 	Status            string  `db:"status"`
 	EstimatedDelivery string  `db:"estimated_delivery"`
 	CreatedAt         string  `db:"created_at"`
+	// step_id ขั้นล่าสุดที่ CD แล้ว (step 4 CD + step 5 IP → 4)
+	CurrentStepID     *int64  `db:"current_step_id"`
 }
 
 type FrontendOrderTimelineRow struct {
@@ -409,11 +430,11 @@ func (r *FrontendRepository) ListOrdersByUserID(userID int64) ([]FrontendOrderRo
 				),
 				'YYYY-MM-DD'
 			) AS estimated_delivery,
-			TO_CHAR(o.created_at, 'YYYY-MM-DD') AS created_at
+			TO_CHAR(o.created_at, 'YYYY-MM-DD') AS created_at,` + productionCurrentStepSelect + `
 		FROM orders o
 		INNER JOIN quotations q ON q.quote_id = o.quote_id
 		INNER JOIN rfqs rfq ON rfq.rfq_id = q.rfq_id
-		INNER JOIN factory_profiles fp ON fp.user_id = o.factory_id
+		INNER JOIN factory_profiles fp ON fp.user_id = o.factory_id` + productionCurrentStepJoin + `
 		WHERE o.customer_id = $1
 		ORDER BY o.created_at DESC
 	`
@@ -440,11 +461,11 @@ func (r *FrontendRepository) GetOrderByUserID(userID, orderID int64) (*FrontendO
 				),
 				'YYYY-MM-DD'
 			) AS estimated_delivery,
-			TO_CHAR(o.created_at, 'YYYY-MM-DD') AS created_at
+			TO_CHAR(o.created_at, 'YYYY-MM-DD') AS created_at,` + productionCurrentStepSelect + `
 		FROM orders o
 		INNER JOIN quotations q ON q.quote_id = o.quote_id
 		INNER JOIN rfqs rfq ON rfq.rfq_id = q.rfq_id
-		INNER JOIN factory_profiles fp ON fp.user_id = o.factory_id
+		INNER JOIN factory_profiles fp ON fp.user_id = o.factory_id` + productionCurrentStepJoin + `
 		WHERE o.customer_id = $1 AND o.order_id = $2
 	`
 	if err := r.db.Get(&item, query, userID, orderID); err != nil {
