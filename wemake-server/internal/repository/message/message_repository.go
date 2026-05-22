@@ -31,13 +31,14 @@ func (r *MessageRepository) CreateTx(exec interface {
 	if item.MessageType == "" {
 		item.MessageType = "TX"
 	}
+	// message_id is auto-generated (bigint serial), so omit it from INSERT.
 	query := `
-		INSERT INTO messages (message_id, reference_id, sender_id, receiver_id, content, attachment_url, created_at, conv_id, message_type, quote_data, is_read)
+		INSERT INTO messages (reference_type, reference_id, sender_id, receiver_id, content, attachment_url, created_at, conv_id, message_type, quote_data, is_read)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 	_, err := exec.Exec(
 		query,
-		item.MessageID,
+		item.ReferenceType,
 		domainutil.NullablePositiveInt64(item.ReferenceID),
 		item.SenderID,
 		item.ReceiverID,
@@ -81,13 +82,13 @@ func (r *MessageRepository) ListByReference(referenceType string, referenceID in
 	var items []domain.Message
 	query := `
 		SELECT m.message_id,
-		       $1::text AS reference_type,
+		       COALESCE(m.reference_type, $1) AS reference_type,
 		       COALESCE(m.reference_id, 0)    AS reference_id,
-		       CASE WHEN $1 = 'RQ' THEN rq.title ELSE NULL END AS rfq_title,
+		       CASE WHEN m.reference_type = 'RQ' THEN rq.title ELSE NULL END AS rfq_title,
 		       m.sender_id, m.receiver_id, m.content, m.attachment_url,
 		       m.created_at, m.conv_id, m.message_type, m.quote_data, NULL::bigint AS boq_rfq_id, m.is_read
 		FROM messages m
-		LEFT JOIN rfqs rq ON rq.rfq_id = m.reference_id AND $1 = 'RQ'
+		LEFT JOIN rfqs rq ON rq.rfq_id = m.reference_id AND m.reference_type = 'RQ'
 		WHERE m.reference_id = $2 AND (m.sender_id = $3 OR m.receiver_id = $3)
 		ORDER BY m.created_at ASC
 	`
@@ -99,13 +100,19 @@ func (r *MessageRepository) ListByConvID(convID int64) ([]domain.Message, error)
 	var items []domain.Message
 	query := `
 		SELECT m.message_id,
-		       ''::text AS reference_type,
-		       COALESCE(m.reference_id, 0)    AS reference_id,
-		       rq.title AS rfq_title,
+		       COALESCE(m.reference_type, '')  AS reference_type,
+		       COALESCE(m.reference_id, 0)     AS reference_id,
+		       rq.title                        AS rfq_title,
+		       CASE
+		         WHEN m.reference_type = 'RQ'              THEN rq.title
+		         WHEN m.reference_type IN ('PD','PM','ID') THEN sc.title
+		         ELSE NULL
+		       END                             AS reference_title,
 		       m.sender_id, m.receiver_id, m.content, m.attachment_url,
 		       m.created_at, m.conv_id, m.message_type, m.quote_data, NULL::bigint AS boq_rfq_id, m.is_read
 		FROM messages m
-		LEFT JOIN rfqs rq ON rq.rfq_id = m.reference_id
+		LEFT JOIN rfqs            rq ON rq.rfq_id      = m.reference_id AND m.reference_type = 'RQ'
+		LEFT JOIN factory_showcases sc ON sc.showcase_id = m.reference_id AND m.reference_type IN ('PD','PM','ID')
 		WHERE m.conv_id = $1
 		ORDER BY m.created_at ASC
 	`
