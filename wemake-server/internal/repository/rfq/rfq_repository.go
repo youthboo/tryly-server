@@ -35,7 +35,7 @@ func (r *RFQRepository) CreateTx(tx *sqlx.Tx, rfq *domain.RFQ) error {
 const rfqSelectColumns = `
 		rfq_id, user_id, COALESCE(category_id, 0) AS category_id, sub_category_id, title, quantity, details,
 		0::bigint AS address_id, shipping_method_id, status, COALESCE(request_kind, 'PR') AS request_kind,
-		NULL::timestamp AS uploaded_at, created_at, updated_at,
+		NULL::timestamp AS uploaded_at, created_at, updated_at, expired_date,
 		material_grade, target_price, target_lead_time_days, NULL::date AS required_delivery_date, delivery_address_id,
 		certifications_required,
 		NULL::bigint AS conversation_id, reference_images, 'RFQ'::text AS rfq_type, 'buyer'::text AS initiated_by,
@@ -50,7 +50,7 @@ const rfqSelectColumns = `
 const rfqSelectColumnsR = `
 		r.rfq_id, r.user_id, COALESCE(r.category_id, 0) AS category_id, r.sub_category_id, r.title, r.quantity, r.details,
 		0::bigint AS address_id, r.shipping_method_id, r.status, COALESCE(r.request_kind, 'PR') AS request_kind,
-		NULL::timestamp AS uploaded_at, r.created_at, r.updated_at,
+		NULL::timestamp AS uploaded_at, r.created_at, r.updated_at, r.expired_date,
 		r.material_grade, r.target_price, r.target_lead_time_days, NULL::date AS required_delivery_date, r.delivery_address_id,
 		r.certifications_required,
 		NULL::bigint AS conversation_id, r.reference_images, 'RFQ'::text AS rfq_type, 'buyer'::text AS initiated_by,
@@ -68,13 +68,15 @@ func (r *RFQRepository) createWithExecutor(exec dbutil.QueryRower, rfq *domain.R
 			user_id, category_id, sub_category_id, title, quantity, details,
 			shipping_method_id, status, request_kind, created_at, updated_at,
 			material_grade, target_price, target_lead_time_days, delivery_address_id,
-			certifications_required, reference_images
+			certifications_required, reference_images,
+			expired_date
 		)
 		VALUES (
 			$1, $2, $3, $4, $5, $6,
 			$7, $8, $9, $10, $11,
 			$12, $13, $14, $15,
-			$16, $17
+			$16, $17,
+			$10 + (SELECT COALESCE((value || ' days')::interval, INTERVAL '30 days') FROM tconfig WHERE key = 'rfq_expired')
 		)
 		RETURNING rfq_id
 	`

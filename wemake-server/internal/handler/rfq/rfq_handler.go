@@ -283,6 +283,9 @@ func (h *RFQHandler) GetRFQ(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	if u == nil {
+		return helper.JSONError(c, 401, "user not found")
+	}
 	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
 	if err != nil {
 		return err
@@ -302,6 +305,9 @@ func (h *RFQHandler) GetDetail(c *fiber.Ctx) error {
 	userID, u, err := helper.RequireUser(c, h.auth)
 	if err != nil {
 		return err
+	}
+	if u == nil {
+		return helper.JSONError(c, 401, "user not found")
 	}
 	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
 	if err != nil {

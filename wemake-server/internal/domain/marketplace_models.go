@@ -89,6 +89,7 @@ type RFQ struct {
 	UploadedAt         *time.Time `db:"uploaded_at" json:"uploaded_at,omitempty"`
 	CreatedAt          time.Time  `db:"created_at" json:"created_at"`
 	UpdatedAt          time.Time  `db:"updated_at" json:"updated_at"`
+	ExpiredDate        *time.Time `db:"expired_date" json:"expired_date,omitempty"`
 	MaterialGrade      *string    `db:"material_grade" json:"material_grade,omitempty"`
 	PackagingSpec      *string    `db:"packaging_spec" json:"packaging_spec"`
 	CategoryName       *string    `db:"category_name" json:"category_name"`
