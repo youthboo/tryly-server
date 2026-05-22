@@ -123,6 +123,9 @@ type FrontendOrderCard struct {
 	Status            string  `json:"status"`
 	EstimatedDelivery string  `json:"estimatedDelivery"`
 	CreatedAt         string  `json:"createdAt"`
+	// step_id ขั้นล่าสุดที่ CD แล้ว (step 4 CD + step 5 IP → 4) — logic เดียวกับ
+	// production_summary.current_step_id ใน GET /orders (factory)
+	CurrentStepID *int64 `json:"current_step_id,omitempty"`
 }
 
 type FrontendOrderDetail struct {
