@@ -71,11 +71,23 @@ func (s *FrontendService) GetBootstrap(userID int64) (*domain.FrontendBootstrapR
 		logger.Warn("frontend message threads query failed, continuing", "user_id", userID, "err", e)
 	}
 
+	// Fetch user's favorites (showcase IDs) for heart icons on explore/factory-ideas cards.
+	var favoriteIDs []int64
+	if rows, e := s.repo.ListFavoriteShowcaseIDs(userID); e == nil {
+		favoriteIDs = rows
+	} else {
+		logger.Warn("frontend favorites query failed, continuing", "user_id", userID, "err", e)
+	}
+	if favoriteIDs == nil {
+		favoriteIDs = []int64{}
+	}
+
 	response := &domain.FrontendBootstrapResponse{
 		CurrentUser: currentUser,
 		RFQs:        make([]domain.FrontendRFQCard, 0, len(rfqRows)),
 		Orders:      make([]domain.FrontendOrderCard, 0, len(orderRows)),
 		Threads:     make([]domain.FrontendMessageThread, 0, len(threadRows)),
+		Favorites:   favoriteIDs,
 	}
 
 	for _, item := range rfqRows {
