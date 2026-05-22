@@ -53,12 +53,12 @@ type ShowcaseExploreItem struct {
 	Status          string          `db:"status" json:"status"`
 	CreatedAt       time.Time       `db:"created_at" json:"-"`
 	UpdatedAt       time.Time       `db:"updated_at" json:"-"`
-	PublishedAt     *time.Time      `db:"published_at" json:"published_at,omitempty"`
+	PublishedAt     *time.Time      `db:"published_at" json:"-"`
 	FactoryName     string          `db:"factory_name" json:"factory_name"`
-	FactoryImageURL *string         `db:"factory_image_url" json:"factory_image_url,omitempty"`
+	FactoryImageURL *string         `db:"factory_image_url" json:"-"`
 	FactoryRating   *float64        `db:"factory_rating" json:"factory_rating,omitempty"`
 	FactoryVerified bool            `db:"factory_verified" json:"factory_verified"`
-	CategoryName    *string         `db:"category_name" json:"category_name,omitempty"`
+	CategoryName    *string         `db:"category_name" json:"-"`
 	SubCategoryName *string         `db:"sub_category_name" json:"sub_category_name,omitempty"`
 }
 

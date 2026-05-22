@@ -25,16 +25,14 @@ var exploreShowcaseTypes = []string{"PD", "MT", "PM", "ID"}
 // GetExplore handles GET /api/v1/explore
 func (h *ExploreHandler) GetExplore(c *fiber.Ctx) error {
 	var (
-		wg          sync.WaitGroup
-		categories  []domain.Category
-		showcases   map[string][]domain.ShowcaseExploreItem
-		promoSlides []domain.HomePromoSlide
-		catErr      error
-		showErr     error
-		slideErr    error
+		wg         sync.WaitGroup
+		categories []domain.Category
+		showcases  map[string][]domain.ShowcaseExploreItem
+		catErr     error
+		showErr    error
 	)
 
-	wg.Add(3)
+	wg.Add(2)
 
 	go func() {
 		defer wg.Done()
@@ -46,11 +44,6 @@ func (h *ExploreHandler) GetExplore(c *fiber.Ctx) error {
 		showcases, showErr = h.showcaseService.GetHomeShowcases(exploreShowcaseTypes, 8)
 	}()
 
-	go func() {
-		defer wg.Done()
-		promoSlides, slideErr = h.showcaseService.ListHomePromoSlides(5)
-	}()
-
 	wg.Wait()
 
 	if catErr != nil {
@@ -59,21 +52,13 @@ func (h *ExploreHandler) GetExplore(c *fiber.Ctx) error {
 	if showErr != nil {
 		return helper.JSONInternal(c, "failed to fetch showcases")
 	}
-	if slideErr != nil {
-		// promo slides are non-critical — degrade gracefully
-		promoSlides = []domain.HomePromoSlide{}
-	}
 
 	if categories == nil {
 		categories = []domain.Category{}
 	}
-	if promoSlides == nil {
-		promoSlides = []domain.HomePromoSlide{}
-	}
 
 	return c.JSON(domain.ExploreResponse{
-		Categories:  categories,
-		Showcases:   showcases,
-		PromoSlides: promoSlides,
+		Categories: categories,
+		Showcases:  showcases,
 	})
 }

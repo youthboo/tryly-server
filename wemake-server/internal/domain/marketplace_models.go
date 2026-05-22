@@ -21,9 +21,8 @@ type Category struct {
 }
 
 type ExploreResponse struct {
-	Categories  []Category                       `json:"categories"`
-	Showcases   map[string][]ShowcaseExploreItem `json:"showcases"`
-	PromoSlides []HomePromoSlide                 `json:"promoSlides"`
+	Categories []Category                       `json:"categories"`
+	Showcases  map[string][]ShowcaseExploreItem `json:"showcases"`
 }
 
 type CategoryWithSubs struct {
