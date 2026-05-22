@@ -167,6 +167,22 @@ func (r *QuotationRepository) GetByID(quotationID int64) (*domain.Quotation, err
 	return &item, nil
 }
 
+// GetActiveByRFQAndFactory returns the latest active (PD/AC) quotation for a given RFQ + factory pair.
+// Used by MessageService to authoratively populate quote_data when creating a QT message.
+func (r *QuotationRepository) GetActiveByRFQAndFactory(rfqID, factoryID int64) (*domain.Quotation, error) {
+	var item domain.Quotation
+	query := quotationSelectBase() + `
+		WHERE q.rfq_id = $1 AND q.factory_id = $2 AND q.status IN ('PD', 'AC')
+		ORDER BY q.log_timestamp DESC
+		LIMIT 1
+	`
+	if err := r.db.Get(&item, query, rfqID, factoryID); err != nil {
+		return nil, err
+	}
+	enrichQuotationComputed(&item)
+	return &item, nil
+}
+
 func (r *QuotationRepository) UpdateStatus(quotationID int64, status string) error {
 	query := `
 		UPDATE quotations

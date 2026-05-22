@@ -163,7 +163,7 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 	walletService := walletservice.NewWalletService(walletRepo, transactionRepo)
 	notificationService := notificationservice.NewNotificationService(notificationRepo)
 	rfqService := rfqservice.NewRFQService(rfqRepo, factoryRepo, notificationService)
-	messageService := messageservice.NewMessageService(messageRepo, conversationRepo, notificationService)
+	messageService := messageservice.NewMessageService(messageRepo, conversationRepo, quotationRepo, notificationService)
 	orderService := orderservice.NewOrderService(db, orderRepo, paymentScheduleRepo, walletRepo, transactionRepo, quotationRepo, rfqRepo, reviewRepo, notificationService, messageService)
 	commissionService := walletservice.NewCommissionService(platformConfigRepo, commissionRepo)
 	platformConfigService := platformservice.NewPlatformConfigService(db, platformConfigRepo, adminAuditRepo)

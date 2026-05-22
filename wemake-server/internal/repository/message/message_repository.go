@@ -31,14 +31,14 @@ func (r *MessageRepository) CreateTx(exec interface {
 	if item.MessageType == "" {
 		item.MessageType = "TX"
 	}
-	// message_id is auto-generated (bigint serial), so omit it from INSERT.
+	// messages table has no reference_type column — message_type is the sole
+	// discriminator. reference_id stores the linked entity's primary key.
 	query := `
-		INSERT INTO messages (reference_type, reference_id, sender_id, receiver_id, content, attachment_url, created_at, conv_id, message_type, quote_data, is_read)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO messages (reference_id, sender_id, receiver_id, content, attachment_url, created_at, conv_id, message_type, quote_data, is_read)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 	_, err := exec.Exec(
 		query,
-		item.ReferenceType,
 		domainutil.NullablePositiveInt64(item.ReferenceID),
 		item.SenderID,
 		item.ReceiverID,
@@ -53,6 +53,8 @@ func (r *MessageRepository) CreateTx(exec interface {
 	return err
 }
 
+// ReferenceExists checks whether the entity pointed to by referenceID exists.
+// referenceType is derived from message_type at the service layer.
 func (r *MessageRepository) ReferenceExists(referenceType string, referenceID int64) (bool, error) {
 	var exists bool
 	var query string
@@ -78,41 +80,83 @@ func (r *MessageRepository) ReferenceExists(referenceType string, referenceID in
 	return exists, nil
 }
 
+// referenceTypeFromMessageType derives the logical reference category from
+// message_type so we can drive JOINs without a reference_type DB column.
+func referenceTypeFromMessageType(mt string) string {
+	switch mt {
+	case "QT", "rfq_card", "quotation_card":
+		return "RQ"
+	case "PD", "PM", "ID":
+		return mt
+	case "OD":
+		return "OD"
+	default:
+		return ""
+	}
+}
+
 func (r *MessageRepository) ListByReference(referenceType string, referenceID int64, userID int64) ([]domain.Message, error) {
 	var items []domain.Message
+	// Derive reference_type from message_type in SELECT so the caller gets a
+	// consistent field without relying on a messages.reference_type column.
 	query := `
 		SELECT m.message_id,
-		       COALESCE(m.reference_type, $1) AS reference_type,
-		       COALESCE(m.reference_id, 0)    AS reference_id,
-		       CASE WHEN m.reference_type = 'RQ' THEN rq.title ELSE NULL END AS rfq_title,
+		       CASE m.message_type
+		         WHEN 'QT'             THEN 'RQ'
+		         WHEN 'rfq_card'       THEN 'RQ'
+		         WHEN 'quotation_card' THEN 'RQ'
+		         WHEN 'PD'             THEN 'PD'
+		         WHEN 'PM'             THEN 'PM'
+		         WHEN 'ID'             THEN 'ID'
+		         ELSE ''
+		       END                      AS reference_type,
+		       COALESCE(m.reference_id, 0) AS reference_id,
+		       CASE WHEN m.message_type IN ('QT','rfq_card','quotation_card')
+		            THEN rq.title ELSE NULL END AS rfq_title,
+		       NULL::text               AS reference_title,
 		       m.sender_id, m.receiver_id, m.content, m.attachment_url,
 		       m.created_at, m.conv_id, m.message_type, m.quote_data, NULL::bigint AS boq_rfq_id, m.is_read
 		FROM messages m
-		LEFT JOIN rfqs rq ON rq.rfq_id = m.reference_id AND m.reference_type = 'RQ'
-		WHERE m.reference_id = $2 AND (m.sender_id = $3 OR m.receiver_id = $3)
+		LEFT JOIN rfqs rq ON rq.rfq_id = m.reference_id
+		                  AND m.message_type IN ('QT','rfq_card','quotation_card')
+		WHERE m.reference_id = $1 AND (m.sender_id = $2 OR m.receiver_id = $2)
 		ORDER BY m.created_at ASC
 	`
-	err := r.db.Select(&items, query, referenceType, referenceID, userID)
+	err := r.db.Select(&items, query, referenceID, userID)
 	return items, err
 }
 
 func (r *MessageRepository) ListByConvID(convID int64) ([]domain.Message, error) {
 	var items []domain.Message
+	// reference_type is derived from message_type — no reference_type column in DB.
+	// JOINs are driven by message_type to fetch related titles.
 	query := `
 		SELECT m.message_id,
-		       COALESCE(m.reference_type, '')  AS reference_type,
-		       COALESCE(m.reference_id, 0)     AS reference_id,
-		       rq.title                        AS rfq_title,
+		       CASE m.message_type
+		         WHEN 'QT'             THEN 'RQ'
+		         WHEN 'rfq_card'       THEN 'RQ'
+		         WHEN 'quotation_card' THEN 'RQ'
+		         WHEN 'PD'             THEN 'PD'
+		         WHEN 'PM'             THEN 'PM'
+		         WHEN 'ID'             THEN 'ID'
+		         ELSE ''
+		       END                      AS reference_type,
+		       COALESCE(m.reference_id, 0) AS reference_id,
+		       rq.title                 AS rfq_title,
 		       CASE
-		         WHEN m.reference_type = 'RQ'              THEN rq.title
-		         WHEN m.reference_type IN ('PD','PM','ID') THEN sc.title
+		         WHEN m.message_type IN ('QT','rfq_card','quotation_card') THEN rq.title
+		         WHEN m.message_type IN ('PD','PM','ID')                   THEN sc.title
 		         ELSE NULL
-		       END                             AS reference_title,
+		       END                      AS reference_title,
 		       m.sender_id, m.receiver_id, m.content, m.attachment_url,
 		       m.created_at, m.conv_id, m.message_type, m.quote_data, NULL::bigint AS boq_rfq_id, m.is_read
 		FROM messages m
-		LEFT JOIN rfqs            rq ON rq.rfq_id      = m.reference_id AND m.reference_type = 'RQ'
-		LEFT JOIN factory_showcases sc ON sc.showcase_id = m.reference_id AND m.reference_type IN ('PD','PM','ID')
+		LEFT JOIN rfqs rq
+		       ON rq.rfq_id = m.reference_id
+		      AND m.message_type IN ('QT','rfq_card','quotation_card')
+		LEFT JOIN factory_showcases sc
+		       ON sc.showcase_id = m.reference_id
+		      AND m.message_type IN ('PD','PM','ID')
 		WHERE m.conv_id = $1
 		ORDER BY m.created_at ASC
 	`
