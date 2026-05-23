@@ -27,16 +27,22 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 	}
 
 	result, err := h.service.Register(authservice.RegisterInput{
-		Role:          req.Role,
-		Email:         req.Email,
-		Phone:         req.Phone,
-		Password:      req.Password,
-		FirstName:     req.FirstName,
-		LastName:      req.LastName,
-		FactoryName:   req.FactoryName,
-		FactoryTypeID: req.FactoryTypeID,
-		TaxID:         req.TaxID,
-		ProvinceID:    req.ProvinceID,
+		Role:           req.Role,
+		Email:          req.Email,
+		Phone:          req.Phone,
+		Password:       req.Password,
+		FirstName:      req.FirstName,
+		LastName:       req.LastName,
+		FactoryName:    req.FactoryName,
+		FactoryTypeID:  req.FactoryTypeID,
+		TaxID:          req.TaxID,
+		ProvinceID:     req.ProvinceID,
+		CategoryIDs:    req.CategoryIDs,
+		SubCategoryIDs: req.SubCategoryIDs,
+		CertID:         req.CertID,
+		DocumentURL:    req.DocumentURL,
+		CertNumber:     req.CertNumber,
+		CertExpireDate: req.CertExpireDate,
 	})
 	if err != nil {
 		switch err {

@@ -33,8 +33,8 @@ func (h *FrontendHandler) GetBootstrap(c *fiber.Ctx) error {
 	logger.Info("frontend bootstrap returned",
 		"user_id", userID,
 		"has_current_user", item.CurrentUser != nil,
-		"categories_count", len(item.Categories),
-		"factories_count", len(item.Factories),
+		"rfqs_count", len(item.RFQs),
+		"orders_count", len(item.Orders),
 	)
 	return c.JSON(item)
 }

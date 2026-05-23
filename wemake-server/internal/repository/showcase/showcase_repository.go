@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/helper"
@@ -24,7 +25,7 @@ const showcaseExploreBaseSQL = `
 		fs.factory_id,
 		fs.content_type,
 		fs.title,
-		fs.excerpt,
+		NULL::text AS excerpt,
 		NULLIF(fs.linked_showcases->>0, '') AS image_url,
 		fs.category_id,
 		fs.sub_category_id,
@@ -34,9 +35,9 @@ const showcaseExploreBaseSQL = `
 		fs.start_date,
 		fs.end_date,
 		fs.linked_showcases,
-		COALESCE(fs.tags, '[]'::jsonb) AS tags,
+		'[]'::jsonb AS tags,
 		fs.likes_count,
-		fs.view_count,
+		0::bigint AS view_count,
 		fs.status,
 		fs.created_at,
 		fs.updated_at,
@@ -44,7 +45,7 @@ const showcaseExploreBaseSQL = `
 		fp.factory_name,
 		fp.image_url AS factory_image_url,
 		fp.rating::float8 AS factory_rating,
-		COALESCE(fp.is_verified, FALSE) AS factory_verified,
+		(fp.approval_status = 'AP') AS factory_verified,
 		c.name AS category_name,
 		sc.name AS sub_category_name
 	FROM factory_showcases fs
@@ -176,7 +177,7 @@ func (r *ShowcaseRepository) GetShowcasesByFactory(factoryID int64, contentType 
 	query := `
 		SELECT
 			fs.showcase_id, ` + contentTypeExpr + `, fs.title,
-			fs.excerpt, NULLIF(fs.linked_showcases->>0, '') AS image_url,
+			NULL::text AS excerpt, NULLIF(fs.linked_showcases->>0, '') AS image_url,
 			fs.category_id, fs.sub_category_id,
 			fs.moq, ` + basePriceExpr + `, ` + leadTimeExpr + `,
 			fs.likes_count, fs.status, fs.created_at,
@@ -265,17 +266,17 @@ func (r *ShowcaseRepository) GetDetail(showcaseID int64) (*domain.ShowcaseDetail
 	err := r.db.Get(&s, `
 		SELECT
 			fs.showcase_id, fs.factory_id, fs.content_type,
-			fs.title, fs.excerpt, NULLIF(fs.linked_showcases->>0, '') AS image_url,
+			fs.title, NULL::text AS excerpt, NULLIF(fs.linked_showcases->>0, '') AS image_url,
 			fs.category_id, fs.sub_category_id,
 			fs.moq,
 			fs.base_price, fs.promo_price, fs.start_date, fs.end_date,
-			fs.content, fs.linked_showcases, COALESCE(fs.tags, '[]'::jsonb) AS tags,
-			fs.likes_count, fs.view_count, fs.status, fs.created_at,
+			fs.content, fs.linked_showcases, '[]'::jsonb AS tags,
+			fs.likes_count, 0::bigint AS view_count, fs.status, fs.created_at,
 			fs.updated_at, fs.published_at,
 			fp.factory_name,
 			fp.image_url         AS factory_image_url,
 			fp.rating::float8    AS factory_rating,
-			COALESCE(fp.is_verified, FALSE) AS factory_verified,
+			(fp.approval_status = 'AP') AS factory_verified,
 			ft.type_name    AS factory_specialization,
 			fp.review_count      AS factory_review_count,
 			p.name_th            AS province_name,
@@ -318,7 +319,7 @@ func (r *ShowcaseRepository) GetByID(showcaseID, factoryID int64) (*domain.Facto
 			factory_id,
 			content_type,
 			title,
-			excerpt,
+			NULL::text AS excerpt,
 			NULLIF(linked_showcases->>0, '') AS image_url,
 			category_id,
 			sub_category_id,
@@ -329,9 +330,9 @@ func (r *ShowcaseRepository) GetByID(showcaseID, factoryID int64) (*domain.Facto
 			end_date,
 			content,
 			linked_showcases,
-			COALESCE(tags, '[]'::jsonb) AS tags,
+			'[]'::jsonb AS tags,
 			COALESCE(likes_count, 0) AS likes_count,
-			COALESCE(view_count, 0) AS view_count,
+			0::bigint AS view_count,
 			status,
 			created_at,
 			updated_at,
@@ -354,11 +355,8 @@ func (r *ShowcaseRepository) GetAnalytics(showcaseID, factoryID int64) (*domain.
 			title,
 			content_type,
 			likes_count,
-			view_count,
-			CASE
-				WHEN view_count > 0 THEN ROUND((likes_count::numeric / view_count::numeric) * 100, 2)::float8
-				ELSE 0
-			END AS engagement_score
+			0::bigint AS view_count,
+			0::float8 AS engagement_score
 		FROM factory_showcases
 		WHERE showcase_id = $1 AND factory_id = $2
 	`, showcaseID, factoryID)
@@ -366,6 +364,171 @@ func (r *ShowcaseRepository) GetAnalytics(showcaseID, factoryID int64) (*domain.
 		return nil, err
 	}
 	return &item, nil
+}
+
+const showcasePaginatedBaseSQL = `
+	SELECT
+		fs.showcase_id,
+		fs.factory_id,
+		fs.content_type,
+		fs.title,
+		NULL::text AS excerpt,
+		NULL::text AS image_url,
+		fs.category_id,
+		fs.sub_category_id,
+		fs.moq,
+		fs.base_price,
+		fs.promo_price,
+		fs.lead_time_days,
+		fs.start_date,
+		fs.end_date,
+		COALESCE(fs.linked_showcases, '[]'::jsonb) AS linked_showcases,
+		'[]'::jsonb AS tags,
+		fs.likes_count,
+		0::bigint AS view_count,
+		fs.status,
+		fs.published_at AS created_at,
+		fs.published_at AS updated_at,
+		fs.published_at,
+		fp.factory_name,
+		fp.image_url AS factory_image_url,
+		fp.rating::float8 AS factory_rating,
+		(fp.approval_status = 'AP') AS factory_verified,
+		c.name AS category_name,
+		sc.name AS sub_category_name
+	FROM factory_showcases fs
+	INNER JOIN factory_profiles fp ON fs.factory_id = fp.user_id
+	LEFT JOIN lbi_categories c ON fs.category_id = c.category_id
+	LEFT JOIN lbi_sub_categories sc ON fs.sub_category_id = sc.sub_category_id
+`
+
+func (r *ShowcaseRepository) ListPaginated(filter domain.ShowcasePaginatedFilter) ([]domain.ShowcaseExploreItem, int64, error) {
+	clauses := []string{"fs.status = 'AC'"}
+	args := []interface{}{}
+	argPos := 1
+
+	if len(filter.Types) > 0 {
+		clauses = append(clauses, fmt.Sprintf("fs.content_type = ANY($%d)", argPos))
+		args = append(args, pq.Array(filter.Types))
+		argPos++
+		clauses = append(clauses, "(fs.content_type != 'PM' OR fs.end_date IS NULL OR fs.end_date >= CURRENT_DATE)")
+	}
+	if filter.Keyword != "" {
+		clauses = append(clauses, fmt.Sprintf("fs.title ILIKE $%d", argPos))
+		args = append(args, "%"+filter.Keyword+"%")
+		argPos++
+	}
+	if filter.CategoryID != nil {
+		clauses = append(clauses, fmt.Sprintf("fs.category_id = $%d", argPos))
+		args = append(args, *filter.CategoryID)
+		argPos++
+	}
+	if filter.SubCategoryID != nil {
+		clauses = append(clauses, fmt.Sprintf("fs.sub_category_id = $%d", argPos))
+		args = append(args, *filter.SubCategoryID)
+		argPos++
+	}
+
+	where := " WHERE " + strings.Join(clauses, " AND ")
+
+	var total int64
+	if err := r.db.Get(&total, "SELECT COUNT(*) FROM factory_showcases fs"+where, args...); err != nil {
+		return nil, 0, err
+	}
+
+	orderBy := "fs.published_at DESC NULLS LAST, fs.created_at DESC"
+	if filter.Sort == "popular" {
+		orderBy = "fs.likes_count DESC, " + orderBy
+	}
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	page := filter.Page
+	if page <= 0 {
+		page = 1
+	}
+	offset := (page - 1) * limit
+
+	dataArgs := append(args, limit, offset)
+	query := showcasePaginatedBaseSQL + where +
+		fmt.Sprintf(" ORDER BY %s LIMIT $%d OFFSET $%d", orderBy, argPos, argPos+1)
+
+	var items []domain.ShowcaseExploreItem
+	if err := r.db.Select(&items, query, dataArgs...); err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
+// GetHomeShowcases returns showcases grouped by content_type, limited per type (for home page).
+func (r *ShowcaseRepository) GetHomeShowcases(types []string, limitPerType int) (map[string][]domain.ShowcaseExploreItem, error) {
+	result := make(map[string][]domain.ShowcaseExploreItem, len(types))
+	for _, t := range types {
+		result[t] = []domain.ShowcaseExploreItem{}
+	}
+	if len(types) == 0 || limitPerType <= 0 {
+		return result, nil
+	}
+	var rows []domain.ShowcaseExploreItem
+	err := r.db.Select(&rows, `
+		SELECT
+			fs.showcase_id, fs.factory_id, fs.content_type, fs.title,
+			NULL::text AS excerpt,
+			NULLIF(fs.linked_showcases->>0, '') AS image_url,
+			fs.category_id, fs.sub_category_id, fs.moq,
+			fs.base_price, fs.promo_price,
+			fs.start_date, fs.end_date,
+			COALESCE(fs.linked_showcases, '[]'::jsonb) AS linked_showcases,
+			'[]'::jsonb AS tags,
+			fs.likes_count, 0::bigint AS view_count,
+			fs.status, fs.created_at, fs.updated_at, fs.published_at,
+			fp.factory_name,
+			fp.image_url AS factory_image_url,
+			fp.rating::float8 AS factory_rating,
+			(fp.approval_status = 'AP') AS factory_verified,
+			cat.name AS category_name,
+			sub.name AS sub_category_name
+		FROM (
+			SELECT *, ROW_NUMBER() OVER (PARTITION BY content_type ORDER BY published_at DESC NULLS LAST) AS rn
+			FROM factory_showcases
+			WHERE status = 'AC' AND content_type = ANY($1)
+		) fs
+		INNER JOIN factory_profiles fp ON fp.user_id = fs.factory_id
+		LEFT JOIN lbi_categories cat ON cat.category_id = fs.category_id
+		LEFT JOIN lbi_sub_categories sub ON sub.sub_category_id = fs.sub_category_id
+		WHERE fs.rn <= $2
+		ORDER BY fs.content_type, fs.published_at DESC NULLS LAST
+	`, pq.Array(types), limitPerType)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		result[row.ContentType] = append(result[row.ContentType], row)
+	}
+	return result, nil
+}
+
+// ListHomePromoSlides returns banner slides from PM showcases (fallback until promo_slides table exists).
+func (r *ShowcaseRepository) ListHomePromoSlides(limit int) ([]domain.HomePromoSlide, error) {
+	if limit <= 0 {
+		limit = 5
+	}
+	var items []domain.HomePromoSlide
+	err := r.db.Select(&items, `
+		SELECT
+			showcase_id AS slide_id,
+			title,
+			NULLIF(linked_showcases->>0, '') AS image_url,
+			'/showcases/' || showcase_id AS link_to
+		FROM factory_showcases
+		WHERE status = 'AC'
+		  AND content_type = 'PM'
+		  AND (end_date IS NULL OR end_date >= CURRENT_DATE)
+		ORDER BY likes_count DESC, published_at DESC NULLS LAST
+		LIMIT $1
+	`, limit)
+	return items, err
 }
 
 func (r *ShowcaseRepository) ListPromoSlides() ([]domain.PromoSlide, error) {

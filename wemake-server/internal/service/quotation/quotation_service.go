@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/yourusername/wemake/internal/helper"
+	"strconv"
 	"strings"
+
+	"github.com/yourusername/wemake/internal/helper"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -156,10 +158,10 @@ func (s *QuotationService) GetByID(quotationID int64) (*domain.Quotation, error)
 	}
 	if s.items != nil {
 		items, err := s.items.ListByQuotation(quotationID)
-		if err != nil {
-			return nil, err
+		if err == nil {
+			item.Items = items
 		}
-		item.Items = items
+		// Non-fatal: quotation_items table may not exist yet; continue without line items.
 	}
 	return item, nil
 }
@@ -184,6 +186,25 @@ func (s *QuotationService) CanView(quoteID, userID int64, role string) (bool, er
 
 func (s *QuotationService) ListHistory(quoteID int64) ([]domain.QuotationHistoryEntry, error) {
 	return s.repo.ListHistory(quoteID)
+}
+
+func (s *QuotationService) HistoriesForQuotes(quotes []domain.Quotation) (map[string][]domain.QuotationHistoryEntry, error) {
+	out := make(map[string][]domain.QuotationHistoryEntry, len(quotes))
+	for _, q := range quotes {
+		entries, err := s.ListHistory(q.QuotationID)
+		if err != nil {
+			return nil, err
+		}
+		if entries == nil {
+			entries = []domain.QuotationHistoryEntry{}
+		}
+		out[formatQuoteIDKey(q.QuotationID)] = entries
+	}
+	return out, nil
+}
+
+func formatQuoteIDKey(quoteID int64) string {
+	return strconv.FormatInt(quoteID, 10)
 }
 
 func (s *QuotationService) ListRevisionChain(quoteID int64) ([]domain.Quotation, error) {
@@ -274,7 +295,7 @@ func (s *QuotationService) PatchBody(
 	var validUntilPtr *time.Time
 	if validityDays > 0 {
 		validityDaysPtr = &validityDays
-		vu := time.Now().UTC().AddDate(0, 0, validityDays)
+		vu := q.CreateTime.AddDate(0, 0, validityDays)
 		validUntilPtr = &vu
 	}
 	if err := s.repo.UpdateBody(quoteID, pricePerPiece, moldCost, shippingCost, packagingCost, toolingMoldCost, leadTimeDays, shippingMethodID, factoryUserID, newVersion, paymentTerms, nextHighlight, validityDaysPtr, validUntilPtr); err != nil {
@@ -545,10 +566,11 @@ func (s *QuotationService) Reject(quoteID, customerID int64) error {
 		Type:    "QUOTATION_REJECTED",
 		Title:   "ใบเสนอราคาถูกปฏิเสธ",
 		Message: fmt.Sprintf("Quote #%d ถูกปฏิเสธ", q.QuotationID),
-		LinkTo:  helper.QuoteLink(q.QuotationID),
+		LinkTo:  helper.FactoryRFQLink(rfq.RFQID),
 		Data: helper.NotificationData(map[string]interface{}{
+			"rfq_id":   rfq.RFQID,
 			"quote_id": q.QuotationID,
-			"url":      helper.QuoteLink(q.QuotationID),
+			"url":      helper.FactoryRFQLink(rfq.RFQID),
 		}),
 		ReferenceID: &q.QuotationID,
 		CreatedAt:   time.Now(),
@@ -584,12 +606,12 @@ func (s *QuotationService) notifyQuotationQuoted(item *domain.Quotation) {
 		Type:    "RFQ_QUOTED",
 		Title:   title,
 		Message: fmt.Sprintf("โรงงาน %s ส่งใบเสนอราคาสำหรับ %s", factoryName, rfqTitle),
-		LinkTo:  helper.QuoteLink(item.QuotationID),
+		LinkTo:  helper.RFQLink(rfq.RFQID),
 		Data: helper.NotificationData(map[string]interface{}{
 			"rfq_id":     rfq.RFQID,
 			"quote_id":   item.QuotationID,
 			"factory_id": item.FactoryID,
-			"url":        helper.QuoteLink(item.QuotationID),
+			"url":        helper.RFQLink(rfq.RFQID),
 		}),
 		ReferenceID: &item.QuotationID,
 		CreatedAt:   item.CreateTime,

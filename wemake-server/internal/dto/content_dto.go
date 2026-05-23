@@ -47,12 +47,15 @@ type MarkConversationAsReadRequest struct {
 
 // Production DTOs
 type CreateProductionUpdateRequest struct {
-	StepID       int64   `json:"step_id" validate:"gt=0"`
-	Status       string  `json:"status" validate:"notblank"`
-	CompletedAt  *string `json:"completed_at"` // RFC3339
-	Notes        *string `json:"notes"`
-	ImageURLs    []string `json:"image_urls"`
-	ProgressPercent *int `json:"progress_percent"`
+	StepID          int64    `json:"step_id" validate:"gte=0"` // gte=0: step_id=0 คือขั้น "ยืนยันรับงาน" พิเศษ
+	Status          string   `json:"status" validate:"notblank"`
+	CompletedAt     *string  `json:"completed_at"` // RFC3339
+	Notes           *string  `json:"notes"`
+	ImageURLs       []string `json:"image_urls"`
+	ProgressPercent *int     `json:"progress_percent"`
+	// step_id=4 (จัดส่งแล้ว): บันทึก tracking_no / courier ลง orders table
+	TrackingNo *string `json:"tracking_no"`
+	Courier    *string `json:"courier"`
 }
 
 type RejectProductionUpdateRequest struct {

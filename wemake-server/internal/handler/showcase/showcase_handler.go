@@ -249,6 +249,48 @@ func parseContentTypeQuery(c *fiber.Ctx, invalidMsg string) (string, error) {
 }
 
 func (h *ShowcaseHandler) List(c *fiber.Ctx) error {
+	if typesParam := helper.QueryString(c, "types"); typesParam != "" {
+		rawTypes := strings.Split(typesParam, ",")
+		validTypes := make([]string, 0, len(rawTypes))
+		for _, t := range rawTypes {
+			t = strings.ToUpper(strings.TrimSpace(t))
+			if _, ok := showcaseTypeQueryAllowed[t]; !ok {
+				return helper.BadRequestError(c, errInvalidTypeQuery)
+			}
+			validTypes = append(validTypes, t)
+		}
+
+		// Paginated flat list: ?types=PD,MT&page=1&limit=20
+		if page := helper.QueryParams(c).Int("page", 0); page > 0 {
+			limit := helper.QueryParams(c).Int("limit", 20)
+			keyword := helper.QueryString(c, "q")
+			sort := helper.QueryString(c, "sort")
+			catID, _ := helper.ParseOptionalPositiveInt64Query(c, "category")
+			subCatID, _ := helper.ParseOptionalPositiveInt64Query(c, "sub_cat")
+			result, err := h.service.ListPaginated(domain.ShowcasePaginatedFilter{
+				Types:         validTypes,
+				Keyword:       keyword,
+				CategoryID:    catID,
+				SubCategoryID: subCatID,
+				Sort:          sort,
+				Limit:         limit,
+				Page:          page,
+			})
+			if err != nil {
+				return helper.JSONInternal(c, errFetchShowcases)
+			}
+			return c.JSON(result)
+		}
+
+		// Grouped mode: ?types=PD,MT&limit=8
+		limit := helper.QueryParams(c).Int("limit", 8)
+		grouped, err := h.service.GetHomeShowcases(validTypes, limit)
+		if err != nil {
+			return helper.JSONInternal(c, errFetchShowcases)
+		}
+		return c.JSON(grouped)
+	}
+
 	contentType, err := parseContentTypeQuery(c, errInvalidTypeQuery)
 	if err != nil {
 		return helper.BadRequestError(c, err.Error())
@@ -452,6 +494,15 @@ func (h *ShowcaseHandler) RecordView(c *fiber.Ctx) error {
 
 func (h *ShowcaseHandler) ListPromoSlides(c *fiber.Ctx) error {
 	items, err := h.service.ListPromoSlides()
+	if err != nil {
+		return helper.JSONInternal(c, "failed to fetch promo slides")
+	}
+	return c.JSON(items)
+}
+
+func (h *ShowcaseHandler) ListHomePromoSlides(c *fiber.Ctx) error {
+	limit := helper.QueryParams(c).Int("limit", 5)
+	items, err := h.service.ListHomePromoSlides(limit)
 	if err != nil {
 		return helper.JSONInternal(c, "failed to fetch promo slides")
 	}

@@ -167,6 +167,22 @@ func (r *QuotationRepository) GetByID(quotationID int64) (*domain.Quotation, err
 	return &item, nil
 }
 
+// GetActiveByRFQAndFactory returns the latest active (PD/AC) quotation for a given RFQ + factory pair.
+// Used by MessageService to authoratively populate quote_data when creating a QT message.
+func (r *QuotationRepository) GetActiveByRFQAndFactory(rfqID, factoryID int64) (*domain.Quotation, error) {
+	var item domain.Quotation
+	query := quotationSelectBase() + `
+		WHERE q.rfq_id = $1 AND q.factory_id = $2 AND q.status IN ('PD', 'AC')
+		ORDER BY q.log_timestamp DESC
+		LIMIT 1
+	`
+	if err := r.db.Get(&item, query, rfqID, factoryID); err != nil {
+		return nil, err
+	}
+	enrichQuotationComputed(&item)
+	return &item, nil
+}
+
 func (r *QuotationRepository) UpdateStatus(quotationID int64, status string) error {
 	query := `
 		UPDATE quotations
@@ -293,23 +309,23 @@ func (r *QuotationRepository) UpdateBody(
 		UPDATE quotations
 		SET price_per_piece = $1,
 		    mold_cost = $2,
-		    shipping_cost = $4,
-		    packaging_cost = $5,
-		    lead_time_days = $6,
-		    shipping_method_id = CASE WHEN $7 > 0 THEN $7 ELSE shipping_method_id END,
-		    payment_terms = CASE WHEN $8::text IS NOT NULL THEN $8 ELSE payment_terms END,
-		    factory_highlight = CASE WHEN $12::text IS NOT NULL THEN $12 ELSE factory_highlight END,
-		    validity_days = CASE WHEN $13::int IS NOT NULL THEN $13 ELSE validity_days END,
-		    valid_until   = CASE WHEN $14::timestamp IS NOT NULL THEN $14 ELSE valid_until END,
-		    version = $9,
+		    shipping_cost = $3,
+		    packaging_cost = $4,
+		    lead_time_days = $5,
+		    shipping_method_id = CASE WHEN $6 > 0 THEN $6 ELSE shipping_method_id END,
+		    payment_terms = CASE WHEN $7::text IS NOT NULL THEN $7 ELSE payment_terms END,
+		    factory_highlight = CASE WHEN $10::text IS NOT NULL THEN $10 ELSE factory_highlight END,
+		    validity_days = CASE WHEN $11::int IS NOT NULL THEN $11 ELSE validity_days END,
+		    valid_until   = CASE WHEN $12::timestamp IS NOT NULL THEN $12 ELSE valid_until END,
+		    version = $8,
 		    log_timestamp = NOW()
-		WHERE quote_id = $11 AND COALESCE(is_locked, false) = false AND status = 'PD'
+		WHERE quote_id = $9 AND COALESCE(is_locked, false) = false AND status = 'PD'
 	`
 	res, err := r.db.Exec(query,
-		pricePerPiece, moldCost, toolingMoldCost, shippingCost, packagingCost,
+		pricePerPiece, moldCost, shippingCost, packagingCost,
 		leadTimeDays, shippingMethodID,
 		domainutil.Nullable(paymentTerms),
-		newVersion, editorID, quoteID,
+		newVersion, quoteID,
 		domainutil.Nullable(factoryHighlight),
 		validityDays, validUntil,
 	)

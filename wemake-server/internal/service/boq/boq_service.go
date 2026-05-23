@@ -285,8 +285,7 @@ func (s *BOQService) Create(convID, actorUserID int64, input BOQInput) (*domain.
 		UPDATE conversations
 		SET last_message = 'BOQ ใหม่',
 		    unread_customer = COALESCE(unread_customer, 0) + 1,
-		    updated_at = NOW(),
-		    conv_type = CASE WHEN conv_type = 'general' THEN 'boq' ELSE conv_type END
+		    updated_at = NOW()
 		WHERE conv_id = $1
 		`, convID); err != nil {
 			return err

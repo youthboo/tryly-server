@@ -68,6 +68,9 @@ type ProductionWriteInput struct {
 	ImageURLs              []string
 	ConfirmPaymentTrigger  bool
 	HeaderPaymentConfirmed bool
+	// step_id=4: บันทึก tracking_no / courier ลง orders
+	TrackingNo string
+	Courier    string
 }
 
 func NewProductionService(repo *productionrepo.ProductionRepository) *ProductionService {
@@ -115,13 +118,15 @@ func (s *ProductionService) ListByOrderID(orderID, userID int64) (*domain.Produc
 		Updates:          s.repo.InflateUpdates(orderID, steps, persisted),
 		OrderStatus:      status,
 		ProductionLocked: false,
+		TemplatePreview:  steps,
 	}, nil
 }
 
 func (s *ProductionService) Upsert(orderID, userID int64, input ProductionWriteInput) (*domain.ProductionUpdateResult, error) {
 	input.Status = domainutil.NormalizeStatus(input.Status)
 	input.Description = strings.TrimSpace(input.Description)
-	if input.StepID <= 0 {
+	// step_id=0 = "ยืนยันรับงาน" อนุญาต, reject เฉพาะค่า negative
+	if input.StepID < 0 {
 		return nil, &ProductionRuleError{Err: ErrProductionStepIDRequired}
 	}
 	if len(input.Description) > 2000 {
@@ -184,7 +189,8 @@ func (s *ProductionService) Upsert(orderID, userID int64, input ProductionWriteI
 			}
 		}
 
-		if step.SortOrder > 1 {
+		// step_id=0 (ยืนยันรับงาน) ต้องทำก่อน step ทุกตัว → เปลี่ยน guard จาก > 1 เป็น > 0
+		if step.SortOrder > 0 {
 			prevStep := s.repo.StepBySortOrder(steps, step.SortOrder-1)
 			prev := s.repo.GetUpdateByOrderAndStep(orderID, prevStep.StepID, inflated)
 			if input.Status == "IP" && (prev == nil || prev.Status != "CD") {
@@ -213,7 +219,11 @@ func (s *ProductionService) Upsert(orderID, userID int64, input ProductionWriteI
 		}
 
 		if input.Status == "CD" {
+			// step_id=0 = ยืนยันรับงาน — ไม่ต้องแนบรูป
 			requiredPhotos := 1
+			if input.StepID == 0 {
+				requiredPhotos = 0
+			}
 			if len(input.ImageURLs) < requiredPhotos {
 				return &ProductionRuleError{
 					Err:     ErrProductionInsufficientEvidence,
@@ -242,6 +252,21 @@ func (s *ProductionService) Upsert(orderID, userID int64, input ProductionWriteI
 			now := time.Now().UTC()
 			update.CompletedAt = &now
 		}
+
+		// step_id=4: บันทึก tracking_no / courier ทันทีที่มีค่า (ก่อน early-return เพื่อให้ update ได้แม้ submit ซ้ำ)
+		if input.StepID == 4 {
+			trackingVal := strings.TrimSpace(input.TrackingNo)
+			courierVal := strings.TrimSpace(input.Courier)
+			if trackingVal != "" || courierVal != "" {
+				if _, err := tx.Exec(
+					`UPDATE orders SET tracking_no = NULLIF($1,''), courier = NULLIF($2,''), updated_at = NOW() WHERE order_id = $3`,
+					trackingVal, courierVal, orderID,
+				); err != nil {
+					return err
+				}
+			}
+		}
+
 		if current.Status == input.Status && current.Description == input.Description && equalStringArrays(current.ImageURLs, update.ImageURLs) {
 			update.UpdateID = current.UpdateID
 			update.CreatedAt = current.CreatedAt
@@ -294,33 +319,26 @@ func (s *ProductionService) Upsert(orderID, userID int64, input ProductionWriteI
 		}
 
 		newOrderStatus := order.OrderStatus
-		switch step.StepCode {
-		case "QUALITY_CONTROL":
-			if input.Status == "CD" {
-				newOrderStatus = "QC"
-			}
-		case "READY_TO_SHIP":
-			if input.Status == "CD" {
-				newOrderStatus = "SH"
-			}
-		case "SHIPPED":
-			if input.Status == "CD" {
-				newOrderStatus = "CP"
-			}
-		default:
-			if input.Status == "IP" && domainstatus.IsPreProductionOrder(order.OrderStatus) {
-				newOrderStatus = "PR"
-			}
+		// step_id=0 (ยืนยันรับงาน): CD จาก PD → PR
+		if input.StepID == 0 && input.Status == "CD" && domainstatus.NormalizeOrder(order.OrderStatus) == domain.OrderStatusPaymentDone {
+			newOrderStatus = domain.OrderStatusProduction
 		}
-		if input.Status == "CD" && step.StepCode == "SHIPPED" {
-			newOrderStatus = "CP"
+		// step 3 CD → QC, step 4 CD → SH, step 5 CD → CP
+		if input.Status == "CD" {
+			switch input.StepID {
+			case 3:
+				newOrderStatus = domain.OrderStatusQualityCheck
+			case 4:
+				newOrderStatus = domain.OrderStatusShipping
+			case 5:
+				newOrderStatus = domain.OrderStatusComplete
+			}
 		}
 		if newOrderStatus != order.OrderStatus {
 			if _, err := tx.Exec(`UPDATE orders SET status = $1, updated_at = NOW() WHERE order_id = $2`, newOrderStatus, orderID); err != nil {
 				return err
 			}
 		}
-
 		result = &domain.ProductionUpdateResult{
 			Update:         *update,
 			OrderStatus:    newOrderStatus,

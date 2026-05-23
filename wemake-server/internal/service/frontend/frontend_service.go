@@ -18,25 +18,25 @@ import (
 
 type FrontendService struct {
 	repo        *frontendrepo.FrontendRepository
+	sessionRepo *frontendrepo.SessionRepository
 	factoryRepo *factoryrepo.FactoryRepository
 }
 
-func NewFrontendService(repo *frontendrepo.FrontendRepository, factoryRepo *factoryrepo.FactoryRepository) *FrontendService {
-	return &FrontendService{repo: repo, factoryRepo: factoryRepo}
+func NewFrontendService(repo *frontendrepo.FrontendRepository, sessionRepo *frontendrepo.SessionRepository, factoryRepo *factoryrepo.FactoryRepository) *FrontendService {
+	return &FrontendService{repo: repo, sessionRepo: sessionRepo, factoryRepo: factoryRepo}
 }
 
 func (s *FrontendService) GetBootstrap(userID int64) (*domain.FrontendBootstrapResponse, error) {
 	logger.Debug("building frontend bootstrap", "user_id", userID)
 
-	// anonymous request → return public data only
 	if userID <= 0 {
-		logger.Debug("frontend bootstrap using guest data", "user_id", userID)
-		return s.getGuestBootstrap()
+		return &domain.FrontendBootstrapResponse{
+			RFQs:    []domain.FrontendRFQCard{},
+			Orders:  []domain.FrontendOrderCard{},
+			Threads: []domain.FrontendMessageThread{},
+		}, nil
 	}
 
-	// authenticated request — currentUser อาจเป็น nil ถ้า user ไม่พบในฐานข้อมูล
-	// (เช่น db.Get() fail เพราะ LEFT JOIN คืนหลาย row)
-	// ในกรณีนั้นยังโหลด public data + user-specific data ต่อได้
 	var currentUser *domain.FrontendCurrentUser
 	{
 		cu, err := s.GetCurrentUser(userID)
@@ -46,69 +46,51 @@ func (s *FrontendService) GetBootstrap(userID int64) (*domain.FrontendBootstrapR
 				logger.Error("frontend current user lookup returned non-not-found error", "user_id", userID, "err", err)
 				return nil, err
 			}
-			// user not found → currentUser stays nil, load data as guest
 		} else {
 			logger.Debug("frontend current user loaded", "user_id", cu.ID, "name", cu.Name)
 			currentUser = cu
 		}
 	}
 
-	categoryRows, err := s.repo.ListCategories()
-	if err != nil {
-		logger.Error("frontend categories query failed", "user_id", userID, "err", err)
-		return nil, err
-	}
-	logger.Debug("frontend categories loaded", "user_id", userID, "count", len(categoryRows))
-
-	factoryRows, err := s.repo.ListFactories()
-	if err != nil {
-		logger.Error("frontend factories query failed", "user_id", userID, "err", err)
-		return nil, err
-	}
-	logger.Debug("frontend factories loaded", "user_id", userID, "count", len(factoryRows))
-
 	var rfqRows []frontendrepo.FrontendRFQRow
 	var orderRows []frontendrepo.FrontendOrderRow
 	var threadRows []frontendrepo.FrontendMessageThreadRow
-	if userID > 0 {
-		if rows, e := s.repo.ListRFQsByUserID(userID); e == nil {
-			rfqRows = rows
-			logger.Debug("frontend rfqs loaded", "user_id", userID, "count", len(rfqRows))
-		} else {
-			logger.Warn("frontend rfqs query failed, continuing", "user_id", userID, "err", e)
-		}
-		if rows, e := s.repo.ListOrdersByUserID(userID); e == nil {
-			orderRows = rows
-			logger.Debug("frontend orders loaded", "user_id", userID, "count", len(orderRows))
-		} else {
-			logger.Warn("frontend orders query failed, continuing", "user_id", userID, "err", e)
-		}
-		if rows, e := s.repo.ListMessageThreads(userID); e == nil {
-			threadRows = rows
-			logger.Debug("frontend message threads loaded", "user_id", userID, "count", len(threadRows))
-		} else {
-			logger.Warn("frontend message threads query failed, continuing", "user_id", userID, "err", e)
-		}
+
+	if rows, e := s.repo.ListRFQsByUserID(userID); e == nil {
+		rfqRows = rows
+	} else {
+		logger.Warn("frontend rfqs query failed, continuing", "user_id", userID, "err", e)
+	}
+	if rows, e := s.repo.ListOrdersByUserID(userID); e == nil {
+		orderRows = rows
+	} else {
+		logger.Warn("frontend orders query failed, continuing", "user_id", userID, "err", e)
+	}
+	if rows, e := s.repo.ListMessageThreads(userID); e == nil {
+		threadRows = rows
+	} else {
+		logger.Warn("frontend message threads query failed, continuing", "user_id", userID, "err", e)
+	}
+
+	// Fetch user's favorites (showcase IDs) for heart icons on explore/factory-ideas cards.
+	var favoriteIDs []int64
+	if rows, e := s.repo.ListFavoriteShowcaseIDs(userID); e == nil {
+		favoriteIDs = rows
+	} else {
+		logger.Warn("frontend favorites query failed, continuing", "user_id", userID, "err", e)
+	}
+	if favoriteIDs == nil {
+		favoriteIDs = []int64{}
 	}
 
 	response := &domain.FrontendBootstrapResponse{
 		CurrentUser: currentUser,
-		Categories:  make([]domain.FrontendCategory, 0, len(categoryRows)),
-		Factories:   make([]domain.FrontendFactoryCard, 0, len(factoryRows)),
 		RFQs:        make([]domain.FrontendRFQCard, 0, len(rfqRows)),
 		Orders:      make([]domain.FrontendOrderCard, 0, len(orderRows)),
 		Threads:     make([]domain.FrontendMessageThread, 0, len(threadRows)),
+		Favorites:   favoriteIDs,
 	}
 
-	for _, item := range categoryRows {
-		response.Categories = append(response.Categories, domain.FrontendCategory{
-			ID:   item.ID,
-			Name: item.Name,
-		})
-	}
-	for _, item := range factoryRows {
-		response.Factories = append(response.Factories, mapFactoryCard(item))
-	}
 	for _, item := range rfqRows {
 		response.RFQs = append(response.RFQs, mapRFQCard(item))
 	}
@@ -125,33 +107,89 @@ func (s *FrontendService) GetBootstrap(userID int64) (*domain.FrontendBootstrapR
 	return response, nil
 }
 
-func (s *FrontendService) getGuestBootstrap() (*domain.FrontendBootstrapResponse, error) {
-	categoryRows, err := s.repo.ListCategories()
+func (s *FrontendService) GetSession(userID int64) (*domain.SessionResponse, error) {
+	logger.Debug("building me session", "user_id", userID)
+
+	userRow, err := s.sessionRepo.GetUser(userID)
 	if err != nil {
 		return nil, err
 	}
-	factoryRows, err := s.repo.ListFactories()
-	if err != nil {
-		return nil, err
+
+	currentUser, wallet := mapSessionUser(userRow)
+
+	var rfqRows []frontendrepo.SessionRFQRow
+	if rows, e := s.sessionRepo.ListRFQsByUserID(userID); e == nil {
+		rfqRows = rows
+	} else {
+		logger.Warn("session rfqs query failed, continuing", "user_id", userID, "err", e)
 	}
-	response := &domain.FrontendBootstrapResponse{
-		CurrentUser: nil,
-		Categories:  make([]domain.FrontendCategory, 0, len(categoryRows)),
-		Factories:   make([]domain.FrontendFactoryCard, 0, len(factoryRows)),
-		RFQs:        []domain.FrontendRFQCard{},
-		Orders:      []domain.FrontendOrderCard{},
-		Threads:     []domain.FrontendMessageThread{},
+
+	rfqIDs := make([]int64, 0, len(rfqRows))
+	for _, row := range rfqRows {
+		rfqIDs = append(rfqIDs, row.RFQID)
 	}
-	for _, item := range categoryRows {
-		response.Categories = append(response.Categories, domain.FrontendCategory{
-			ID:   item.ID,
-			Name: item.Name,
-		})
+
+	var offerRows []frontendrepo.SessionOfferRow
+	if rows, e := s.sessionRepo.ListOffersForRFQs(userID, rfqIDs); e == nil {
+		offerRows = rows
+	} else {
+		logger.Warn("session offers query failed, continuing", "user_id", userID, "err", e)
 	}
-	for _, item := range factoryRows {
-		response.Factories = append(response.Factories, mapFactoryCard(item))
+
+	offersByRFQ := make(map[int64][]domain.SessionOffer)
+	for _, row := range offerRows {
+		offersByRFQ[row.RFQID] = append(offersByRFQ[row.RFQID], mapSessionOffer(row))
 	}
-	return response, nil
+
+	rfqs := make([]domain.SessionRFQ, 0, len(rfqRows))
+	for _, row := range rfqRows {
+		offers := offersByRFQ[row.RFQID]
+		if offers == nil {
+			offers = []domain.SessionOffer{}
+		}
+		rfqs = append(rfqs, mapSessionRFQ(row, offers))
+	}
+
+	var orderRows []frontendrepo.SessionOrderRow
+	if rows, e := s.sessionRepo.ListOrdersByUserID(userID); e == nil {
+		orderRows = rows
+	} else {
+		logger.Warn("session orders query failed, continuing", "user_id", userID, "err", e)
+	}
+	orders := make([]domain.SessionOrder, 0, len(orderRows))
+	for _, row := range orderRows {
+		orders = append(orders, mapSessionOrder(row))
+	}
+
+	var threadRows []frontendrepo.SessionThreadRow
+	if rows, e := s.sessionRepo.ListThreadsByUserID(userID); e == nil {
+		threadRows = rows
+	} else {
+		logger.Warn("session threads query failed, continuing", "user_id", userID, "err", e)
+	}
+	threads := make([]domain.SessionThread, 0, len(threadRows))
+	for _, row := range threadRows {
+		threads = append(threads, mapSessionThread(row))
+	}
+
+	var favorites []int64
+	if rows, e := s.repo.ListFavoriteShowcaseIDs(userID); e == nil {
+		favorites = rows
+	} else {
+		logger.Warn("session favorites query failed, continuing", "user_id", userID, "err", e)
+	}
+	if favorites == nil {
+		favorites = []int64{}
+	}
+
+	return &domain.SessionResponse{
+		CurrentUser: currentUser,
+		Wallet:      wallet,
+		RFQs:        rfqs,
+		Orders:      orders,
+		Threads:     threads,
+		Favorites:   favorites,
+	}, nil
 }
 
 func (s *FrontendService) GetCurrentUser(userID int64) (*domain.FrontendCurrentUser, error) {
@@ -577,6 +615,122 @@ func mapFactoryCard(row frontendrepo.FrontendFactoryRow) domain.FrontendFactoryC
 	}
 }
 
+func mapSessionUser(row *frontendrepo.SessionUserRow) (*domain.SessionCurrentUser, *domain.SessionWallet) {
+	name := strings.TrimSpace(strings.Join([]string{
+		row.FirstName.String, row.LastName.String,
+	}, " "))
+	if row.FactoryName.Valid && row.FactoryName.String != "" {
+		name = row.FactoryName.String
+	}
+	if name == "" {
+		name = row.Email
+	}
+
+	return &domain.SessionCurrentUser{
+			ID:          row.ID,
+			Role:        row.Role,
+			Name:        name,
+			Email:       row.Email,
+			Phone:       row.Phone.String,
+			MemberSince: row.MemberSince,
+		}, &domain.SessionWallet{
+			Balance:        row.Balance,
+			PendingBalance: row.PendingBalance,
+		}
+}
+
+func mapSessionOffer(row frontendrepo.SessionOfferRow) domain.SessionOffer {
+	offer := domain.SessionOffer{
+		QuoteID:         row.QuoteID,
+		FactoryID:       row.FactoryID,
+		FactoryName:     row.FactoryName,
+		FactoryVerified: row.FactoryVerified,
+		Status:          row.Status,
+	}
+	if row.FactoryImageURL.Valid {
+		s := row.FactoryImageURL.String
+		offer.FactoryImageURL = &s
+	}
+	if row.PricePerPiece.Valid {
+		v := row.PricePerPiece.Float64
+		offer.PricePerPiece = &v
+	}
+	if row.GrandTotal.Valid {
+		v := row.GrandTotal.Float64
+		offer.GrandTotal = &v
+	}
+	if row.LeadTimeDays.Valid {
+		v := row.LeadTimeDays.Int64
+		offer.LeadTimeDays = &v
+	}
+	return offer
+}
+
+func mapSessionRFQ(row frontendrepo.SessionRFQRow, offers []domain.SessionOffer) domain.SessionRFQ {
+	rfq := domain.SessionRFQ{
+		RFQID:        row.RFQID,
+		Title:        row.Title,
+		Status:       row.Status,
+		CategoryName: row.CategoryName,
+		CreatedAt:    row.CreatedAt,
+		OfferCount:   row.OfferCount,
+		Offers:       offers,
+	}
+	if row.Quantity.Valid {
+		v := row.Quantity.Int64
+		rfq.Quantity = &v
+	}
+	if row.TargetPrice.Valid {
+		v := row.TargetPrice.Float64
+		rfq.TargetPrice = &v
+	}
+	return rfq
+}
+
+func mapSessionOrder(row frontendrepo.SessionOrderRow) domain.SessionOrder {
+	order := domain.SessionOrder{
+		OrderID:     row.OrderID,
+		Title:       row.Title,
+		FactoryID:   row.FactoryID,
+		FactoryName: row.FactoryName,
+		Status:      row.Status,
+		CreatedAt:   row.CreatedAt,
+	}
+	if row.FactoryImageURL.Valid {
+		s := row.FactoryImageURL.String
+		order.FactoryImageURL = &s
+	}
+	if row.TotalAmount.Valid {
+		v := row.TotalAmount.Float64
+		order.TotalAmount = &v
+	}
+	if row.DepositAmount.Valid {
+		v := row.DepositAmount.Float64
+		order.DepositAmount = &v
+	}
+	if row.EstimatedDelivery.Valid {
+		v := row.EstimatedDelivery.String
+		order.EstimatedDelivery = &v
+	}
+	return order
+}
+
+func mapSessionThread(row frontendrepo.SessionThreadRow) domain.SessionThread {
+	thread := domain.SessionThread{
+		ConvID:          row.ConvID,
+		CounterpartID:   row.CounterpartID,
+		CounterpartName: row.CounterpartName,
+		LastMessage:     row.LastMessage.String,
+		LastMessageAt:   row.LastMessageAt,
+		Unread:          row.Unread,
+	}
+	if row.CounterpartImageURL.Valid {
+		s := row.CounterpartImageURL.String
+		thread.CounterpartImageURL = &s
+	}
+	return thread
+}
+
 func mapRFQCard(row frontendrepo.FrontendRFQRow) domain.FrontendRFQCard {
 	return domain.FrontendRFQCard{
 		ID:          row.ID,
@@ -603,6 +757,7 @@ func mapOrderCard(row frontendrepo.FrontendOrderRow) domain.FrontendOrderCard {
 		Status:            domainstatus.FrontendOrder(row.Status),
 		EstimatedDelivery: row.EstimatedDelivery,
 		CreatedAt:         row.CreatedAt,
+		CurrentStepID:     row.CurrentStepID,
 	}
 }
 

@@ -69,6 +69,38 @@ type OrderDetailRow struct {
 	RFQCreatedAt       time.Time  `db:"rfq_created_at"`
 	RFQCategoryID      int64      `db:"rfq_category_id"`
 	RFQCategoryName    *string    `db:"rfq_category_name"`
+	// RFQ enrichment
+	RFQSubCategoryID      *int64          `db:"rfq_sub_category_id"`
+	RFQSubCategoryName    *string         `db:"rfq_sub_category_name"`
+	RFQShippingMethodName *string         `db:"rfq_shipping_method_name"`
+	RFQMaterialGrade      *string         `db:"rfq_material_grade"`
+	RFQCertifications     pq.StringArray  `db:"rfq_certifications"`
+	RFQTargetLeadTimeDays *int            `db:"rfq_target_lead_time_days"`
+	RFQTargetPrice        *float64        `db:"rfq_target_price"`
+	// Delivery address
+	RFQAddrDetail     *string `db:"rfq_addr_detail"`
+	RFQAddrSubDistrict *string `db:"rfq_addr_sub_district"`
+	RFQAddrDistrict   *string `db:"rfq_addr_district"`
+	RFQAddrProvince   *string `db:"rfq_addr_province"`
+	RFQAddrZipCode    *string `db:"rfq_addr_zip_code"`
+	// Customer / factory contact
+	CustomerName    string `db:"customer_name"`
+	CustomerPhone   string `db:"customer_phone"`
+	FactoryPhone    string `db:"factory_phone"`
+	FactoryProvince string `db:"factory_province"`
+	// Quotation enrichment
+	QuoteGrandTotal       float64         `db:"quote_grand_total"`
+	QuoteSubtotal         float64         `db:"quote_subtotal"`
+	QuoteDiscountAmount   float64         `db:"quote_discount_amount"`
+	QuoteShippingCost     float64         `db:"quote_shipping_cost"`
+	QuotePackagingCost    float64         `db:"quote_packaging_cost"`
+	QuoteVatRate          float64         `db:"quote_vat_rate"`
+	QuoteVatAmount        float64         `db:"quote_vat_amount"`
+	QuoteValidityDays     int             `db:"quote_validity_days"`
+	QuoteValidUntil       *string         `db:"quote_valid_until"`
+	QuotePaymentTerms     *string         `db:"quote_payment_terms"`
+	QuoteImageURLs        domain.StringArray `db:"quote_image_urls"`
+	QuoteFactoryHighlight *string         `db:"quote_factory_highlight"`
 }
 
 func NewOrderRepository(db *sqlx.DB) *OrderRepository {
@@ -334,7 +366,7 @@ const orderListEnrichedSelect = `
 		r.quantity AS rfq_quantity,
 		'' AS unit_name,
 		COALESCE(NULLIF(TRIM(CONCAT(c.first_name, ' ', c.last_name)), ''), 'ลูกค้า #' || o.customer_id::text) AS customer_display_name,
-		cur.step_id AS current_step_id,
+		COALESCE(cur.step_id, CASE WHEN o.status IN ('PD', 'PR') THEN 0 END) AS current_step_id,
 		cur.step_name_th AS current_step_name_th,
 		cur.status AS current_update_status,
 		COALESCE(prod.completed_count, 0) AS completed_count,
@@ -355,9 +387,8 @@ const orderListEnrichedSelect = `
 		FROM production_updates pu
 		INNER JOIN lbi_production lp ON lp.step_id = pu.step_id
 		WHERE pu.order_id = o.order_id
-		  AND pu.status IN ('IP', 'CD', 'RJ')
+		  AND pu.status = 'CD'
 		ORDER BY
-			CASE pu.status WHEN 'IP' THEN 3 WHEN 'RJ' THEN 2 WHEN 'CD' THEN 1 ELSE 0 END DESC,
 			COALESCE(lp.sort_order, lp.step_id) DESC,
 			COALESCE(pu.last_updated_at, pu.created_at) DESC
 		LIMIT 1
@@ -373,7 +404,6 @@ const orderListEnrichedSelect = `
 	CROSS JOIN LATERAL (
 		SELECT COUNT(*)::bigint AS total_count
 		FROM lbi_production
-		WHERE COALESCE(is_active, FALSE) = TRUE
 	) total_steps
 `
 
@@ -565,12 +595,54 @@ func (r *OrderRepository) GetDetailByParticipant(orderID, userID int64, role str
 				WHERE ps.order_id = o.order_id
 				ORDER BY ps.installment_no ASC, ps.schedule_id ASC
 				LIMIT 1
-			) AS deposit_schedule_due
+			) AS deposit_schedule_due,
+			-- RFQ enrichment
+			r.sub_category_id AS rfq_sub_category_id,
+			subcat.name AS rfq_sub_category_name,
+			rfq_sm.method_name AS rfq_shipping_method_name,
+			r.material_grade AS rfq_material_grade,
+			COALESCE(r.certifications_required, ARRAY[]::text[]) AS rfq_certifications,
+			r.target_lead_time_days AS rfq_target_lead_time_days,
+			r.target_price AS rfq_target_price,
+			-- Delivery address
+			addr.address_detail AS rfq_addr_detail,
+			sd.name_th AS rfq_addr_sub_district,
+			d.name_th AS rfq_addr_district,
+			p.name_th AS rfq_addr_province,
+			COALESCE(addr.zip_code, sd.zip_code) AS rfq_addr_zip_code,
+			-- Customer / factory contact
+			COALESCE(NULLIF(TRIM(CONCAT(c.first_name, ' ', c.last_name)), ''), '') AS customer_name,
+			COALESCE(uc.phone, '') AS customer_phone,
+			COALESCE(uf.phone, '') AS factory_phone,
+			COALESCE(pf.name_th, '') AS factory_province,
+			-- Quotation enrichment
+			COALESCE(q.grand_total, 0) AS quote_grand_total,
+			COALESCE(q.subtotal, 0) AS quote_subtotal,
+			COALESCE(q.discount_amount, 0) AS quote_discount_amount,
+			COALESCE(q.shipping_cost, 0) AS quote_shipping_cost,
+			COALESCE(q.packaging_cost, 0) AS quote_packaging_cost,
+			COALESCE(q.vat_rate, 0) AS quote_vat_rate,
+			COALESCE(q.vat_amount, 0) AS quote_vat_amount,
+			COALESCE(q.validity_days, 0) AS quote_validity_days,
+			TO_CHAR(COALESCE(q.valid_until, (q.create_time + (q.validity_days::text || ' day')::interval)::date), 'YYYY-MM-DD') AS quote_valid_until,
+			q.payment_terms AS quote_payment_terms,
+			COALESCE(q.image_urls::text, '[]') AS quote_image_urls,
+			q.factory_highlight AS quote_factory_highlight
 		FROM orders o
 		INNER JOIN quotations q ON q.quote_id = o.quote_id
 		INNER JOIN rfqs r ON r.rfq_id = q.rfq_id
 		LEFT JOIN lbi_categories cat ON cat.category_id = r.category_id
+		LEFT JOIN lbi_categories subcat ON subcat.category_id = r.sub_category_id
+		LEFT JOIN lbi_shipping_methods rfq_sm ON rfq_sm.shipping_method_id = r.shipping_method_id
+		LEFT JOIN addresses addr ON addr.address_id = r.delivery_address_id
+		LEFT JOIN lbi_sub_districts sd ON sd.row_id = addr.sub_district_id
+		LEFT JOIN lbi_districts d ON d.row_id = addr.district_id
+		LEFT JOIN lbi_provinces p ON p.row_id = addr.province_id
 		LEFT JOIN factory_profiles fp ON fp.user_id = o.factory_id
+		LEFT JOIN customers c ON c.user_id = o.customer_id
+		LEFT JOIN users uc ON uc.user_id = o.customer_id
+		LEFT JOIN users uf ON uf.user_id = o.factory_id
+		LEFT JOIN lbi_provinces pf ON pf.row_id = fp.province_id
 		WHERE o.order_id = $1
 	`
 	if err := r.db.Get(&item, query, orderID); err != nil {

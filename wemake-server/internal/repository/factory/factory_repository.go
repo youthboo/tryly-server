@@ -39,6 +39,9 @@ func (r *FactoryRepository) GetApprovalStatus(factoryID int64) (string, error) {
 	return status, err
 }
 
+// ErrFactoryProfileExists is returned when the user already has a factory_profiles record.
+var ErrFactoryProfileExists = errors.New("factory profile already exists")
+
 // ErrDuplicateFactoryCategory is returned when map_factory_categories unique pair exists.
 var ErrDuplicateFactoryCategory = errors.New("factory already has this category")
 
@@ -56,19 +59,30 @@ func (r *FactoryRepository) ListPublicVerified() ([]domain.FactoryListItem, erro
 			fp.factory_name,
 			fp.factory_type_id,
 			ft.type_name AS factory_type_name,
-			ft.type_name AS specialization,
+			fp.description AS specialization,
 			COALESCE(rev.avg_rating, fp.rating, 0)::float8 AS rating,
 			COALESCE(rev.review_cnt, fp.review_count, 0)::bigint AS review_count,
 			fp.min_order,
 			fp.lead_time_desc,
-			COALESCE(fp.is_verified, FALSE) AS is_verified,
+			(fp.approval_status = 'AP') AS is_verified,
 			COALESCE(fp.completed_orders, 0)::bigint AS completed_orders,
 			fp.image_url,
 			fp.background_image_url,
 			fp.description,
 			NULL::text AS price_range,
 			fp.province_id,
-			p.name_th AS province_name
+			p.name_th AS province_name,
+			-- Aggregate category names as a JSON array for the FE "tags" field.
+			-- Uses a correlated subquery so no GROUP BY is needed on the outer query.
+			COALESCE(
+				(
+					SELECT jsonb_agg(c.name ORDER BY c.name)::text
+					FROM map_factory_categories mfc
+					JOIN lbi_categories c ON c.category_id = mfc.category_id
+					WHERE mfc.factory_id = fp.user_id
+				),
+				'[]'
+			) AS tags
 		FROM factory_profiles fp
 		INNER JOIN users u ON u.user_id = fp.user_id AND u.role = 'FT' AND u.is_active = TRUE
 		LEFT JOIN lbi_factory_types ft ON ft.factory_type_id = fp.factory_type_id
@@ -80,7 +94,7 @@ func (r *FactoryRepository) ListPublicVerified() ([]domain.FactoryListItem, erro
 			FROM factory_reviews
 			GROUP BY factory_id
 		) rev ON rev.factory_id = fp.user_id
-		WHERE COALESCE(fp.is_verified, FALSE) = TRUE
+		WHERE fp.approval_status = 'AP'
 		ORDER BY COALESCE(rev.avg_rating, fp.rating) DESC NULLS LAST, fp.factory_name ASC
 	`
 	err := r.db.Select(&items, query)
@@ -135,7 +149,7 @@ func (r *FactoryRepository) getFactoryDetailHead(factoryID int64) (factoryDetail
 			ft.type_name AS specialization,
 			fp.min_order,
 			fp.lead_time_desc,
-			COALESCE(fp.is_verified, FALSE) AS is_verified,
+			(fp.approval_status = 'AP') AS is_verified,
 			COALESCE(rev.avg_rating, fp.rating, 0)::float8 AS rating,
 			COALESCE(rev.review_cnt, fp.review_count, 0)::bigint AS review_count,
 			COALESCE(fp.completed_orders, 0)::bigint AS completed_orders,
@@ -259,7 +273,13 @@ func (r *FactoryRepository) selectFactorySubCategories(factoryID int64) ([]domai
 func (r *FactoryRepository) selectFactoryCertificates(factoryID int64) ([]domain.FactoryProfileCertificate, error) {
 	var items []domain.FactoryProfileCertificate
 	q := `
-		SELECT lc.cert_id, lc.cert_name, mfc.verify_status
+		SELECT mfc.map_id,
+		       lc.cert_id,
+		       lc.cert_name,
+		       mfc.verify_status,
+		       mfc.document_url,
+		       mfc.cert_number,
+		       mfc.expire_date::text AS expire_date
 		FROM map_factory_certificates mfc
 		INNER JOIN lbi_certificates lc ON mfc.cert_id = lc.cert_id
 		WHERE mfc.factory_id = $1
@@ -354,6 +374,62 @@ func (r *FactoryRepository) GetPublicDetail(factoryID int64) (*domain.FactoryPub
 	out.Reviews = reviews
 
 	return out, nil
+}
+
+func (r *FactoryRepository) CreateProfile(userID int64, factoryName string, factoryTypeID int64, taxID string, provinceID *int64, categoryIDs []int64, subCategoryIDs []int64, certID int64, documentURL string, certNumber string, certExpireDate string) error {
+	var pid sql.NullInt64
+	if provinceID != nil && *provinceID > 0 {
+		pid = sql.NullInt64{Int64: *provinceID, Valid: true}
+	}
+	tx, err := r.db.Beginx()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+	if _, err = tx.Exec(`
+		INSERT INTO factory_profiles (user_id, factory_name, factory_type_id, tax_id, province_id, review_count, completed_orders, approval_status, submitted_at)
+		VALUES ($1, $2, $3, $4, $5, 0, 0, 'PE', NOW())
+	`, userID, factoryName, factoryTypeID, taxID, pid); err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+			return ErrFactoryProfileExists
+		}
+		return err
+	}
+	for _, catID := range categoryIDs {
+		if _, err = tx.Exec(`INSERT INTO map_factory_categories (factory_id, category_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, userID, catID); err != nil {
+			return err
+		}
+	}
+	for _, subID := range subCategoryIDs {
+		if _, err = tx.Exec(`INSERT INTO map_factory_sub_categories (factory_id, sub_category_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, userID, subID); err != nil {
+			return err
+		}
+	}
+	// Insert certificate record if cert data is provided
+	if certID > 0 && documentURL != "" {
+		var expireDate interface{}
+		if certExpireDate != "" {
+			if t, parseErr := time.Parse("2006-01-02", certExpireDate); parseErr == nil {
+				expireDate = t
+			}
+		}
+		var certNum interface{}
+		if certNumber != "" {
+			certNum = certNumber
+		}
+		if _, err = tx.Exec(`
+			INSERT INTO map_factory_certificates (factory_id, cert_id, document_url, expire_date, cert_number, verify_status)
+			VALUES ($1, $2, $3, $4, $5, 'PE')
+		`, userID, certID, documentURL, expireDate, certNum); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (r *FactoryRepository) PatchProfile(factoryID int64, fields map[string]interface{}) error {
@@ -613,7 +689,7 @@ func (r *FactoryRepository) GetAnalytics(factoryID int64) (*domain.FactoryAnalyt
 	if err := r.db.QueryRow(`
 		SELECT
 			COUNT(*) AS total_showcases,
-			COALESCE(SUM(view_count), 0) AS total_views,
+			0 AS total_views,
 			COALESCE(SUM(likes_count), 0) AS total_likes
 		FROM factory_showcases
 		WHERE factory_id = $1
@@ -634,10 +710,99 @@ func (r *FactoryRepository) GetAnalytics(factoryID int64) (*domain.FactoryAnalyt
 	return out, nil
 }
 
+// GetPortal returns all data needed for the factory dashboard page in one call,
+// replacing the six separate API requests the FE previously made.
+func (r *FactoryRepository) GetPortal(factoryID int64) (*domain.FactoryPortal, error) {
+	// 1. Analytics summary — reuse existing method.
+	analytics, err := r.GetAnalytics(factoryID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Dashboard counts, wallet, and recent-5 slices — reuse existing method.
+	dashboard, err := r.GetDashboard(factoryID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 3. Full order list (lightweight) for chart series.
+	var orders []domain.PortalOrderItem
+	if err := r.db.Select(&orders, `
+		SELECT order_id, factory_id, status, total_amount::float8 AS total_amount, created_at
+		FROM orders
+		WHERE factory_id = $1
+		ORDER BY created_at DESC
+	`, factoryID); err != nil {
+		orders = []domain.PortalOrderItem{}
+	}
+
+	// 4. Full quotation list (lightweight) for chart series.
+	var quotations []domain.PortalQuotationItem
+	if err := r.db.Select(&quotations, `
+		SELECT quote_id, factory_id, status, create_time AS created_at
+		FROM quotations
+		WHERE factory_id = $1
+		ORDER BY create_time DESC
+	`, factoryID); err != nil {
+		quotations = []domain.PortalQuotationItem{}
+	}
+
+	// 5. Full matching-RFQ list (all open RFQs matching factory categories).
+	var matchingRFQs []domain.FactoryDashboardRFQItem
+	if err := r.db.Select(&matchingRFQs, `
+		SELECT DISTINCT r.rfq_id, r.title, r.category_id, r.sub_category_id, r.status, r.created_at
+		FROM rfqs r
+		INNER JOIN map_factory_categories mfc
+			ON mfc.factory_id = $1
+		   AND mfc.category_id = r.category_id
+		LEFT JOIN lbi_sub_categories sc ON sc.sub_category_id = r.sub_category_id
+		WHERE r.status = 'OP'
+		  AND (
+			r.sub_category_id IS NULL
+			OR COALESCE(sc.sort_order, 0) = 99
+			OR EXISTS (
+				SELECT 1 FROM map_factory_sub_categories mfs
+				WHERE mfs.factory_id = $1 AND mfs.sub_category_id = r.sub_category_id
+			)
+		  )
+		ORDER BY r.created_at DESC
+	`, factoryID); err != nil {
+		matchingRFQs = []domain.FactoryDashboardRFQItem{}
+	}
+
+	// 6. RFQ history — every RFQ this factory has ever submitted a quotation for,
+	// with the original RFQ created_at. Used for the per-period chart series so the
+	// "RFQ received" bars reflect real timestamps instead of falling back to estimates.
+	var rfqHistory []domain.RFQHistoryItem
+	if err := r.db.Select(&rfqHistory, `
+		SELECT DISTINCT r.rfq_id, r.created_at
+		FROM rfqs r
+		JOIN quotations q ON q.rfq_id = r.rfq_id
+		WHERE q.factory_id = $1
+		ORDER BY r.created_at DESC
+	`, factoryID); err != nil {
+		rfqHistory = []domain.RFQHistoryItem{}
+	}
+
+	return &domain.FactoryPortal{
+		Analytics:        analytics,
+		Counts:           dashboard.Counts,
+		Wallet:           dashboard.Wallet,
+		MatchingRFQs:     matchingRFQs,
+		RFQHistory:       rfqHistory,
+		Orders:           orders,
+		Quotations:       quotations,
+		RecentRFQs:       dashboard.RecentMatchingRFQs,
+		RecentOrders:     dashboard.RecentOrders,
+		RecentQuotations: dashboard.RecentQuotations,
+		RecentShowcases:  dashboard.RecentShowcases,
+	}, nil
+}
+
 // GetFactoryName returns the factory_name for the given factory_id.
 // Returns empty string if not found (caller should use fallback).
 func (r *FactoryRepository) GetFactoryName(factoryID int64) string {
 	var name string
-	_ = r.db.Get(&name, `SELECT COALESCE(factory_name, '') FROM factory_profiles WHERE factory_id = $1`, factoryID)
+	_ = r.db.Get(&name, `SELECT COALESCE(factory_name, '') FROM factory_profiles WHERE user_id = $1`, factoryID)
 	return strings.TrimSpace(name)
 }

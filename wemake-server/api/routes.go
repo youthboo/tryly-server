@@ -10,7 +10,15 @@ import (
 )
 
 func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		// SSE connections are long-lived; disable write timeout so they aren't killed.
+		WriteTimeout: 0,
+		ReadTimeout:  0,
+		IdleTimeout:  0,
+		// Raise header buffer to 16 KB to accommodate large Authorization / Cookie headers
+		// (JWT tokens + session cookies can easily exceed the 4 KB default).
+		ReadBufferSize: 16 * 1024,
+	})
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: cfg.CORSOrigins,
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-User-ID, X-Confirm-Payment-Trigger",
@@ -91,13 +99,18 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	auth.Post("/forgot-password", h.auth.ForgotPassword)
 	auth.Post("/reset-password", h.auth.ResetPassword)
 
+	api.Get("/explore", h.explore.GetExplore)
 	api.Get("/categories", h.catalog.GetCategories)
 	api.Get("/lbi/categories", h.catalog.GetLBICategories)
+	api.Get("/lbi/sub-categories", h.catalog.GetAllLBISubCategories)
 	api.Get("/categories/:id/sub-categories", h.catalog.GetSubCategories)
 	api.Get("/units", h.catalog.GetUnits)
 
 	api.Get("/factories", h.factory.List)
+	api.Post("/factories", h.factory.Create)
 	api.Get("/factories/me", h.factory.GetMe)
+	api.Get("/factories/me/profile-init", h.profileInit.GetProfileInit)
+	api.Get("/factories/me/portal", h.factory.GetPortal)
 	api.Get("/factories/me/dashboard", h.factory.GetDashboard)
 	api.Get("/factories/me/analytics", h.factory.GetAnalytics)
 
@@ -119,6 +132,7 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	factories.Patch("/:factory_id/certificates/:cert_id", h.certificate.PatchByCertID)
 	factories.Delete("/:factory_id/certificates/by-cert/:cert_id", h.certificate.DeleteByCertID)
 	factories.Get("/:factory_id/showcases", h.showcase.ListByFactory)
+	factories.Put("/:factory_id/profile", h.factory.SaveProfile)
 	factories.Patch("/:factory_id", h.factory.PatchProfile)
 	factories.Put("/:factory_id", h.factory.PatchProfile)
 	factories.Get("/:factory_id", h.factory.GetByID)
@@ -129,12 +143,16 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	addresses.Patch("/:address_id", h.address.PatchAddress)
 	addresses.Delete("/:address_id", h.address.DeleteAddress)
 
+	api.Get("/factory/rfq-board", h.factoryRFQBoard.GetBoard)
+	api.Get("/factory/rfqs/:rfq_id/detail", h.factoryRFQBoard.GetDetail)
+
 	rfqs := api.Group("/rfqs")
 	rfqs.Post("/", h.rfq.CreateRFQ)
 	rfqs.Get("/preview-factories", h.rfq.PreviewFactories)
 	rfqs.Get("/matching", h.rfq.ListMatching)
 	rfqs.Get("/", h.rfq.ListRFQs)
 	rfqs.Get("/:rfq_id", h.rfq.GetRFQ)
+	rfqs.Get("/:rfq_id/detail", h.rfq.GetDetail)
 	rfqs.Patch("/:rfq_id", h.rfq.PatchRFQ)
 	rfqs.Patch("/:rfq_id/cancel", h.rfq.CancelRFQ)
 	rfqs.Patch("/:rfq_id/close", h.rfq.CloseRFQ)
@@ -155,7 +173,7 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	quotations.Post("/", middleware.RequireRole(h.authService, domain.RoleFactory), h.quotation.CreateDetailed)
 	quotations.Get("/", middleware.RequireRole(h.authService, domain.RoleFactory), h.quotation.ListCollection)
 	quotations.Get("/me", middleware.RequireRole(h.authService, domain.RoleFactory), h.quotation.ListMine)
-	quotations.Get("/:quotation_id/history", middleware.RequireRole(h.authService, domain.RoleFactory), h.quotation.ListHistory)
+	quotations.Get("/:quotation_id/history", middleware.RequireAuth, h.quotation.ListHistory)
 	quotations.Get("/:quotation_id", h.quotation.GetQuotation)
 	quotations.Post("/:quotation_id/revision", middleware.RequireRole(h.authService, domain.RoleFactory), h.quotation.CreateRevision)
 	quotations.Post("/:quotation_id/accept", h.quotation.Accept)
@@ -231,12 +249,18 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	conversations.Post("/:conv_id/boq", h.boq.Create)
 	conversations.Post("/:conv_id/share-rfq", h.conversation.ShareRFQ)
 	conversations.Patch("/:conv_id/read", h.conversation.MarkAsRead)
+	conversations.Post("/:conv_id/mark-read", h.conversation.MarkAsRead) // FE compat
+	conversations.Get("/:conv_id/messages", h.message.ListMessagesByConvPath)
+	conversations.Post("/:conv_id/messages", h.message.CreateMessageByConvPath)
 
 	notifications := api.Group("/notifications")
+	notifications.Get("/stream", h.notification.Stream)          // SSE — must be before /:noti_id
 	notifications.Get("/", h.notification.List)
 	notifications.Get("/unread-count", h.notification.GetUnreadCount)
-	notifications.Put("/read-all", h.notification.MarkAllRead)
-	notifications.Patch("/:noti_id/read", h.notification.MarkAsRead)
+	notifications.Post("/read-all", h.notification.MarkAllRead)  // spec
+	notifications.Put("/read-all", h.notification.MarkAllRead)   // compat
+	notifications.Post("/:noti_id/read", h.notification.MarkAsRead) // spec
+	notifications.Patch("/:noti_id/read", h.notification.MarkAsRead) // compat
 	notifications.Delete("/:noti_id", h.notification.SoftDelete)
 
 	profile := api.Group("/profile")
@@ -271,7 +295,7 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	showcases.Get("/:showcase_id", h.showcase.GetDetail)
 
 	promoSlides := api.Group("/promo-slides")
-	promoSlides.Get("/", h.showcase.ListPromoSlides)
+	promoSlides.Get("/", h.showcase.ListHomePromoSlides)
 
 	favorites := api.Group("/favorites")
 	favorites.Get("/", h.favorite.List)
@@ -302,6 +326,12 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	boqs.Put("/:rfq_id", h.boq.Update)
 	boqs.Post("/:rfq_id/accept", h.boq.Accept)
 	boqs.Post("/:rfq_id/decline", h.boq.Decline)
+
+	// Unified endpoints for the /orders page — reduces multiple API calls to one.
+	me := api.Group("/me")
+	me.Get("/session", middleware.RequireAuth, h.session.GetSession)
+	me.Get("/rfq-orders", h.meRFQOrders.ListRFQOrders)
+	me.Get("/rfq-orders/:rfq_id", h.meRFQOrders.GetRFQOrderDetail)
 
 	frontend := api.Group("/frontend")
 	frontend.Get("/bootstrap", h.frontend.GetBootstrap)

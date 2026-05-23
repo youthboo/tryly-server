@@ -39,19 +39,40 @@ func Start(db *sqlx.DB) {
 // --------------------------------------------------------------------------
 
 // runExpiration auto-closes overdue RFQs and quotations.
+// RFQ expiration runs once per day at midnight (Bangkok time).
+// Quotation and deposit expiration still runs every hour.
 func runExpiration(db *sqlx.DB) {
-	ticker := time.NewTicker(1 * time.Hour)
-	defer ticker.Stop()
+	hourlyTicker := time.NewTicker(1 * time.Hour)
+	defer hourlyTicker.Stop()
 
-	// Run once immediately on start, then every hour.
+	// Run once immediately on start.
 	expireRFQs(db)
 	expireQuotations(db)
 	expirePendingDeposits(db)
 
-	for range ticker.C {
-		expireRFQs(db)
-		expireQuotations(db)
-		expirePendingDeposits(db)
+	bangkok, _ := time.LoadLocation("Asia/Bangkok")
+	if bangkok == nil {
+		bangkok = time.FixedZone("ICT", 7*3600)
+	}
+
+	nextMidnight := func() time.Time {
+		now := time.Now().In(bangkok)
+		next := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, bangkok)
+		return next
+	}
+
+	midnightTimer := time.NewTimer(time.Until(nextMidnight()))
+	defer midnightTimer.Stop()
+
+	for {
+		select {
+		case <-hourlyTicker.C:
+			expireQuotations(db)
+			expirePendingDeposits(db)
+		case <-midnightTimer.C:
+			expireRFQs(db)
+			midnightTimer.Reset(time.Until(nextMidnight()))
+		}
 	}
 }
 
@@ -74,9 +95,71 @@ func runOrderAutoClose(orderService *orderservice.OrderService) {
 	}
 }
 
+// expireRFQs auto-cancels OP RFQs whose expired_date has passed.
+// expired_date is set on creation as created_at + tconfig('rfq_expired') days.
+// This represents system-initiated cancellation (status CC).
+// Any pending quotations on those RFQs are also expired (PD → EX).
 func expireRFQs(db *sqlx.DB) {
-	// RFQ expiry by deadline_date is disabled because the legacy deadline column was removed.
-	// RFQ auto-close is now handled inside expireQuotations (after PD quotations expire).
+	// Step 1: collect RFQ IDs that are about to be cancelled so we can expire their quotations.
+	type rfqRow struct {
+		RFQID int64 `db:"rfq_id"`
+	}
+	var staleRFQs []rfqRow
+	err := db.Select(&staleRFQs, `
+		SELECT rfq_id
+		FROM rfqs
+		WHERE status = 'OP'
+		  AND expired_date IS NOT NULL
+		  AND expired_date < NOW()
+	`)
+	if err != nil {
+		logger.Error("rfq auto-cancel: stale rfq query failed", "err", err)
+		return
+	}
+	if len(staleRFQs) == 0 {
+		return
+	}
+
+	ids := make([]int64, 0, len(staleRFQs))
+	for _, r := range staleRFQs {
+		ids = append(ids, r.RFQID)
+	}
+
+	// Step 2: expire pending quotations for those RFQs.
+	query, args, err := sqlx.In(`
+		UPDATE quotations
+		SET status = 'EX', log_timestamp = NOW()
+		WHERE rfq_id IN (?)
+		  AND status = 'PD'
+	`, ids)
+	if err == nil {
+		query = db.Rebind(query)
+		if _, err2 := db.Exec(query, args...); err2 != nil {
+			logger.Error("rfq auto-cancel: quotation expiry failed", "err", err2)
+		}
+	}
+
+	// Step 3: cancel the RFQs.
+	cancelQuery, cancelArgs, err := sqlx.In(`
+		UPDATE rfqs
+		SET status = 'CC', updated_at = NOW()
+		WHERE rfq_id IN (?)
+		  AND status = 'OP'
+	`, ids)
+	if err != nil {
+		logger.Error("rfq auto-cancel: cancel query build failed", "err", err)
+		return
+	}
+	cancelQuery = db.Rebind(cancelQuery)
+	res, err := db.Exec(cancelQuery, cancelArgs...)
+	if err != nil {
+		logger.Error("rfq auto-cancel job failed", "err", err)
+		return
+	}
+	n, _ := res.RowsAffected()
+	if n > 0 {
+		logger.Info("rfq auto-cancel job completed", "cancelled_count", n, "from_status", "OP", "to_status", "CC", "reason", "expired_date_passed")
+	}
 }
 
 // expireQuotations sets status = 'EX' for pending (PD) quotations where the validity window has passed.
@@ -95,8 +178,8 @@ func expireQuotations(db *sqlx.DB) {
 		  AND COALESCE(is_locked, false) = false
 		  AND COALESCE(
 		        valid_until,
-		        create_time + COALESCE(validity_days, 7) * INTERVAL '1 day'
-		      ) < NOW()
+		        (create_time + COALESCE(validity_days, 7) * INTERVAL '1 day')::date
+		      ) < NOW()::date
 	`)
 	if err != nil {
 		logger.Error("quotation expiration job failed", "err", err)
@@ -107,26 +190,10 @@ func expireQuotations(db *sqlx.DB) {
 		logger.Info("quotation expiration job completed", "expired_count", n, "from_status", "PD", "to_status", "EX")
 	}
 
-	// ขั้น 2: OP → CL สำหรับ RFQ ที่ไม่มี quotation สถานะ PD หรือ AC เหลืออยู่แล้ว
-	// (ลูกค้าไม่มีใบเสนอราคาที่ active ให้ยอมรับได้ ควรปิดรับข้อเสนอเพื่อ UX ที่ชัดเจน)
-	res2, err2 := db.Exec(`
-		UPDATE rfqs
-		SET status = 'CL', updated_at = NOW()
-		WHERE status = 'OP'
-		  AND NOT EXISTS (
-		        SELECT 1 FROM quotations q
-		        WHERE q.rfq_id = rfqs.rfq_id
-		          AND q.status IN ('PD', 'AC')
-		  )
-	`)
-	if err2 != nil {
-		logger.Error("rfq auto-close job failed", "err", err2, "from_status", "OP", "to_status", "CL")
-		return
-	}
-	n2, _ := res2.RowsAffected()
-	if n2 > 0 {
-		logger.Info("rfq auto-close job completed", "closed_count", n2, "from_status", "OP", "to_status", "CL")
-	}
+	// RFQ stays OP until the customer explicitly closes it (→ CL) or the system
+	// auto-cancels it 30 days after creation (→ CC via expireRFQs).
+	// Do NOT auto-close based on quotation state — customers may order from
+	// multiple quotations and should remain in control of when the RFQ is closed.
 }
 
 func expirePendingDeposits(db *sqlx.DB) {

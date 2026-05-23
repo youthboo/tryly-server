@@ -23,7 +23,7 @@ func NewProfileRepository(db *sqlx.DB) *ProfileRepository {
 func (r *ProfileRepository) GetProfile(userID int64) (*domain.ProfileResponse, error) {
 	var user domain.User
 	if err := r.db.Get(&user, `
-		SELECT user_id, role, email, phone, NULL::text AS avatar_url, NULL::text AS bio, password_hash, is_active, created_at, updated_at
+		SELECT user_id, role, email, COALESCE(phone, '') AS phone, NULL::text AS avatar_url, NULL::text AS bio, password_hash, is_active, created_at, updated_at
 		FROM users
 		WHERE user_id = $1
 	`, userID); err != nil {
@@ -44,7 +44,9 @@ func (r *ProfileRepository) GetProfile(userID int64) (*domain.ProfileResponse, e
 	case domain.RoleCustomer:
 		var customer domain.CustomerProfile
 		if err := r.db.Get(&customer, `
-			SELECT user_id, first_name, last_name, address_line1, sub_district, district, province, postal_code
+			SELECT user_id, first_name, last_name,
+			       NULL::text AS address_line1, NULL::text AS sub_district,
+			       NULL::text AS district, NULL::text AS province, NULL::text AS postal_code
 			FROM customers
 			WHERE user_id = $1
 		`, userID); err != nil {
@@ -60,7 +62,7 @@ func (r *ProfileRepository) GetProfile(userID int64) (*domain.ProfileResponse, e
 		var factory domain.FactoryProfile
 		if err := r.db.Get(&factory, `
 			SELECT fp.user_id, fp.factory_name, fp.factory_type_id, fp.tax_id, fp.province_id, ft.type_name AS specialization, fp.min_order, fp.lead_time_desc,
-			       fp.is_verified, fp.verified_at, fp.description, NULL::text AS price_range
+			       (fp.approval_status = 'AP') AS is_verified, fp.verified_at, fp.description, NULL::text AS price_range
 			FROM factory_profiles fp
 			LEFT JOIN lbi_factory_types ft ON ft.factory_type_id = fp.factory_type_id
 			WHERE fp.user_id = $1
@@ -92,9 +94,9 @@ func (r *ProfileRepository) UpdateCustomerProfile(userID int64, user *domain.Use
 		}
 		if _, err := tx.Exec(`
 			UPDATE customers
-			SET first_name = $1, last_name = $2, address_line1 = $3, sub_district = $4, district = $5, province = $6, postal_code = $7
-			WHERE user_id = $8
-		`, customer.FirstName, customer.LastName, domainutil.Nullable(customer.AddressLine1), domainutil.Nullable(customer.SubDistrict), domainutil.Nullable(customer.District), domainutil.Nullable(customer.Province), domainutil.Nullable(customer.PostalCode), userID); err != nil {
+			SET first_name = $1, last_name = $2
+			WHERE user_id = $3
+		`, customer.FirstName, customer.LastName, userID); err != nil {
 			return err
 		}
 		return nil

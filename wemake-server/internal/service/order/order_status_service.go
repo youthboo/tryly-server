@@ -16,9 +16,32 @@ func (s *OrderService) UpdateStatus(orderID int64, status string, actorUserID *i
 	if err := s.repo.UpdateStatus(orderID, status); err != nil {
 		return err
 	}
+	if status == domain.OrderStatusProduction {
+		s.recalcEstimatedDelivery(orderID)
+	}
 	return s.repo.InsertActivity(orderID, actorUserID, "ORDER_STATUS", map[string]interface{}{
 		"status": status,
 	})
+}
+
+func (s *OrderService) recalcEstimatedDelivery(orderID int64) {
+	now := time.Now()
+	shippingDays := getShippingDays(s.db)
+	type row struct {
+		LeadTimeDays int64      `db:"lead_time_days"`
+		DeliveryDate *time.Time `db:"delivery_date"`
+	}
+	var r row
+	if err := s.db.Get(&r, `
+		SELECT q.lead_time_days, NULL::date AS delivery_date
+		FROM orders o
+		JOIN quotations q ON q.quote_id = o.quote_id
+		WHERE o.order_id = $1
+	`, orderID); err != nil {
+		return
+	}
+	est := calculateEstimatedDelivery(now, r.LeadTimeDays, shippingDays, r.DeliveryDate)
+	_, _ = s.db.Exec(`UPDATE orders SET estimated_delivery = $1 WHERE order_id = $2`, est, orderID)
 }
 
 func (s *OrderService) Cancel(orderID, userID int64, role string) error {

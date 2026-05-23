@@ -211,10 +211,9 @@ func (s *OrderPaymentService) PayDeposit(input OrderPaymentInput) (*OrderPayment
 		}
 
 		groupID := uuid.New()
-		customerTxID := "tx_" + uuid.NewString()
-		factoryTxID := "tx_" + uuid.NewString()
 		now := time.Now()
-		if err := insertCustomerPaymentTx(tx, customerTxID, customerWallet.WalletID, input.OrderID, -input.Amount, input.IdempotencyKey, groupID, now); err != nil {
+		customerTxID, err := insertCustomerPaymentTx(tx, "", customerWallet.WalletID, input.OrderID, -input.Amount, input.IdempotencyKey, groupID, now)
+		if err != nil {
 			if isUniqueViolation(err) {
 				replay, replayErr := s.loadPaymentReplay(input.OrderID, input.IdempotencyKey)
 				if replayErr != nil {
@@ -225,7 +224,8 @@ func (s *OrderPaymentService) PayDeposit(input OrderPaymentInput) (*OrderPayment
 			}
 			return err
 		}
-		if err := insertFactoryReceivableTx(tx, factoryTxID, factoryWallet.WalletID, input.OrderID, input.Amount, input.IdempotencyKey+":f", groupID, now); err != nil {
+		factoryTxID, err := insertFactoryReceivableTx(tx, "", factoryWallet.WalletID, input.OrderID, input.Amount, input.IdempotencyKey+":f", groupID, now)
+		if err != nil {
 			if isUniqueViolation(err) {
 				replay, replayErr := s.loadPaymentReplay(input.OrderID, input.IdempotencyKey)
 				if replayErr != nil {
@@ -237,7 +237,8 @@ func (s *OrderPaymentService) PayDeposit(input OrderPaymentInput) (*OrderPayment
 			return err
 		}
 
-		if _, err := tx.Exec(`UPDATE orders SET status = 'PR', updated_at = NOW() WHERE order_id = $1 AND status = 'PP'`, input.OrderID); err != nil {
+		// PP → PD: ชำระแล้ว รอโรงงานยืนยันรับงาน (factory ต้องกด step_id=0 ก่อนจึงจะเป็น PR)
+		if _, err := tx.Exec(`UPDATE orders SET status = 'PD', updated_at = NOW() WHERE order_id = $1 AND status = 'PP'`, input.OrderID); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(`
@@ -326,7 +327,7 @@ type paymentWalletRow struct {
 func lockPaymentOrder(tx *sqlx.Tx, orderID int64) (*paymentOrderRow, error) {
 	var row paymentOrderRow
 	err := tx.Get(&row, `
-		SELECT order_id, user_id, factory_id, deposit_amount, total_amount, status
+		SELECT order_id, customer_id AS user_id, factory_id, deposit_amount, total_amount, status
 		FROM orders
 		WHERE order_id = $1
 		FOR UPDATE
@@ -372,28 +373,40 @@ func lockWalletsInOrder(tx *sqlx.Tx, walletA, walletB int64) error {
 }
 
 // insertCustomerPaymentTx records the customer's BU (buy) debit — immediately settled (ST).
-func insertCustomerPaymentTx(tx *sqlx.Tx, txID string, walletID, orderID int64, amount float64, idempotencyKey string, settlementGroupID uuid.UUID, now time.Time) error {
-	_, err := tx.Exec(`
+// Returns the auto-generated tx_id as a string.
+func insertCustomerPaymentTx(tx *sqlx.Tx, _ string, walletID, orderID int64, amount float64, _ string, _ uuid.UUID, now time.Time) (string, error) {
+	var generatedID int64
+	err := tx.QueryRow(`
 		INSERT INTO transactions (
-			tx_id, wallet_id, order_id, type, amount, status,
+			wallet_id, order_id, type, amount, status,
 			created_at, updated_at
 		)
-		VALUES ($1, $2, $3, 'BU', $4, 'ST', $5, $5)
-	`, txID, walletID, orderID, amount, now)
-	return err
+		VALUES ($1, $2, 'BU', $3, 'ST', $4, $4)
+		RETURNING tx_id
+	`, walletID, orderID, amount, now).Scan(&generatedID)
+	if err != nil {
+		return "", err
+	}
+	return formatInt64(generatedID), nil
 }
 
 // insertFactoryReceivableTx records the factory's SC (sell/credit) receivable — held as pending (PT)
 // until the customer confirms receipt, at which point it is settled to ST via SettleFactoryReceivables.
-func insertFactoryReceivableTx(tx *sqlx.Tx, txID string, walletID, orderID int64, amount float64, idempotencyKey string, settlementGroupID uuid.UUID, now time.Time) error {
-	_, err := tx.Exec(`
+// Returns the auto-generated tx_id as a string.
+func insertFactoryReceivableTx(tx *sqlx.Tx, _ string, walletID, orderID int64, amount float64, _ string, _ uuid.UUID, now time.Time) (string, error) {
+	var generatedID int64
+	err := tx.QueryRow(`
 		INSERT INTO transactions (
-			tx_id, wallet_id, order_id, type, amount, status,
+			wallet_id, order_id, type, amount, status,
 			created_at, updated_at
 		)
-		VALUES ($1, $2, $3, 'SC', $4, 'PT', $5, $5)
-	`, txID, walletID, orderID, amount, now)
-	return err
+		VALUES ($1, $2, 'SC', $3, 'PT', $4, $4)
+		RETURNING tx_id
+	`, walletID, orderID, amount, now).Scan(&generatedID)
+	if err != nil {
+		return "", err
+	}
+	return formatInt64(generatedID), nil
 }
 
 func (s *OrderPaymentService) loadPaymentReplay(orderID int64, idempotencyKey string) (*OrderPaymentResponse, error) {

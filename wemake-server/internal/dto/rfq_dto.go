@@ -17,9 +17,6 @@ type CreateRFQRequest struct {
 	RequiredDeliveryDate   *string  `json:"required_delivery_date"`
 	DeliveryAddressID      *int64   `json:"delivery_address_id"`
 	CertificationsRequired []string `json:"certifications_required"`
-	SampleRequired         bool     `json:"sample_required"`
-	SampleQty              *int     `json:"sample_qty"`
-	InspectionType         *string  `json:"inspection_type"`
 	ReferenceImages        []string `json:"reference_images"`
 	RequestKind            string   `json:"request_kind"`
 }
@@ -37,9 +34,6 @@ type PatchRFQRequest struct {
 	TargetLeadTimeDays     *int     `json:"target_lead_time_days"`
 	RequiredDeliveryDate   *string  `json:"required_delivery_date"`
 	CertificationsRequired []string `json:"certifications_required"`
-	SampleRequired         *bool    `json:"sample_required"`
-	SampleQty              *int     `json:"sample_qty"`
-	InspectionType         *string  `json:"inspection_type"`
 	ReferenceImages        []string `json:"reference_images"`
 }
 

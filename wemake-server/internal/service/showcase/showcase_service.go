@@ -199,6 +199,9 @@ func mergeShowcaseInput(item *domain.FactoryShowcase, input domain.ShowcaseWrite
 	if input.MOQ != nil {
 		item.MOQ = input.MOQ
 	}
+	if input.LeadTimeDays != nil {
+		item.LeadTimeDays = input.LeadTimeDays
+	}
 	if input.BasePrice != nil {
 		item.BasePrice = input.BasePrice
 	}
@@ -378,7 +381,7 @@ func (v *showcaseValidationCollector) validateContentLength(item *domain.Factory
 }
 
 func (v *showcaseValidationCollector) validateActiveRequirements(item *domain.FactoryShowcase) {
-	if item.ImageURL == nil || strings.TrimSpace(*item.ImageURL) == "" {
+	if item.ContentType != "ID" && (item.ImageURL == nil || strings.TrimSpace(*item.ImageURL) == "") {
 		v.add("image_url", "is required when showcase is active")
 	}
 	switch item.ContentType {
@@ -503,6 +506,38 @@ func isShowcaseHTTPSURL(raw string) bool {
 
 func (s *ShowcaseService) RecordView(showcaseID int64) error {
 	return s.repo.IncrementViewCount(showcaseID)
+}
+
+func (s *ShowcaseService) GetHomeShowcases(types []string, limitPerType int) (map[string][]domain.ShowcaseExploreItem, error) {
+	return s.repo.GetHomeShowcases(types, limitPerType)
+}
+
+func (s *ShowcaseService) ListPaginated(filter domain.ShowcasePaginatedFilter) (*domain.ShowcasePaginatedResponse, error) {
+	items, total, err := s.repo.ListPaginated(filter)
+	if err != nil {
+		return nil, err
+	}
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	page := filter.Page
+	if page <= 0 {
+		page = 1
+	}
+	if items == nil {
+		items = []domain.ShowcaseExploreItem{}
+	}
+	return &domain.ShowcasePaginatedResponse{
+		Total: total,
+		Page:  page,
+		Limit: limit,
+		Items: items,
+	}, nil
+}
+
+func (s *ShowcaseService) ListHomePromoSlides(limit int) ([]domain.HomePromoSlide, error) {
+	return s.repo.ListHomePromoSlides(limit)
 }
 
 func (s *ShowcaseService) ListPromoSlides() ([]domain.PromoSlide, error) {

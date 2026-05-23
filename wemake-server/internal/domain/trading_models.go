@@ -167,6 +167,8 @@ type OrderListItem struct {
 type OrderFactorySummary struct {
 	FactoryID int64  `json:"factory_id"`
 	Name      string `json:"name"`
+	Phone     string `json:"phone,omitempty"`
+	Address   string `json:"address,omitempty"`
 }
 
 type OrderNextAction struct {
@@ -185,24 +187,55 @@ type RfqImage struct {
 }
 
 type RfqNested struct {
-	RfqID          int64      `json:"rfq_id"`
-	Title          string     `json:"title"`
-	Details        string     `json:"details"`
-	Quantity       int64      `json:"quantity"`
-	UnitName       string     `json:"unit_name"`
-	BudgetPerPiece decimal.Decimal `json:"budget_per_piece"`
-	CategoryID     int64      `json:"category_id"`
-	CategoryName   string     `json:"category_name"`
-	DeadlineDate   *time.Time `json:"deadline_date,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
-	Images         []RfqImage `json:"images"`
+	RfqID               int64           `json:"rfq_id"`
+	Title               string          `json:"title"`
+	Details             string          `json:"details"`
+	Quantity            int64           `json:"quantity"`
+	UnitName            string          `json:"unit_name"`
+	BudgetPerPiece      decimal.Decimal `json:"budget_per_piece"`
+	CategoryID          int64           `json:"category_id"`
+	CategoryName        string          `json:"category_name"`
+	SubCategoryID       *int64          `json:"sub_category_id,omitempty"`
+	SubCategoryName     *string         `json:"sub_category_name,omitempty"`
+	ShippingMethodName  *string         `json:"shipping_method_name,omitempty"`
+	MaterialGrade       *string         `json:"material_grade,omitempty"`
+	Certifications      StringArray     `json:"certifications_required"`
+	TargetLeadTimeDays  *int            `json:"target_lead_time_days,omitempty"`
+	TargetPrice         *float64        `json:"target_price,omitempty"`
+	// Delivery address (nested object for summarizeRfqAddress)
+	Address    *RfqAddressNested `json:"address,omitempty"`
+	DeadlineDate *time.Time      `json:"deadline_date,omitempty"`
+	CreatedAt    time.Time       `json:"created_at"`
+	Images       []RfqImage      `json:"images"`
+}
+
+// RfqAddressNested holds the delivery address for an RFQ.
+type RfqAddressNested struct {
+	AddressDetail   string `json:"address_detail"`
+	SubDistrictName string `json:"sub_district_name"`
+	DistrictName    string `json:"district_name"`
+	ProvinceName    string `json:"province_name"`
+	ZipCode         string `json:"zip_code"`
 }
 
 type QuoteNested struct {
-	QuoteID       int64           `json:"quote_id"`
-	PricePerPiece decimal.Decimal `json:"price_per_piece"`
-	MoldCost      decimal.Decimal `json:"mold_cost"`
-	LeadTimeDays  int64           `json:"lead_time_days"`
+	QuoteID          int64           `json:"quote_id"`
+	PricePerPiece    decimal.Decimal `json:"price_per_piece"`
+	MoldCost         decimal.Decimal `json:"mold_cost"`
+	ToolingMoldCost  decimal.Decimal `json:"tooling_mold_cost"`
+	LeadTimeDays     int64           `json:"lead_time_days"`
+	GrandTotal       decimal.Decimal `json:"grand_total"`
+	Subtotal         decimal.Decimal `json:"subtotal"`
+	DiscountAmount   decimal.Decimal `json:"discount_amount"`
+	ShippingCost     decimal.Decimal `json:"shipping_cost"`
+	PackagingCost    decimal.Decimal `json:"packaging_cost"`
+	VatRate          decimal.Decimal `json:"vat_rate"`
+	VatAmount        decimal.Decimal `json:"vat_amount"`
+	ValidityDays     int             `json:"validity_days"`
+	ValidUntil       *string         `json:"valid_until,omitempty"`
+	PaymentTerms     *string         `json:"payment_terms,omitempty"`
+	ImageURLs        StringArray     `json:"image_urls"`
+	FactoryHighlight *string         `json:"factory_highlight,omitempty"`
 }
 
 // OrderDetailResponse extends the legacy order payload with FE-ready action state.
@@ -219,6 +252,8 @@ type OrderDetailResponse struct {
 	Currency          string                     `json:"currency"`
 	Factory           OrderFactorySummary        `json:"factory"`
 	CustomerUserID    int64                      `json:"customer_user_id"`
+	CustomerName      string                     `json:"customer_name,omitempty"`
+	CustomerPhone     string                     `json:"customer_phone,omitempty"`
 	EstimatedDelivery *time.Time                 `json:"estimated_delivery,omitempty"`
 	ShippingDays      int                        `json:"shipping_days"`
 	LeadTimeDays      *int                       `json:"lead_time_days,omitempty"`
@@ -255,7 +290,8 @@ type Message struct {
 	MessageID     string    `db:"message_id" json:"message_id"`
 	ReferenceType string    `db:"reference_type" json:"reference_type"`
 	ReferenceID   int64     `db:"reference_id" json:"reference_id"`
-	RFQTitle      *string   `db:"rfq_title" json:"rfq_title,omitempty"`
+	RFQTitle        *string   `db:"rfq_title" json:"rfq_title,omitempty"`
+	ReferenceTitle  *string   `db:"reference_title" json:"reference_title,omitempty"`
 	SenderID      int64     `db:"sender_id" json:"sender_id"`
 	ReceiverID    int64     `db:"receiver_id" json:"receiver_id"`
 	Content       string    `db:"content" json:"content"`

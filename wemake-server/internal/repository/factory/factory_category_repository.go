@@ -39,6 +39,14 @@ func (r *FactoryRepository) ListFactoryCategories(factoryID int64) ([]domain.Fac
 	return r.selectFactoryCategories(factoryID)
 }
 
+func (r *FactoryRepository) ListFactoryCategoryIDs(factoryID int64) ([]int64, error) {
+	var ids []int64
+	err := r.db.Select(&ids, `
+		SELECT category_id FROM map_factory_categories WHERE factory_id = $1 ORDER BY category_id
+	`, factoryID)
+	return ids, err
+}
+
 func (r *FactoryRepository) AddFactoryCategory(factoryID, categoryID int64) error {
 	return r.addFactoryMapping(factoryCategoryMapping, factoryID, categoryID)
 }

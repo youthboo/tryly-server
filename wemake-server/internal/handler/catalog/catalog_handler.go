@@ -17,7 +17,21 @@ func NewCatalogHandler(service *catalogservice.CatalogService) *CatalogHandler {
 }
 
 func (h *CatalogHandler) GetCategories(c *fiber.Ctx) error {
-	items, err := h.service.GetCategories(helper.QueryString(c, "scope"))
+	scope := helper.QueryString(c, "scope")
+	limit := helper.QueryParams(c).Int("limit", 0)
+
+	if helper.QueryString(c, "include_sub") == "true" {
+		items, err := h.service.GetCategoriesWithSubs(scope, limit)
+		if err != nil {
+			return helper.JSONInternal(c, "failed to fetch categories")
+		}
+		return c.JSON(items)
+	}
+
+	if limit > 0 && scope == "" {
+		scope = domain.CatalogScopeAll
+	}
+	items, err := h.service.GetCategories(scope, limit)
 	if err != nil {
 		return helper.JSONInternal(c, "failed to fetch categories")
 	}
@@ -32,7 +46,7 @@ func (h *CatalogHandler) GetLBICategories(c *fiber.Ctx) error {
 	if !domainutil.StatusIn(scope, domain.CatalogScopeProduct, domain.CatalogScopeMaterial, domain.CatalogScopeAll) {
 		return helper.BadRequestError(c, "INVALID_SCOPE")
 	}
-	items, err := h.service.GetCategories(scope)
+	items, err := h.service.GetCategories(scope, 0)
 	if err != nil {
 		return helper.JSONInternal(c, "failed to fetch categories")
 	}
@@ -46,6 +60,18 @@ func (h *CatalogHandler) GetSubCategories(c *fiber.Ctx) error {
 	}
 
 	items, err := h.service.GetSubCategories(categoryID)
+	if err != nil {
+		return helper.JSONInternal(c, "failed to fetch sub-categories")
+	}
+	return c.JSON(items)
+}
+
+func (h *CatalogHandler) GetAllLBISubCategories(c *fiber.Ctx) error {
+	scope := domainutil.NormalizeStatus(helper.QueryString(c, "scope"))
+	if scope != "" && !domainutil.StatusIn(scope, domain.CatalogScopeProduct, domain.CatalogScopeMaterial, domain.CatalogScopeAll) {
+		return helper.BadRequestError(c, "INVALID_SCOPE")
+	}
+	items, err := h.service.GetAllSubCategories(scope)
 	if err != nil {
 		return helper.JSONInternal(c, "failed to fetch sub-categories")
 	}

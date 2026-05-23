@@ -257,11 +257,11 @@ func (s *OrderService) VerifyPayment(orderID, userID int64, role, txID string) (
 		Type:    "PAYMENT_RECEIVED",
 		Title:   "รับชำระเงินแล้ว",
 		Message: fmt.Sprintf("ได้รับการชำระเงิน ฿%.2f สำหรับ Order #%d", paymentTx.Amount, order.OrderID),
-		LinkTo:  helper.OrderLink(order.OrderID),
+		LinkTo:  helper.FactoryOrderLink(order.OrderID),
 		Data: helper.NotificationData(map[string]interface{}{
 			"order_id": order.OrderID,
 			"amount":   paymentTx.Amount,
-			"url":      helper.OrderLink(order.OrderID),
+			"url":      helper.FactoryOrderLink(order.OrderID),
 		}),
 		ReferenceID: &order.OrderID,
 		CreatedAt:   now,
@@ -307,7 +307,18 @@ func (s *OrderService) confirmReceiptTx(orderID int64, actorUserID *int64, note 
 			return ErrConfirmReceiptNotAllowed
 		}
 		if statusBefore != domain.OrderStatusShipping {
-			return ErrConfirmReceiptInvalidStatus
+			// Allow confirmation when production step 5 = IP (customer has received goods,
+			// regardless of whether the factory explicitly called MarkShipped).
+			var step5Status string
+			_ = tx.QueryRow(`
+				SELECT COALESCE(status, '')
+				FROM production_updates
+				WHERE order_id = $1 AND step_id = 5
+				LIMIT 1
+			`, orderID).Scan(&step5Status)
+			if step5Status != "IP" {
+				return ErrConfirmReceiptInvalidStatus
+			}
 		}
 
 		completedAt = time.Now().UTC()
@@ -315,9 +326,25 @@ func (s *OrderService) confirmReceiptTx(orderID int64, actorUserID *int64, note 
 			completedAt = receivedAt.UTC()
 		}
 
-		if err := s.repo.UpsertCompletedStepTx(tx, orderID, actorUserID, note, completedAt); err != nil {
+		// Mark production step 5 → CD (customer confirmed delivery).
+		if _, err := tx.Exec(`
+			UPDATE production_updates
+			SET status = 'CD', completed_at = $2, last_updated_at = NOW()
+			WHERE order_id = $1 AND step_id = 5 AND status = 'IP'
+		`, orderID, completedAt); err != nil {
 			return err
 		}
+
+		// Only upsert the legacy step-6 marker when it already exists or lbi_production has step 6.
+		// Otherwise skip — step 5 = CD is the definitive completion signal.
+		var hasStep6 bool
+		_ = tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM lbi_production WHERE step_id = 6)`).Scan(&hasStep6)
+		if hasStep6 {
+			if err := s.repo.UpsertCompletedStepTx(tx, orderID, actorUserID, note, completedAt); err != nil {
+				return err
+			}
+		}
+
 		if err := s.repo.MarkCompletedTx(tx, orderID, completedAt); err != nil {
 			return err
 		}

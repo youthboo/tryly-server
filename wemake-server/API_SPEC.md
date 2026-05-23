@@ -174,10 +174,18 @@ Aggregated dashboard payload:
   "categories": [],
   "factories": [],
   "rfqs": [],
-  "orders": [],
+  "orders": [
+    {
+      "id": 123,
+      "status": "in_production",
+      "current_step_id": 3
+    }
+  ],
   "threads": []
 }
 ```
+
+Each item in `orders[]` includes `current_step_id` (0–5): the latest **completed** production step (`status = CD` with highest `sort_order`). Example: step 4 is `CD` and step 5 is `IP` → `current_step_id` is `4` (not `5`). Same rules as `production_summary.current_step_id` on `GET /orders` (factory). If the order is `PD`/`PR` and no step is `CD` yet, defaults to `0` (accept order).
 
 ### `GET /frontend/me`
 

@@ -106,6 +106,22 @@ func (s *OrderService) buildOrderDetailResponse(row *orderrepo.OrderDetailRow) (
 	shippingDays := getShippingDays(s.db)
 	leadTimeDays := int(row.LeadTimeDays)
 
+	// Build delivery address nested object (only if we have address data)
+	var rfqAddress *domain.RfqAddressNested
+	if row.RFQAddrDetail != nil || row.RFQAddrProvince != nil {
+		rfqAddress = &domain.RfqAddressNested{
+			AddressDetail:   derefStr(row.RFQAddrDetail),
+			SubDistrictName: derefStr(row.RFQAddrSubDistrict),
+			DistrictName:    derefStr(row.RFQAddrDistrict),
+			ProvinceName:    derefStr(row.RFQAddrProvince),
+			ZipCode:         derefStr(row.RFQAddrZipCode),
+		}
+	}
+
+	// Build certifications list from pq.StringArray
+	certs := make(domain.StringArray, len(row.RFQCertifications))
+	copy(certs, row.RFQCertifications)
+
 	return &domain.OrderDetailResponse{
 		OrderID:           row.OrderID,
 		QuotationID:       row.QuotationID,
@@ -117,8 +133,10 @@ func (s *OrderService) buildOrderDetailResponse(row *orderrepo.OrderDetailRow) (
 		StatusLabelTH:     domainstatus.OrderLabelTH(statusCode),
 		PaymentType:       row.PaymentType,
 		Currency:          "THB",
-		Factory:           domain.OrderFactorySummary{FactoryID: row.FactoryID, Name: row.FactoryName},
+		Factory:           domain.OrderFactorySummary{FactoryID: row.FactoryID, Name: row.FactoryName, Phone: row.FactoryPhone, Address: row.FactoryProvince},
 		CustomerUserID:    row.UserID,
+		CustomerName:      row.CustomerName,
+		CustomerPhone:     row.CustomerPhone,
 		EstimatedDelivery: timePtrInTH(row.EstimatedDelivery),
 		ShippingDays:      shippingDays,
 		LeadTimeDays:      &leadTimeDays,
@@ -130,22 +148,50 @@ func (s *OrderService) buildOrderDetailResponse(row *orderrepo.OrderDetailRow) (
 		NextAction:        buildNextAction(row, statusCode, depositDueDate, depositPaidAt, finalPaidAt, nowTH),
 		PaymentSchedule:   buildPaymentSchedule(row, statusCode, depositDueDate, depositPaidAt, finalPaidAt),
 		RFQ: domain.RfqNested{
-			RfqID:          row.RFQID,
-			Title:          row.RFQTitle,
-			Details:        rfqDetails,
-			Quantity:       row.RFQQuantity,
-			UnitName:       "",
-			BudgetPerPiece: helper.MoneyDecimal(row.RFQBudget),
-			CategoryID:     row.RFQCategoryID,
-			CategoryName:   rfqCategoryName,
-			CreatedAt:      row.RFQCreatedAt.In(thailandLocation),
-			Images:         images,
+			RfqID:               row.RFQID,
+			Title:               row.RFQTitle,
+			Details:             rfqDetails,
+			Quantity:            row.RFQQuantity,
+			UnitName:            "",
+			BudgetPerPiece:      helper.MoneyDecimal(row.RFQBudget),
+			CategoryID:          row.RFQCategoryID,
+			CategoryName:        rfqCategoryName,
+			SubCategoryID:       row.RFQSubCategoryID,
+			SubCategoryName:     row.RFQSubCategoryName,
+			ShippingMethodName:  row.RFQShippingMethodName,
+			MaterialGrade:       row.RFQMaterialGrade,
+			Certifications:      certs,
+			TargetLeadTimeDays:  row.RFQTargetLeadTimeDays,
+			TargetPrice:         row.RFQTargetPrice,
+			Address:             rfqAddress,
+			CreatedAt:           row.RFQCreatedAt.In(thailandLocation),
+			Images:              images,
 		},
 		Quotation: domain.QuoteNested{
-			QuoteID:       row.QuotationID,
-			PricePerPiece: helper.MoneyDecimal(row.PricePerPiece),
-			MoldCost:      helper.MoneyDecimal(row.MoldCost),
-			LeadTimeDays:  row.LeadTimeDays,
+			QuoteID:          row.QuotationID,
+			PricePerPiece:    helper.MoneyDecimal(row.PricePerPiece),
+			MoldCost:         helper.MoneyDecimal(row.MoldCost),
+			ToolingMoldCost:  helper.MoneyDecimal(row.MoldCost),
+			LeadTimeDays:     row.LeadTimeDays,
+			GrandTotal:       helper.MoneyDecimal(row.QuoteGrandTotal),
+			Subtotal:         helper.MoneyDecimal(row.QuoteSubtotal),
+			DiscountAmount:   helper.MoneyDecimal(row.QuoteDiscountAmount),
+			ShippingCost:     helper.MoneyDecimal(row.QuoteShippingCost),
+			PackagingCost:    helper.MoneyDecimal(row.QuotePackagingCost),
+			VatRate:          helper.MoneyDecimal(row.QuoteVatRate),
+			VatAmount:        helper.MoneyDecimal(row.QuoteVatAmount),
+			ValidityDays:     row.QuoteValidityDays,
+			ValidUntil:       row.QuoteValidUntil,
+			PaymentTerms:     row.QuotePaymentTerms,
+			ImageURLs:        domain.StringArray(row.QuoteImageURLs),
+			FactoryHighlight: row.QuoteFactoryHighlight,
 		},
 	}, nil
+}
+
+func derefStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

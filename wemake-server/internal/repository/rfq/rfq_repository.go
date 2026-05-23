@@ -3,7 +3,6 @@ package rfq
 import (
 	"database/sql"
 	"strings"
-	"time"
 
 	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
@@ -36,9 +35,9 @@ func (r *RFQRepository) CreateTx(tx *sqlx.Tx, rfq *domain.RFQ) error {
 const rfqSelectColumns = `
 		rfq_id, user_id, COALESCE(category_id, 0) AS category_id, sub_category_id, title, quantity, details,
 		0::bigint AS address_id, shipping_method_id, status, COALESCE(request_kind, 'PR') AS request_kind,
-		NULL::timestamp AS uploaded_at, created_at, updated_at,
+		NULL::timestamp AS uploaded_at, created_at, updated_at, expired_date,
 		material_grade, target_price, target_lead_time_days, NULL::date AS required_delivery_date, delivery_address_id,
-		certifications_required, FALSE AS sample_required, NULL::integer AS sample_qty, NULL::text AS inspection_type,
+		certifications_required,
 		NULL::bigint AS conversation_id, reference_images, 'RFQ'::text AS rfq_type, 'buyer'::text AS initiated_by,
 		NULL::bigint AS factory_user_id, NULL::bigint AS source_showcase_id, NULL::bigint AS source_conv_id,
 		NULL::text AS boq_currency, NULL::numeric AS boq_subtotal, NULL::numeric AS boq_discount_amount,
@@ -51,9 +50,9 @@ const rfqSelectColumns = `
 const rfqSelectColumnsR = `
 		r.rfq_id, r.user_id, COALESCE(r.category_id, 0) AS category_id, r.sub_category_id, r.title, r.quantity, r.details,
 		0::bigint AS address_id, r.shipping_method_id, r.status, COALESCE(r.request_kind, 'PR') AS request_kind,
-		NULL::timestamp AS uploaded_at, r.created_at, r.updated_at,
+		NULL::timestamp AS uploaded_at, r.created_at, r.updated_at, r.expired_date,
 		r.material_grade, r.target_price, r.target_lead_time_days, NULL::date AS required_delivery_date, r.delivery_address_id,
-		r.certifications_required, FALSE AS sample_required, NULL::integer AS sample_qty, NULL::text AS inspection_type,
+		r.certifications_required,
 		NULL::bigint AS conversation_id, r.reference_images, 'RFQ'::text AS rfq_type, 'buyer'::text AS initiated_by,
 		NULL::bigint AS factory_user_id, NULL::bigint AS source_showcase_id, NULL::bigint AS source_conv_id,
 		NULL::text AS boq_currency, NULL::numeric AS boq_subtotal, NULL::numeric AS boq_discount_amount,
@@ -69,13 +68,15 @@ func (r *RFQRepository) createWithExecutor(exec dbutil.QueryRower, rfq *domain.R
 			user_id, category_id, sub_category_id, title, quantity, details,
 			shipping_method_id, status, request_kind, created_at, updated_at,
 			material_grade, target_price, target_lead_time_days, delivery_address_id,
-			certifications_required, reference_images
+			certifications_required, reference_images,
+			expired_date
 		)
 		VALUES (
 			$1, $2, $3, $4, $5, $6,
 			$7, $8, $9, $10, $11,
 			$12, $13, $14, $15,
-			$16, $17
+			$16, $17,
+			$10 + (SELECT COALESCE((value || ' days')::interval, INTERVAL '30 days') FROM tconfig WHERE key = 'rfq_expired')
 		)
 		RETURNING rfq_id
 	`
@@ -153,9 +154,12 @@ func (r *RFQRepository) GetByID(userID, rfqID int64) (*domain.RFQ, error) {
 	return &rfq, nil
 }
 
+// Cancel lets the customer withdraw an RFQ entirely (OP → CL).
+// Pending quotations are expired so factories receive no further actions.
+// CC is reserved for system auto-cancel only (see background expireRFQs job).
 func (r *RFQRepository) Cancel(userID, rfqID int64) error {
 	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
-		if _, err := tx.Exec("UPDATE rfqs SET status = 'CC', updated_at = NOW() WHERE user_id = $1 AND rfq_id = $2", userID, rfqID); err != nil {
+		if _, err := tx.Exec("UPDATE rfqs SET status = 'CL', updated_at = NOW() WHERE user_id = $1 AND rfq_id = $2", userID, rfqID); err != nil {
 			return err
 		}
 		if _, err := tx.Exec("UPDATE quotations SET status = 'EX', log_timestamp = NOW() WHERE rfq_id = $1 AND status = 'PD'", rfqID); err != nil {
@@ -165,7 +169,10 @@ func (r *RFQRepository) Cancel(userID, rfqID int64) error {
 	})
 }
 
-// CloseOpenRFQForUserTx sets RFQ status from OP to CL when the customer awards an order (same transaction as order create).
+// CloseOpenRFQForUserTx is intentionally NOT called during order creation.
+// Customers may place orders against multiple quotations on the same RFQ,
+// so the RFQ stays OP until the customer explicitly closes it (CloseRFQ).
+// Kept for potential future use; do not call automatically on order create.
 func (r *RFQRepository) CloseOpenRFQForUserTx(tx *sqlx.Tx, rfqID, userID int64) error {
 	_, err := tx.Exec(`
 		UPDATE rfqs
@@ -287,60 +294,48 @@ func (r *RFQRepository) getAddressByID(addressID int64) (*domain.Address, error)
 func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, kind string, showDismissed bool) ([]domain.RFQ, error) {
 	kinds := splitRFQKinds(kind)
 	if len(kinds) == 0 {
-		kinds = []string{domain.RequestKindProduction, domain.RequestKindProductSample, domain.RequestKindMaterialSample}
+		kinds = []string{domain.RequestKindProduction, domain.RequestKindProductSample, domain.RequestKindMaterialSample, domain.RequestKindRawMaterial}
 	}
 	var rfqs []domain.RFQ
 	query := `
 		SELECT DISTINCT
 		       ` + rfqSelectColumnsR + `,
-		       (frd.factory_id IS NOT NULL) AS is_dismissed,
-		       frd.dismissed_at,
-		       (q.quote_id IS NULL OR q.status NOT IN ('PD','AC')) AS can_dismiss,
-		       -- quotation overlay for this factory
-		       q.status         AS my_quote_status,
-		       q.quote_id       AS my_quote_id,
+		       (frd.factory_id IS NOT NULL)              AS is_dismissed,
+		       frd.dismissed_at                          AS dismissed_at,
+		       (COALESCE(q.status, '') NOT IN ('AC','PD')) AS can_dismiss,
+		       q.status          AS my_quote_status,
+		       q.quote_id        AS my_quote_id,
 		       q.price_per_piece AS my_quoted_price
 		FROM rfqs r
 		LEFT JOIN quotations q
 		       ON q.rfq_id = r.rfq_id AND q.factory_id = $1
-		LEFT JOIN lbi_sub_categories sc ON sc.sub_category_id = r.sub_category_id
-		LEFT JOIN factory_rfq_dismissals frd ON frd.rfq_id = r.rfq_id AND frd.factory_id = $1
+		LEFT JOIN factory_rfq_dismissals frd
+		       ON frd.rfq_id = r.rfq_id AND frd.factory_id = $1
 		WHERE
-		  -- Rule 3: ซ่อน quotation ที่ถูกยอมรับแล้ว (กลายเป็น order)
 		  COALESCE(q.status, '') != 'AC'
-		  -- Rule 1 + 2: แสดง OP ที่ยังไม่เสนอ OR RFQ ที่เสนอแล้ว (ไม่ว่า rfq status จะเป็นอะไร)
-		  AND (r.status = 'OP' OR q.quote_id IS NOT NULL)
 		  AND COALESCE(r.request_kind, 'PR') = ANY($2)
-		  AND ($3::boolean OR frd.factory_id IS NULL)
 		  AND (
-			(
-				COALESCE(r.request_kind, 'PR') IN ('PR', 'PS')
-				AND EXISTS (
-					SELECT 1
-					FROM map_factory_categories mfc
-					WHERE mfc.category_id = r.category_id
-					  AND mfc.factory_id = $1
-				)
-				AND (
-					r.sub_category_id IS NULL
-					OR COALESCE(sc.sort_order, 0) = 99
-					OR EXISTS (
-						SELECT 1 FROM map_factory_sub_categories ms
-						WHERE ms.factory_id = $1 AND ms.sub_category_id = r.sub_category_id
-					)
-				)
+		    ($3  AND frd.factory_id IS NOT NULL AND r.status = 'OP')
+		    OR (NOT $3 AND frd.factory_id IS NULL AND (r.status = 'OP' OR q.quote_id IS NOT NULL))
+		  )
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM quotations excl_q
+			INNER JOIN orders excl_o ON excl_o.quote_id = excl_q.quote_id
+			WHERE excl_q.rfq_id = r.rfq_id
+			  AND excl_q.status != 'PD'
+			  AND excl_o.status = 'PR'
+		  )
+		  AND (
+			EXISTS (
+				SELECT 1 FROM map_factory_categories mfc
+				WHERE mfc.factory_id = $1 AND mfc.category_id = r.category_id
 			)
 			OR (
-				COALESCE(r.request_kind, 'PR') = 'MS'
+				r.sub_category_id IS NOT NULL
 				AND EXISTS (
-					SELECT 1
-					FROM factory_showcases fs
-					INNER JOIN lbi_categories cat ON cat.category_id = fs.category_id
-					WHERE fs.factory_id = $1
-					  AND fs.content_type = 'MT'
-					  AND fs.status = 'AC'
-					  AND COALESCE(cat.scope, 'PD') = 'MT'
-					  AND fs.category_id = r.category_id
+					SELECT 1 FROM map_factory_sub_categories ms
+					WHERE ms.factory_id = $1 AND ms.sub_category_id = r.sub_category_id
 				)
 			)
 		  )
@@ -357,38 +352,6 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 		domain.EnrichRFQBudgetFields(&rfqs[i])
 	}
 	return rfqs, nil
-}
-
-func (r *RFQRepository) EnrichFactoryDismissalState(rfq *domain.RFQ, factoryID int64) error {
-	if rfq == nil {
-		return nil
-	}
-	type row struct {
-		IsDismissed bool       `db:"is_dismissed"`
-		DismissedAt *time.Time `db:"dismissed_at"`
-		CanDismiss  bool       `db:"can_dismiss"`
-	}
-	var state row
-	if err := r.db.Get(&state, `
-		SELECT
-			(frd.factory_id IS NOT NULL) AS is_dismissed,
-			frd.dismissed_at,
-			NOT EXISTS (
-				SELECT 1 FROM quotations q
-				WHERE q.rfq_id = $2
-				  AND q.factory_id = $1
-				  AND q.status IN ('PD', 'AC')
-			) AS can_dismiss
-		FROM rfqs r
-		LEFT JOIN factory_rfq_dismissals frd ON frd.rfq_id = r.rfq_id AND frd.factory_id = $1
-		WHERE r.rfq_id = $2
-	`, factoryID, rfq.RFQID); err != nil {
-		return err
-	}
-	rfq.IsDismissed = state.IsDismissed
-	rfq.DismissedAt = state.DismissedAt
-	rfq.CanDismiss = state.CanDismiss
-	return nil
 }
 
 func (r *RFQRepository) ListMatchingFactoryIDs(rfq *domain.RFQ) ([]int64, error) {
@@ -577,7 +540,7 @@ func splitRFQKinds(raw string) []string {
 	for _, part := range parts {
 		item := domainutil.NormalizeStatus(part)
 		switch item {
-		case domain.RequestKindProduction, domain.RequestKindProductSample, domain.RequestKindMaterialSample:
+		case domain.RequestKindProduction, domain.RequestKindProductSample, domain.RequestKindMaterialSample, domain.RequestKindRawMaterial:
 		default:
 			continue
 		}

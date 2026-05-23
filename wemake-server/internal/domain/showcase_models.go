@@ -13,6 +13,7 @@ type FactoryShowcase struct {
 	CategoryID      *int64          `db:"category_id" json:"category_id,omitempty"`
 	SubCategoryID   *int64          `db:"sub_category_id" json:"sub_category_id,omitempty"`
 	MOQ             *int            `db:"moq" json:"moq,omitempty"`
+	LeadTimeDays    *int            `db:"lead_time_days" json:"lead_time_days,omitempty"`
 	BasePrice       *float64        `db:"base_price" json:"base_price,omitempty"`
 	PromoPrice      *float64        `db:"promo_price" json:"promo_price,omitempty"`
 	StartDate       *time.Time      `db:"start_date" json:"start_date,omitempty"`
@@ -36,7 +37,7 @@ type ShowcaseExploreItem struct {
 	Type            string          `db:"-" json:"-"`
 	Title           string          `db:"title" json:"title"`
 	Excerpt         *string         `db:"excerpt" json:"excerpt,omitempty"`
-	ImageURL        *string         `db:"image_url" json:"image_url,omitempty"`
+	ImageURL        *string         `db:"image_url" json:"-"`
 	CategoryID      *int64          `db:"category_id" json:"category_id,omitempty"`
 	SubCategoryID   *int64          `db:"sub_category_id" json:"sub_category_id,omitempty"`
 	MOQ             *int            `db:"moq" json:"moq,omitempty"`
@@ -44,20 +45,38 @@ type ShowcaseExploreItem struct {
 	PromoPrice      *float64        `db:"promo_price" json:"promo_price,omitempty"`
 	StartDate       *time.Time      `db:"start_date" json:"start_date,omitempty"`
 	EndDate         *time.Time      `db:"end_date" json:"end_date,omitempty"`
+	LeadTimeDays    *int            `db:"lead_time_days" json:"lead_time_days,omitempty"`
 	LinkedShowcases JSONLinkArray   `db:"linked_showcases" json:"linked_showcases"`
-	Tags            JSONStringArray `db:"tags" json:"tags"`
+	Tags            JSONStringArray `db:"tags" json:"-"`
 	LikesCount      int             `db:"likes_count" json:"likes_count"`
-	ViewCount       int64           `db:"view_count" json:"view_count"`
+	ViewCount       int64           `db:"view_count" json:"-"`
 	Status          string          `db:"status" json:"status"`
-	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
-	PublishedAt     *time.Time      `db:"published_at" json:"published_at,omitempty"`
+	CreatedAt       time.Time       `db:"created_at" json:"-"`
+	UpdatedAt       time.Time       `db:"updated_at" json:"-"`
+	PublishedAt     *time.Time      `db:"published_at" json:"-"`
 	FactoryName     string          `db:"factory_name" json:"factory_name"`
-	FactoryImageURL *string         `db:"factory_image_url" json:"factory_image_url,omitempty"`
+	FactoryImageURL *string         `db:"factory_image_url" json:"-"`
 	FactoryRating   *float64        `db:"factory_rating" json:"factory_rating,omitempty"`
 	FactoryVerified bool            `db:"factory_verified" json:"factory_verified"`
-	CategoryName    *string         `db:"category_name" json:"category_name,omitempty"`
+	CategoryName    *string         `db:"category_name" json:"-"`
 	SubCategoryName *string         `db:"sub_category_name" json:"sub_category_name,omitempty"`
+}
+
+type ShowcasePaginatedFilter struct {
+	Types         []string
+	Keyword       string
+	CategoryID    *int64
+	SubCategoryID *int64
+	Sort          string
+	Limit         int
+	Page          int
+}
+
+type ShowcasePaginatedResponse struct {
+	Total int64                `json:"total"`
+	Page  int                  `json:"page"`
+	Limit int                  `json:"limit"`
+	Items []ShowcaseExploreItem `json:"items"`
 }
 
 // ShowcaseByFactoryItem is the list payload for GET /factories/:id/showcases.
@@ -235,6 +254,13 @@ type PromoSlide struct {
 	Code     string `db:"code" json:"code"`
 	ImageURL string `db:"image_url" json:"image_url"`
 	Status   string `db:"status" json:"status"`
+}
+
+type HomePromoSlide struct {
+	SlideID  int64   `db:"slide_id" json:"slide_id"`
+	Title    string  `db:"title" json:"title"`
+	ImageURL *string `db:"image_url" json:"image_url"`
+	LinkTo   string  `db:"link_to" json:"link_to"`
 }
 
 type ShowcaseAnalytics struct {

@@ -2,11 +2,10 @@ package domain
 
 type FrontendBootstrapResponse struct {
 	CurrentUser *FrontendCurrentUser    `json:"currentUser"`
-	Categories  []FrontendCategory      `json:"categories"`
-	Factories   []FrontendFactoryCard   `json:"factories"`
 	RFQs        []FrontendRFQCard       `json:"rfqs"`
 	Orders      []FrontendOrderCard     `json:"orders"`
 	Threads     []FrontendMessageThread `json:"threads"`
+	Favorites   []int64                 `json:"favorites"`
 }
 
 type FrontendCurrentUser struct {
@@ -125,6 +124,9 @@ type FrontendOrderCard struct {
 	Status            string  `json:"status"`
 	EstimatedDelivery string  `json:"estimatedDelivery"`
 	CreatedAt         string  `json:"createdAt"`
+	// step_id ขั้นล่าสุดที่ CD แล้ว (step 4 CD + step 5 IP → 4) — logic เดียวกับ
+	// production_summary.current_step_id ใน GET /orders (factory)
+	CurrentStepID *int64 `json:"current_step_id,omitempty"`
 }
 
 type FrontendOrderDetail struct {

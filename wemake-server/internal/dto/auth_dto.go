@@ -2,16 +2,23 @@ package dto
 
 // Auth Request DTOs
 type RegisterRequest struct {
-	Role          string `json:"role" validate:"notblank"`
-	Email         string `json:"email" validate:"notblank"`
-	Phone         string `json:"phone"`
-	Password      string `json:"password" validate:"notblank"`
-	FirstName     string `json:"first_name"`
-	LastName      string `json:"last_name"`
-	FactoryName   string `json:"factory_name"`
-	FactoryTypeID int64  `json:"factory_type_id"`
-	TaxID         string `json:"tax_id"`
-	ProvinceID    *int64 `json:"province_id"`
+	Role           string  `json:"role" validate:"notblank"`
+	Email          string  `json:"email" validate:"notblank"`
+	Phone          string  `json:"phone"`
+	Password       string  `json:"password" validate:"notblank"`
+	FirstName      string  `json:"first_name"`
+	LastName       string  `json:"last_name"`
+	FactoryName    string  `json:"factory_name"`
+	FactoryTypeID  int64   `json:"factory_type_id"`
+	TaxID          string  `json:"tax_id"`
+	ProvinceID     *int64  `json:"province_id"`
+	CategoryIDs    []int64 `json:"category_ids"`
+	SubCategoryIDs []int64 `json:"sub_category_ids"`
+	// Cert fields for FT role (optional — skipped if CertID == 0 or DocumentURL == "")
+	CertID         int64  `json:"cert_id"`
+	DocumentURL    string `json:"document_url"`
+	CertNumber     string `json:"cert_number"`
+	CertExpireDate string `json:"cert_expire_date"`
 }
 
 type LoginRequest struct {

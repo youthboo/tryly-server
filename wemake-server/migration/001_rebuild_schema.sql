@@ -157,6 +157,13 @@ CREATE TABLE IF NOT EXISTS factory_commission_exemptions (
     CONSTRAINT factory_commission_exemptions_pkey PRIMARY KEY (exemption_id)
 );
 
+CREATE TABLE IF NOT EXISTS factory_rfq_dismissals (
+    factory_id BIGINT NOT NULL,
+    rfq_id     BIGINT NOT NULL,
+    dismissed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT factory_rfq_dismissals_pkey PRIMARY KEY (factory_id, rfq_id)
+);
+
 CREATE TABLE IF NOT EXISTS factory_profiles (
     user_id BIGINT NOT NULL,
     approval_status CHAR(2) NOT NULL,
@@ -413,7 +420,8 @@ CREATE TABLE IF NOT EXISTS production_updates (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     completed_at TIMESTAMP,
     last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    CONSTRAINT production_updates_pkey PRIMARY KEY (update_id)
+    CONSTRAINT production_updates_pkey PRIMARY KEY (update_id),
+    CONSTRAINT uq_production_updates_order_step UNIQUE (order_id, step_id)
 );
 
 CREATE TABLE IF NOT EXISTS quotation_history (

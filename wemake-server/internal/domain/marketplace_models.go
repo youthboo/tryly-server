@@ -11,12 +11,25 @@ const (
 	RequestKindProduction     = "PR"
 	RequestKindProductSample  = "PS"
 	RequestKindMaterialSample = "MS"
+	RequestKindRawMaterial    = "MR"
 )
 
 type Category struct {
 	CategoryID int64  `db:"category_id" json:"category_id"`
 	Name       string `db:"name" json:"name"`
 	Scope      string `db:"scope" json:"scope,omitempty"`
+}
+
+type ExploreResponse struct {
+	Categories []Category                       `json:"categories"`
+	Showcases  map[string][]ShowcaseExploreItem `json:"showcases"`
+}
+
+type CategoryWithSubs struct {
+	CategoryID    int64         `json:"category_id"`
+	Name          string        `json:"name"`
+	Scope         string        `json:"scope,omitempty"`
+	SubCategories []SubCategory `json:"sub_categories"`
 }
 
 type SubCategory struct {
@@ -75,6 +88,7 @@ type RFQ struct {
 	UploadedAt         *time.Time `db:"uploaded_at" json:"uploaded_at,omitempty"`
 	CreatedAt          time.Time  `db:"created_at" json:"created_at"`
 	UpdatedAt          time.Time  `db:"updated_at" json:"updated_at"`
+	ExpiredDate        *time.Time `db:"expired_date" json:"expired_date,omitempty"`
 	MaterialGrade      *string    `db:"material_grade" json:"material_grade,omitempty"`
 	PackagingSpec      *string    `db:"packaging_spec" json:"packaging_spec"`
 	CategoryName       *string    `db:"category_name" json:"category_name"`
@@ -88,12 +102,8 @@ type RFQ struct {
 	DeliveryAddressID    *int64     `db:"delivery_address_id" json:"delivery_address_id,omitempty"`
 
 	CertificationsRequired pq.StringArray `db:"certifications_required" json:"certifications_required,omitempty"`
-	SampleRequired         bool           `db:"sample_required" json:"sample_required"`
-	SampleQty              *int           `db:"sample_qty" json:"sample_qty,omitempty"`
-	InspectionType         *string        `db:"inspection_type" json:"inspection_type,omitempty"`
 
 	ReferenceImages   pq.StringArray `db:"reference_images" json:"reference_images,omitempty"`
-	ImageURLs         pq.StringArray `db:"-" json:"image_urls"`
 	Address           *Address       `db:"-" json:"address,omitempty"`
 	RFQType           string         `db:"rfq_type" json:"rfq_type"`
 	InitiatedBy       string         `db:"initiated_by" json:"initiated_by"`
@@ -145,7 +155,6 @@ func EnrichRFQBudgetFields(rfq *RFQ) {
 	if rfq == nil {
 		return
 	}
-	rfq.ImageURLs = rfq.ReferenceImages
 	rfq.BudgetTotal = nil
 	rfq.BudgetPerPiece = nil
 	rfq.EstimatedTotal = nil
