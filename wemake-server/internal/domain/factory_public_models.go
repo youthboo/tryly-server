@@ -178,6 +178,13 @@ type PortalQuotationItem struct {
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
+// RFQHistoryItem is an RFQ that this factory has actually quoted on, with the
+// original RFQ created_at date. Used for the "RFQ received per period" chart series.
+type RFQHistoryItem struct {
+	RFQID     int64     `json:"rfq_id" db:"rfq_id"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
+
 // FactoryPortal is the aggregate response for GET /factories/me/portal.
 // It replaces 6 separate API calls the factory dashboard page previously made.
 type FactoryPortal struct {
@@ -185,8 +192,12 @@ type FactoryPortal struct {
 	Counts           FactoryDashboardCounts           `json:"counts"`
 	Wallet           FactoryDashboardWallet           `json:"wallet"`
 	// MatchingRFQs is the full list of open RFQs matching this factory's categories,
-	// used by the FE to compute the analytics chart series.
+	// used by the FE to discover new quoting opportunities.
 	MatchingRFQs     []FactoryDashboardRFQItem        `json:"matching_rfqs"`
+	// RFQHistory is every RFQ this factory has ever submitted a quotation for,
+	// with the original RFQ created_at date. Used for the per-period chart series
+	// so the "RFQ received" bars reflect real historical timestamps.
+	RFQHistory       []RFQHistoryItem                 `json:"rfq_history"`
 	// Orders is the full list of the factory's orders (lightweight), used for chart series.
 	Orders           []PortalOrderItem               `json:"orders"`
 	// Quotations is the full list of the factory's quotations (lightweight), used for chart series.

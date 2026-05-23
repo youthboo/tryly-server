@@ -770,11 +770,26 @@ func (r *FactoryRepository) GetPortal(factoryID int64) (*domain.FactoryPortal, e
 		matchingRFQs = []domain.FactoryDashboardRFQItem{}
 	}
 
+	// 6. RFQ history — every RFQ this factory has ever submitted a quotation for,
+	// with the original RFQ created_at. Used for the per-period chart series so the
+	// "RFQ received" bars reflect real timestamps instead of falling back to estimates.
+	var rfqHistory []domain.RFQHistoryItem
+	if err := r.db.Select(&rfqHistory, `
+		SELECT DISTINCT r.rfq_id, r.created_at
+		FROM rfqs r
+		JOIN quotations q ON q.rfq_id = r.rfq_id
+		WHERE q.factory_id = $1
+		ORDER BY r.created_at DESC
+	`, factoryID); err != nil {
+		rfqHistory = []domain.RFQHistoryItem{}
+	}
+
 	return &domain.FactoryPortal{
 		Analytics:        analytics,
 		Counts:           dashboard.Counts,
 		Wallet:           dashboard.Wallet,
 		MatchingRFQs:     matchingRFQs,
+		RFQHistory:       rfqHistory,
 		Orders:           orders,
 		Quotations:       quotations,
 		RecentRFQs:       dashboard.RecentMatchingRFQs,
