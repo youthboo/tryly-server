@@ -40,6 +40,17 @@ func (s *FactoryService) ListFactoryCategories(factoryID int64) ([]domain.Factor
 	return s.repo.ListFactoryCategories(factoryID)
 }
 
+func (s *FactoryService) ListFactoryCategoryIDs(factoryID int64) ([]int64, error) {
+	ids, err := s.repo.ListFactoryCategoryIDs(factoryID)
+	if err != nil {
+		return nil, err
+	}
+	if ids == nil {
+		return []int64{}, nil
+	}
+	return ids, nil
+}
+
 func (s *FactoryService) AddFactoryCategory(factoryID, categoryID int64) error {
 	return s.repo.AddFactoryCategory(factoryID, categoryID)
 }

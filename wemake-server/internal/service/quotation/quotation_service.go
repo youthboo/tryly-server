@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/yourusername/wemake/internal/helper"
+	"strconv"
 	"strings"
+
+	"github.com/yourusername/wemake/internal/helper"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -184,6 +186,25 @@ func (s *QuotationService) CanView(quoteID, userID int64, role string) (bool, er
 
 func (s *QuotationService) ListHistory(quoteID int64) ([]domain.QuotationHistoryEntry, error) {
 	return s.repo.ListHistory(quoteID)
+}
+
+func (s *QuotationService) HistoriesForQuotes(quotes []domain.Quotation) (map[string][]domain.QuotationHistoryEntry, error) {
+	out := make(map[string][]domain.QuotationHistoryEntry, len(quotes))
+	for _, q := range quotes {
+		entries, err := s.ListHistory(q.QuotationID)
+		if err != nil {
+			return nil, err
+		}
+		if entries == nil {
+			entries = []domain.QuotationHistoryEntry{}
+		}
+		out[formatQuoteIDKey(q.QuotationID)] = entries
+	}
+	return out, nil
+}
+
+func formatQuoteIDKey(quoteID int64) string {
+	return strconv.FormatInt(quoteID, 10)
 }
 
 func (s *QuotationService) ListRevisionChain(quoteID int64) ([]domain.Quotation, error) {

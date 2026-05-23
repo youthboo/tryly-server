@@ -2,23 +2,24 @@ package message
 
 import (
 	"encoding/json"
-	"log"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/dto"
 	handlerregistry "github.com/yourusername/wemake/internal/handler/errorregistry"
-	notificationhandler "github.com/yourusername/wemake/internal/handler/notification"
 	"github.com/yourusername/wemake/internal/helper"
+	"github.com/yourusername/wemake/internal/logger"
+	"github.com/yourusername/wemake/internal/sse"
 	messageservice "github.com/yourusername/wemake/internal/service/message"
 )
 
 type MessageHandler struct {
 	service *messageservice.MessageService
+	hub     *sse.Hub
 }
 
-func NewMessageHandler(service *messageservice.MessageService) *MessageHandler {
-	return &MessageHandler{service: service}
+func NewMessageHandler(service *messageservice.MessageService, hub *sse.Hub) *MessageHandler {
+	return &MessageHandler{service: service, hub: hub}
 }
 
 func (h *MessageHandler) CreateMessage(c *fiber.Ctx) error {
@@ -56,8 +57,7 @@ func (h *MessageHandler) CreateMessage(c *fiber.Ctx) error {
 	if err := h.service.Create(item); err != nil {
 		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to create message"), handlerregistry.CreateMessageErrorMap())
 	}
-	// Push SSE event to the receiver
-	pushNewMessageSSE(item)
+	pushNewMessageSSE(h.hub, item)
 	return c.Status(fiber.StatusCreated).JSON(item)
 }
 
@@ -169,23 +169,23 @@ func (h *MessageHandler) CreateMessageByConvPath(c *fiber.Ctx) error {
 		IsRead:        false,
 	}
 	if err := h.service.Create(item); err != nil {
-		log.Printf("ERROR CreateMessageByConvPath: sender=%d receiver=%d conv=%v err=%v", item.SenderID, item.ReceiverID, item.ConvID, err)
+		logger.Error("create message by conv path failed", "sender_id", item.SenderID, "receiver_id", item.ReceiverID, "conv_id", item.ConvID, "err", err)
 		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to create message"), handlerregistry.CreateMessageErrorMap())
 	}
-	// Push SSE event to the receiver
-	pushNewMessageSSE(item)
+	pushNewMessageSSE(h.hub, item)
 	return c.Status(fiber.StatusCreated).JSON(item)
 }
 
-func pushNewMessageSSE(msg *domain.Message) {
+func pushNewMessageSSE(hub *sse.Hub, msg *domain.Message) {
+	if hub == nil {
+		return
+	}
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return
 	}
-	// Push to the receiver so they see the message in real-time
-	notificationhandler.PushEvent(msg.ReceiverID, "new_message", string(data))
-	// Also push to the sender (for multi-tab sync)
-	notificationhandler.PushEvent(msg.SenderID, "new_message", string(data))
+	hub.Push(msg.ReceiverID, "new_message", string(data))
+	hub.Push(msg.SenderID, "new_message", string(data))
 }
 
 func valueOrZero(v *int64) int64 {

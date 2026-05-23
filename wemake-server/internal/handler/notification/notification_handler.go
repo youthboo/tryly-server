@@ -10,19 +10,19 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/valyala/fasthttp"
 	"github.com/yourusername/wemake/internal/helper"
+	"github.com/yourusername/wemake/internal/sse"
 	notificationservice "github.com/yourusername/wemake/internal/service/notification"
 )
 
 type NotificationHandler struct {
 	service *notificationservice.NotificationService
+	hub     *sse.Hub
 }
 
-func NewNotificationHandler(service *notificationservice.NotificationService) *NotificationHandler {
-	return &NotificationHandler{service: service}
+func NewNotificationHandler(service *notificationservice.NotificationService, hub *sse.Hub) *NotificationHandler {
+	return &NotificationHandler{service: service, hub: hub}
 }
 
-// filterTypes maps the filter query param to a list of notification types.
-// Returns nil (= all types) for "all" or unknown values.
 func filterTypes(filter string) []string {
 	switch filter {
 	case "rfq":
@@ -34,7 +34,6 @@ func filterTypes(filter string) []string {
 	}
 }
 
-// [2] GET /api/v1/notifications?filter=all&limit=20&offset=0
 func (h *NotificationHandler) List(c *fiber.Ctx) error {
 	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
@@ -55,7 +54,6 @@ func (h *NotificationHandler) List(c *fiber.Ctx) error {
 	})
 }
 
-// [3] POST /api/v1/notifications/:noti_id/read
 func (h *NotificationHandler) MarkAsRead(c *fiber.Ctx) error {
 	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
@@ -69,14 +67,12 @@ func (h *NotificationHandler) MarkAsRead(c *fiber.Ctx) error {
 	if err != nil {
 		return helper.JSONInternal(c, "failed to mark notification as read")
 	}
-	// Push read event so other open tabs update their badge and list
 	data, _ := json.Marshal(map[string]any{"noti_id": notiID, "unread_count": unreadCount})
-	globalHub.push(userID, sseMessage{Event: "read", Data: string(data)})
+	h.hub.Push(userID, "read", string(data))
 
 	return c.JSON(fiber.Map{"ok": true, "unread_count": unreadCount})
 }
 
-// [4] POST /api/v1/notifications/read-all  body: {"filter":"rfq"} (optional)
 func (h *NotificationHandler) MarkAllRead(c *fiber.Ctx) error {
 	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
@@ -85,7 +81,7 @@ func (h *NotificationHandler) MarkAllRead(c *fiber.Ctx) error {
 	var body struct {
 		Filter string `json:"filter"`
 	}
-	_ = c.BodyParser(&body) // body is optional
+	_ = c.BodyParser(&body)
 	types := filterTypes(body.Filter)
 
 	updatedCount, unreadCount, err := h.service.MarkAllReadWithFilter(userID, types)
@@ -122,7 +118,6 @@ func (h *NotificationHandler) SoftDelete(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"message": "notification deleted"})
 }
 
-// ssePayload is the JSON shape of the new_notification SSE event.
 type ssePayload struct {
 	NotiID      int64  `json:"noti_id"`
 	Type        string `json:"type"`
@@ -134,8 +129,6 @@ type ssePayload struct {
 	UnreadCount int64  `json:"unread_count"`
 }
 
-// [1] GET /api/v1/notifications/stream
-// Auth via httpOnly cookie OR ?token= (EventSource cannot set headers)
 func (h *NotificationHandler) Stream(c *fiber.Ctx) error {
 	userID, err := helper.RequireAuthenticatedUserID(c)
 	if err != nil {
@@ -154,12 +147,11 @@ func (h *NotificationHandler) Stream(c *fiber.Ctx) error {
 		}
 	}
 
-	ch := globalHub.subscribe(userID)
+	ch := h.hub.Subscribe(userID)
 
 	c.Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
-		defer globalHub.unsubscribe(userID, ch)
+		defer h.hub.Unsubscribe(userID, ch)
 
-		// init — sync badge immediately
 		count, _ := h.service.GetUnreadCount(userID)
 		initData, _ := json.Marshal(map[string]any{"unread_count": count})
 		fmt.Fprintf(w, "event: init\ndata: %s\n\n", initData)
@@ -175,7 +167,6 @@ func (h *NotificationHandler) Stream(c *fiber.Ctx) error {
 		for {
 			select {
 			case msg, ok := <-ch:
-				// Push-based: read events from MarkAsRead
 				if !ok {
 					return
 				}
