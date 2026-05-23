@@ -75,3 +75,7 @@ func (s *FactoryService) GetDashboard(factoryID int64) (*domain.FactoryDashboard
 func (s *FactoryService) GetAnalytics(factoryID int64) (*domain.FactoryAnalytics, error) {
 	return s.repo.GetAnalytics(factoryID)
 }
+
+func (s *FactoryService) GetPortal(factoryID int64) (*domain.FactoryPortal, error) {
+	return s.repo.GetPortal(factoryID)
+}

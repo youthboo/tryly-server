@@ -59,7 +59,7 @@ func (r *FactoryRepository) ListPublicVerified() ([]domain.FactoryListItem, erro
 			fp.factory_name,
 			fp.factory_type_id,
 			ft.type_name AS factory_type_name,
-			ft.type_name AS specialization,
+			fp.description AS specialization,
 			COALESCE(rev.avg_rating, fp.rating, 0)::float8 AS rating,
 			COALESCE(rev.review_cnt, fp.review_count, 0)::bigint AS review_count,
 			fp.min_order,
@@ -71,7 +71,18 @@ func (r *FactoryRepository) ListPublicVerified() ([]domain.FactoryListItem, erro
 			fp.description,
 			NULL::text AS price_range,
 			fp.province_id,
-			p.name_th AS province_name
+			p.name_th AS province_name,
+			-- Aggregate category names as a JSON array for the FE "tags" field.
+			-- Uses a correlated subquery so no GROUP BY is needed on the outer query.
+			COALESCE(
+				(
+					SELECT jsonb_agg(c.name ORDER BY c.name)::text
+					FROM map_factory_categories mfc
+					JOIN lbi_categories c ON c.category_id = mfc.category_id
+					WHERE mfc.factory_id = fp.user_id
+				),
+				'[]'
+			) AS tags
 		FROM factory_profiles fp
 		INNER JOIN users u ON u.user_id = fp.user_id AND u.role = 'FT' AND u.is_active = TRUE
 		LEFT JOIN lbi_factory_types ft ON ft.factory_type_id = fp.factory_type_id
@@ -697,6 +708,80 @@ func (r *FactoryRepository) GetAnalytics(factoryID int64) (*domain.FactoryAnalyt
 	}
 
 	return out, nil
+}
+
+// GetPortal returns all data needed for the factory dashboard page in one call,
+// replacing the six separate API requests the FE previously made.
+func (r *FactoryRepository) GetPortal(factoryID int64) (*domain.FactoryPortal, error) {
+	// 1. Analytics summary — reuse existing method.
+	analytics, err := r.GetAnalytics(factoryID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. Dashboard counts, wallet, and recent-5 slices — reuse existing method.
+	dashboard, err := r.GetDashboard(factoryID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 3. Full order list (lightweight) for chart series.
+	var orders []domain.PortalOrderItem
+	if err := r.db.Select(&orders, `
+		SELECT order_id, factory_id, status, total_amount::float8 AS total_amount, created_at
+		FROM orders
+		WHERE factory_id = $1
+		ORDER BY created_at DESC
+	`, factoryID); err != nil {
+		orders = []domain.PortalOrderItem{}
+	}
+
+	// 4. Full quotation list (lightweight) for chart series.
+	var quotations []domain.PortalQuotationItem
+	if err := r.db.Select(&quotations, `
+		SELECT quote_id, factory_id, status, create_time AS created_at
+		FROM quotations
+		WHERE factory_id = $1
+		ORDER BY create_time DESC
+	`, factoryID); err != nil {
+		quotations = []domain.PortalQuotationItem{}
+	}
+
+	// 5. Full matching-RFQ list (all open RFQs matching factory categories).
+	var matchingRFQs []domain.FactoryDashboardRFQItem
+	if err := r.db.Select(&matchingRFQs, `
+		SELECT DISTINCT r.rfq_id, r.title, r.category_id, r.sub_category_id, r.status, r.created_at
+		FROM rfqs r
+		INNER JOIN map_factory_categories mfc
+			ON mfc.factory_id = $1
+		   AND mfc.category_id = r.category_id
+		LEFT JOIN lbi_sub_categories sc ON sc.sub_category_id = r.sub_category_id
+		WHERE r.status = 'OP'
+		  AND (
+			r.sub_category_id IS NULL
+			OR COALESCE(sc.sort_order, 0) = 99
+			OR EXISTS (
+				SELECT 1 FROM map_factory_sub_categories mfs
+				WHERE mfs.factory_id = $1 AND mfs.sub_category_id = r.sub_category_id
+			)
+		  )
+		ORDER BY r.created_at DESC
+	`, factoryID); err != nil {
+		matchingRFQs = []domain.FactoryDashboardRFQItem{}
+	}
+
+	return &domain.FactoryPortal{
+		Analytics:        analytics,
+		Counts:           dashboard.Counts,
+		Wallet:           dashboard.Wallet,
+		MatchingRFQs:     matchingRFQs,
+		Orders:           orders,
+		Quotations:       quotations,
+		RecentRFQs:       dashboard.RecentMatchingRFQs,
+		RecentOrders:     dashboard.RecentOrders,
+		RecentQuotations: dashboard.RecentQuotations,
+		RecentShowcases:  dashboard.RecentShowcases,
+	}, nil
 }
 
 // GetFactoryName returns the factory_name for the given factory_id.

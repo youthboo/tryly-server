@@ -110,6 +110,7 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	api.Post("/factories", h.factory.Create)
 	api.Get("/factories/me", h.factory.GetMe)
 	api.Get("/factories/me/profile-init", h.profileInit.GetProfileInit)
+	api.Get("/factories/me/portal", h.factory.GetPortal)
 	api.Get("/factories/me/dashboard", h.factory.GetDashboard)
 	api.Get("/factories/me/analytics", h.factory.GetAnalytics)
 

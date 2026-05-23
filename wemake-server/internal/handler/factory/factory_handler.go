@@ -441,6 +441,21 @@ func (h *FactoryHandler) GetDashboard(c *fiber.Ctx) error {
 	return c.JSON(item)
 }
 
+// GET /factories/me/portal — aggregates analytics, dashboard counts, wallet,
+// full orders/quotations/matching-rfq lists into a single response so the
+// factory dashboard page needs only one API call instead of six.
+func (h *FactoryHandler) GetPortal(c *fiber.Ctx) error {
+	userID, err := h.requireFactoryContext(c)
+	if err != nil {
+		return err
+	}
+	item, err := h.service.GetPortal(userID)
+	if err != nil {
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("FETCH_PORTAL_FAILED", "failed to fetch portal data"))
+	}
+	return c.JSON(item)
+}
+
 // PUT /factories/:factory_id/profile — save all profile data in one request
 func (h *FactoryHandler) SaveProfile(c *fiber.Ctx) error {
 	factoryID, err := helper.RequireInt64Param(c, "factory_id")
