@@ -290,7 +290,8 @@ type Message struct {
 	MessageID     string    `db:"message_id" json:"message_id"`
 	ReferenceType string    `db:"reference_type" json:"reference_type"`
 	ReferenceID   int64     `db:"reference_id" json:"reference_id"`
-	RFQTitle      *string   `db:"rfq_title" json:"rfq_title,omitempty"`
+	RFQTitle        *string   `db:"rfq_title" json:"rfq_title,omitempty"`
+	ReferenceTitle  *string   `db:"reference_title" json:"reference_title,omitempty"`
 	SenderID      int64     `db:"sender_id" json:"sender_id"`
 	ReceiverID    int64     `db:"receiver_id" json:"receiver_id"`
 	Content       string    `db:"content" json:"content"`

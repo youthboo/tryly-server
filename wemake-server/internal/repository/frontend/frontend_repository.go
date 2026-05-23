@@ -671,3 +671,13 @@ func (r *FrontendRepository) GetPromoCodes() ([]domain.PromoCode, error) {
 	}
 	return items, err
 }
+
+// ListFavoriteShowcaseIDs returns the showcase IDs that a user has favorited.
+func (r *FrontendRepository) ListFavoriteShowcaseIDs(userID int64) ([]int64, error) {
+	var ids []int64
+	err := r.db.Select(&ids, `SELECT showcase_id FROM favorites WHERE user_id = $1 ORDER BY created_at DESC`, userID)
+	if err == sql.ErrNoRows {
+		return []int64{}, nil
+	}
+	return ids, err
+}

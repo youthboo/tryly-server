@@ -37,7 +37,7 @@ type ShowcaseExploreItem struct {
 	Type            string          `db:"-" json:"-"`
 	Title           string          `db:"title" json:"title"`
 	Excerpt         *string         `db:"excerpt" json:"excerpt,omitempty"`
-	ImageURL        *string         `db:"image_url" json:"image_url,omitempty"`
+	ImageURL        *string         `db:"image_url" json:"-"`
 	CategoryID      *int64          `db:"category_id" json:"category_id,omitempty"`
 	SubCategoryID   *int64          `db:"sub_category_id" json:"sub_category_id,omitempty"`
 	MOQ             *int            `db:"moq" json:"moq,omitempty"`
@@ -47,18 +47,18 @@ type ShowcaseExploreItem struct {
 	EndDate         *time.Time      `db:"end_date" json:"end_date,omitempty"`
 	LeadTimeDays    *int            `db:"lead_time_days" json:"lead_time_days,omitempty"`
 	LinkedShowcases JSONLinkArray   `db:"linked_showcases" json:"linked_showcases"`
-	Tags            JSONStringArray `db:"tags" json:"tags"`
+	Tags            JSONStringArray `db:"tags" json:"-"`
 	LikesCount      int             `db:"likes_count" json:"likes_count"`
-	ViewCount       int64           `db:"view_count" json:"view_count"`
+	ViewCount       int64           `db:"view_count" json:"-"`
 	Status          string          `db:"status" json:"status"`
-	CreatedAt       time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time       `db:"updated_at" json:"updated_at"`
-	PublishedAt     *time.Time      `db:"published_at" json:"published_at,omitempty"`
+	CreatedAt       time.Time       `db:"created_at" json:"-"`
+	UpdatedAt       time.Time       `db:"updated_at" json:"-"`
+	PublishedAt     *time.Time      `db:"published_at" json:"-"`
 	FactoryName     string          `db:"factory_name" json:"factory_name"`
-	FactoryImageURL *string         `db:"factory_image_url" json:"factory_image_url,omitempty"`
+	FactoryImageURL *string         `db:"factory_image_url" json:"-"`
 	FactoryRating   *float64        `db:"factory_rating" json:"factory_rating,omitempty"`
 	FactoryVerified bool            `db:"factory_verified" json:"factory_verified"`
-	CategoryName    *string         `db:"category_name" json:"category_name,omitempty"`
+	CategoryName    *string         `db:"category_name" json:"-"`
 	SubCategoryName *string         `db:"sub_category_name" json:"sub_category_name,omitempty"`
 }
 

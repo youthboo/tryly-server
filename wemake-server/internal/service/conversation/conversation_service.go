@@ -3,6 +3,7 @@ package conversation
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/helper"
+	notificationhandler "github.com/yourusername/wemake/internal/handler/notification"
 	conversationrepo "github.com/yourusername/wemake/internal/repository/conversation"
 	rfqrepo "github.com/yourusername/wemake/internal/repository/rfq"
 	messageservice "github.com/yourusername/wemake/internal/service/message"
@@ -98,7 +100,20 @@ func (s *ConversationService) MarkAsRead(convID, userID int64) error {
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrConversationNotFound
 	}
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Push SSE "messages_read" event to the OTHER participant (the sender)
+	// so their UI can flip is_read → true in real-time.
+	senderID := conv.CustomerID
+	if userID == conv.CustomerID {
+		senderID = conv.FactoryID
+	}
+	data, _ := json.Marshal(map[string]any{"conv_id": convID, "reader_id": userID})
+	notificationhandler.PushEvent(senderID, "messages_read", string(data))
+
+	return nil
 }
 
 var ErrShareRFQInvalid = errors.New("invalid rfq")

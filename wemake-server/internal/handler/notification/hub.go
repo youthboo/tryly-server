@@ -38,6 +38,11 @@ func (h *sseHub) unsubscribe(userID int64, ch chan sseMessage) {
 	close(ch)
 }
 
+// PushEvent sends an SSE event to a specific user (for cross-package use).
+func PushEvent(userID int64, event, data string) {
+	globalHub.push(userID, sseMessage{Event: event, Data: data})
+}
+
 func (h *sseHub) push(userID int64, msg sseMessage) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()

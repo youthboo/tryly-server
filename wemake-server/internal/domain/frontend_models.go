@@ -5,6 +5,7 @@ type FrontendBootstrapResponse struct {
 	RFQs        []FrontendRFQCard       `json:"rfqs"`
 	Orders      []FrontendOrderCard     `json:"orders"`
 	Threads     []FrontendMessageThread `json:"threads"`
+	Favorites   []int64                 `json:"favorites"`
 }
 
 type FrontendCurrentUser struct {

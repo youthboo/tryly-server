@@ -62,19 +62,62 @@ type conversationRepository interface {
 	GetByID(convID int64) (*domain.ConversationRow, error)
 }
 
+type quotationRepository interface {
+	GetActiveByRFQAndFactory(rfqID, factoryID int64) (*domain.Quotation, error)
+}
+
 type MessageService struct {
 	repo          messageRepository
 	convRepo      conversationRepository
+	quotationRepo quotationRepository
 	notifications *notificationservice.NotificationService
 }
 
-func NewMessageService(repo messageRepository, convRepo conversationRepository, notifications *notificationservice.NotificationService) *MessageService {
-	return &MessageService{repo: repo, convRepo: convRepo, notifications: notifications}
+func NewMessageService(repo messageRepository, convRepo conversationRepository, quotationRepo quotationRepository, notifications *notificationservice.NotificationService) *MessageService {
+	return &MessageService{repo: repo, convRepo: convRepo, quotationRepo: quotationRepo, notifications: notifications}
+}
+
+// buildQuoteDataFromDB fetches the authoritative quotation from the DB and returns
+// a JSON string for quote_data that reflects the real stored values.
+// It merges any extra fields the caller already provided (e.g. quotation_id override)
+// but always overwrites price, lead_time, valid_until, status, rfq_id from the DB row.
+func (s *MessageService) buildQuoteDataFromDB(rfqID, factoryID int64, existing *string) *string {
+	if s.quotationRepo == nil || rfqID <= 0 || factoryID <= 0 {
+		return existing
+	}
+	q, err := s.quotationRepo.GetActiveByRFQAndFactory(rfqID, factoryID)
+	if err != nil || q == nil {
+		return existing
+	}
+
+	// Start from existing quote_data so callers can supply extra fields (e.g. custom notes).
+	merged := make(map[string]interface{})
+	if existing != nil && strings.TrimSpace(*existing) != "" {
+		_ = json.Unmarshal([]byte(*existing), &merged)
+	}
+
+	// Always override with authoritative DB values.
+	merged["quotation_id"] = q.QuotationID
+	merged["rfq_id"] = q.RFQID
+	merged["price"] = q.GrandTotal
+	merged["lead_time"] = q.LeadTimeDays
+	merged["status"] = strings.ToLower(q.Status)
+	if q.ValidUntil != nil {
+		merged["valid_until"] = q.ValidUntil.Format("2006-01-02")
+	} else {
+		delete(merged, "valid_until")
+	}
+
+	b, err := json.Marshal(merged)
+	if err != nil {
+		return existing
+	}
+	out := string(b)
+	return &out
 }
 
 func (s *MessageService) Create(item *domain.Message) error {
 	item.MessageID = "msg-" + uuid.NewString()
-	item.ReferenceType = normalizeMessageRefType(item.ReferenceType)
 	item.MessageType = normalizeMessageType(item.MessageType)
 	item.Content = strings.TrimSpace(item.Content)
 	item.AttachmentURL = strings.TrimSpace(item.AttachmentURL)
@@ -85,6 +128,10 @@ func (s *MessageService) Create(item *domain.Message) error {
 		} else {
 			item.QuoteData = &trimmed
 		}
+	}
+	// For QT messages, authoratively populate quote_data from the quotations table.
+	if item.MessageType == "QT" && item.ReferenceID > 0 {
+		item.QuoteData = s.buildQuoteDataFromDB(item.ReferenceID, item.SenderID, item.QuoteData)
 	}
 	if err := s.validateCreate(item); err != nil {
 		return err
@@ -130,7 +177,6 @@ func (s *MessageService) CreateTx(tx interface {
 	Exec(query string, args ...interface{}) (sql.Result, error)
 }, item *domain.Message) error {
 	item.MessageID = "msg-" + uuid.NewString()
-	item.ReferenceType = normalizeMessageRefType(item.ReferenceType)
 	item.MessageType = normalizeMessageType(item.MessageType)
 	item.Content = strings.TrimSpace(item.Content)
 	item.AttachmentURL = strings.TrimSpace(item.AttachmentURL)
@@ -179,27 +225,35 @@ func normalizeMessageType(t string) string {
 	}
 }
 
+// refTypeFromMessageType derives the logical reference category from message_type
+// so we can validate reference_id without a messages.reference_type DB column.
+func refTypeFromMessageType(mt string) string {
+	switch mt {
+	case "QT", "rfq_card", "quotation_card":
+		return "RQ"
+	case "PD", "PM", "ID":
+		return mt
+	case "OD":
+		return "OD"
+	default:
+		return ""
+	}
+}
+
 func (s *MessageService) validateCreate(item *domain.Message) error {
 	if item.SenderID == item.ReceiverID {
 		return ErrSenderReceiverSame
 	}
 
-	hasReferenceType := item.ReferenceType != ""
-	hasReferenceID := item.ReferenceID > 0
-	if hasReferenceType != hasReferenceID {
-		return ErrReferencePairRequired
-	}
-
-	if hasReferenceType {
-		if _, ok := allowedMessageReferenceTypes[item.ReferenceType]; !ok {
-			return ErrInvalidReferenceType
-		}
-		exists, err := s.repo.ReferenceExists(item.ReferenceType, item.ReferenceID)
+	// Validate reference_id based on message_type (not a reference_type column).
+	refType := refTypeFromMessageType(item.MessageType)
+	if refType != "" && item.ReferenceID > 0 {
+		exists, err := s.repo.ReferenceExists(refType, item.ReferenceID)
 		if err != nil {
 			return err
 		}
 		if !exists {
-			return fmt.Errorf("%w for reference_type=%s", ErrReferenceNotFound, item.ReferenceType)
+			return fmt.Errorf("%w for message_type=%s", ErrReferenceNotFound, item.MessageType)
 		}
 	}
 
@@ -322,7 +376,7 @@ func (s *MessageService) AutoSendQuotationCard(ctx context.Context, convID int64
 	}
 	validUntil := ""
 	if q.ValidUntil != nil {
-		validUntil = q.ValidUntil.Format("02 Jan 06")
+		validUntil = q.ValidUntil.Format("2006-01-02")
 	}
 	payload, err := json.Marshal(map[string]interface{}{
 		"quotation_id": q.QuotationID,
@@ -335,15 +389,14 @@ func (s *MessageService) AutoSendQuotationCard(ctx context.Context, convID int64
 		return err
 	}
 	msg := &domain.Message{
-		ConvID:        &convID,
-		ReferenceType: "RQ",
-		ReferenceID:   q.RFQID,
-		SenderID:      q.FactoryID,
-		ReceiverID:    customerID,
-		Content:       fmt.Sprintf("ใบเสนอราคา ฿%.0f", q.GrandTotal.InexactFloat64()),
-		MessageType:   "quotation_card",
-		QuoteData:     stringPtr(string(payload)),
-		IsRead:        false,
+		ConvID:      &convID,
+		ReferenceID: q.RFQID, // RFQ id — derived from message_type=quotation_card
+		SenderID:    q.FactoryID,
+		ReceiverID:  customerID,
+		Content:     fmt.Sprintf("ใบเสนอราคา ฿%.0f", q.GrandTotal.InexactFloat64()),
+		MessageType: "quotation_card",
+		QuoteData:   stringPtr(string(payload)),
+		IsRead:      false,
 	}
 	return s.Create(msg)
 }

@@ -245,6 +245,9 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	conversations.Post("/:conv_id/boq", h.boq.Create)
 	conversations.Post("/:conv_id/share-rfq", h.conversation.ShareRFQ)
 	conversations.Patch("/:conv_id/read", h.conversation.MarkAsRead)
+	conversations.Post("/:conv_id/mark-read", h.conversation.MarkAsRead) // FE compat
+	conversations.Get("/:conv_id/messages", h.message.ListMessagesByConvPath)
+	conversations.Post("/:conv_id/messages", h.message.CreateMessageByConvPath)
 
 	notifications := api.Group("/notifications")
 	notifications.Get("/stream", h.notification.Stream)          // SSE — must be before /:noti_id
