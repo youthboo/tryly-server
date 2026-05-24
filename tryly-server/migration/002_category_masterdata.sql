@@ -1,9 +1,8 @@
 -- ============================================================
--- SEED: Expanded LBI Master Data  v2
+-- MASTER: Category / sub-category / factory-type names  v2
 -- Platform: Tryly (Pet Food OEM B2B)
--- SA: 77 จังหวัด, ~925 อำเภอ, broad category + sub-category
---     province_code (รหัสจังหวัดทางการ) ใช้เป็น FK-safe lookup
---     ไม่เพิ่มตารางใหม่ — ใช้เฉพาะ ALTER COLUMN + DML
+-- รันหลัง 001 (category stubs + factory types) — ก่อน 003
+-- ไม่เพิ่มตารางใหม่ — ใช้เฉพาะ UPDATE + DELETE + INSERT DML
 -- ============================================================
 BEGIN;
 
@@ -200,10 +199,7 @@ COMMIT;
 
 -- ════════════════════════════════════════════════════════════════
 -- ตรวจหลังรัน:
--- SELECT COUNT(*) FROM lbi_provinces;         -- 77
--- SELECT COUNT(*) FROM lbi_districts;         -- ~925 (48 BKK + ต่างจังหวัด)
 -- SELECT COUNT(*) FROM lbi_categories;        -- 13  (ลบ 8,11,15 ออก)
 -- SELECT COUNT(*) FROM lbi_sub_categories;    -- ~118
--- SELECT COUNT(*) FROM lbi_factory_types;     -- 10
--- SELECT province_code, name_th FROM lbi_provinces ORDER BY province_code;
+-- SELECT COUNT(*) FROM lbi_factory_types;     -- 9 (ชื่ออัปเดตแล้ว)
 -- ════════════════════════════════════════════════════════════════

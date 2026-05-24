@@ -1,5 +1,6 @@
 -- ============================================================
--- MIGRATION 006: Address Master Data — Single Source of Truth
+-- MASTER 003: Address Master Data — Single Source of Truth
+-- รันหลัง 001 และ 002 (migration สุดท้ายสำหรับ prod โล่ง)
 -- Source: github.com/kongvut/thai-province-data
 -- Provinces:     77    (official ID 1–77)
 -- Districts:    930    (official ID 4-digit, e.g. 1001)
@@ -39,7 +40,7 @@ ALTER TABLE lbi_districts
   DROP CONSTRAINT IF EXISTS fk_lbi_districts_province_id_lbi_provinces_row_id;
 ALTER TABLE lbi_sub_districts
   DROP CONSTRAINT IF EXISTS fk_lbi_sub_districts_district_id_lbi_districts_row_id;
--- Clean up 005 constraint if it was applied
+-- Clean up legacy constraint if it was applied
 ALTER TABLE lbi_provinces
   DROP CONSTRAINT IF EXISTS uq_province_code;
 
