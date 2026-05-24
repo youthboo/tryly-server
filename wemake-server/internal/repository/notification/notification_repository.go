@@ -125,7 +125,7 @@ func (r *NotificationRepository) ListPaginated(userID int64, page, limit int, un
 
 func (r *NotificationRepository) GetUnreadCount(userID int64) (int64, error) {
 	var count int64
-	err := r.db.Get(&count, `SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = FALSE AND deleted_at IS NULL`, userID)
+	err := r.db.Get(&count, `SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = FALSE AND deleted_at IS NULL AND type != 'CHAT_MESSAGE'`, userID)
 	return count, err
 }
 
@@ -148,7 +148,7 @@ func (r *NotificationRepository) ListWithFilter(userID int64, filterTypes []stri
 	const base = `SELECT noti_id, user_id, type, title,
 		COALESCE(message,'') AS message, COALESCE(link_to,'') AS link_to,
 		is_read, read_at, deleted_at, created_at
-		FROM notifications WHERE user_id = $1 AND deleted_at IS NULL`
+		FROM notifications WHERE user_id = $1 AND deleted_at IS NULL AND type != 'CHAT_MESSAGE'`
 
 	if len(filterTypes) > 0 {
 		if err = r.db.Select(&items, base+` AND type = ANY($2::text[])
@@ -171,7 +171,7 @@ func (r *NotificationRepository) ListWithFilter(userID int64, filterTypes []stri
 			return
 		}
 		if err = r.db.Get(&total,
-			`SELECT COUNT(*) FROM notifications WHERE user_id=$1 AND deleted_at IS NULL`,
+			`SELECT COUNT(*) FROM notifications WHERE user_id=$1 AND deleted_at IS NULL AND type != 'CHAT_MESSAGE'`,
 			userID); err != nil {
 			log.Printf("ListWithFilter Count error: %v", err)
 			return

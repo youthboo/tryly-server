@@ -22,13 +22,13 @@ func NewNotificationHandler(service *notificationservice.NotificationService) *N
 }
 
 // filterTypes maps the filter query param to a list of notification types.
-// Returns nil (= all types) for "all" or unknown values.
+// Returns nil (= all non-chat types) for "all" or unknown values.
 func filterTypes(filter string) []string {
 	switch filter {
 	case "rfq":
-		return []string{"quote_received", "rfq_expired", "rfq_closed"}
+		return []string{"RFQ", "RFQ_RECEIVED", "RFQ_QUOTED", "QUOTATION_ACCEPTED", "QUOTATION_REJECTED", "BQ"}
 	case "order":
-		return []string{"order_confirmed", "order_status_changed", "production_updated", "order_completed", "payment_due"}
+		return []string{"ORDER_PLACED", "ORDER_CANCELLED", "ORDER_SHIPPED", "ORDER_COMPLETED", "PAYMENT_RECEIVED", "PS", "REVIEW_RECEIVED"}
 	default:
 		return nil
 	}

@@ -50,7 +50,7 @@ const showcaseExploreBaseSQL = `
 		sc.name AS sub_category_name
 	FROM factory_showcases fs
 	INNER JOIN factory_profiles fp ON fs.factory_id = fp.user_id
-	LEFT JOIN lbi_categories c ON fs.category_id = c.category_id
+	LEFT JOIN lbi_categories c ON fs.category_id = c.category_id AND c.scope = fs.content_type
 	LEFT JOIN lbi_sub_categories sc ON fs.sub_category_id = sc.sub_category_id
 `
 
@@ -398,7 +398,7 @@ const showcasePaginatedBaseSQL = `
 		sc.name AS sub_category_name
 	FROM factory_showcases fs
 	INNER JOIN factory_profiles fp ON fs.factory_id = fp.user_id
-	LEFT JOIN lbi_categories c ON fs.category_id = c.category_id
+	LEFT JOIN lbi_categories c ON fs.category_id = c.category_id AND c.scope = fs.content_type
 	LEFT JOIN lbi_sub_categories sc ON fs.sub_category_id = sc.sub_category_id
 `
 
@@ -495,7 +495,7 @@ func (r *ShowcaseRepository) GetHomeShowcases(types []string, limitPerType int) 
 			WHERE status = 'AC' AND content_type = ANY($1)
 		) fs
 		INNER JOIN factory_profiles fp ON fp.user_id = fs.factory_id
-		LEFT JOIN lbi_categories cat ON cat.category_id = fs.category_id
+		LEFT JOIN lbi_categories cat ON cat.category_id = fs.category_id AND cat.scope = fs.content_type
 		LEFT JOIN lbi_sub_categories sub ON sub.sub_category_id = fs.sub_category_id
 		WHERE fs.rn <= $2
 		ORDER BY fs.content_type, fs.published_at DESC NULLS LAST
