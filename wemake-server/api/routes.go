@@ -69,8 +69,9 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	admin.Patch("/orders/:order_id/status", middleware.RequireRole(h.authService, domain.RoleAdmin, domain.RoleSuperAdmin), h.adminOrder.PatchStatus)
 	admin.Get("/withdrawals", middleware.RequireRole(h.authService, domain.RoleAccountManager, domain.RoleAdmin, domain.RoleSuperAdmin), h.adminOrder.ListWithdrawals)
 	admin.Patch("/withdrawals/:request_id", middleware.RequireRole(h.authService, domain.RoleAdmin, domain.RoleSuperAdmin), h.adminOrder.PatchWithdrawal)
-	admin.Get("/disputes", middleware.RequireRole(h.authService, domain.RoleAccountManager, domain.RoleAdmin, domain.RoleSuperAdmin), h.adminOrder.ListDisputes)
-	admin.Patch("/disputes/:dispute_id", middleware.RequireRole(h.authService, domain.RoleAdmin, domain.RoleSuperAdmin), h.adminOrder.PatchDispute)
+	// Phase 1: dispute ยังไม่เปิด — เปิดเมื่อมี migration สร้างตาราง disputes
+	// admin.Get("/disputes", middleware.RequireRole(h.authService, domain.RoleAccountManager, domain.RoleAdmin, domain.RoleSuperAdmin), h.adminOrder.ListDisputes)
+	// admin.Patch("/disputes/:dispute_id", middleware.RequireRole(h.authService, domain.RoleAdmin, domain.RoleSuperAdmin), h.adminOrder.PatchDispute)
 	admin.Get("/commission-rules", middleware.RequireRole(h.authService, domain.RoleAccountManager, domain.RoleAdmin, domain.RoleSuperAdmin), h.adminConfig.ListRules)
 	admin.Post("/commission-rules", middleware.RequireRole(h.authService, domain.RoleAdmin, domain.RoleSuperAdmin), h.adminConfig.CreateRule)
 	admin.Delete("/commission-rules/:rule_id", middleware.RequireRole(h.authService, domain.RoleAdmin, domain.RoleSuperAdmin), h.adminConfig.DeleteRule)
@@ -204,8 +205,9 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	orders.Post("/:order_id/payments/:tx_id/verify", h.order.VerifyPayment)
 	orders.Patch("/:order_id/status", h.order.PatchOrderStatus)
 	orders.Patch("/:order_id/cancel", h.order.CancelOrder)
-	orders.Post("/:order_id/disputes", h.dispute.Create)
-	orders.Get("/:order_id/disputes", h.dispute.GetByOrderID)
+	// Phase 1: dispute ยังไม่เปิด
+	// orders.Post("/:order_id/disputes", h.dispute.Create)
+	// orders.Get("/:order_id/disputes", h.dispute.GetByOrderID)
 	orders.Get("/:order_id/payment-schedules", h.paymentSchedule.List)
 	orders.Post("/:order_id/payment-schedules", h.paymentSchedule.Create)
 	orders.Post("/:order_id/production-updates", h.production.CreateUpdate)
@@ -308,8 +310,9 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	settlements.Get("/:settlement_id", h.settlement.GetByID)
 	settlements.Patch("/:settlement_id/status", h.settlement.PatchStatus)
 
-	disputes := api.Group("/disputes")
-	disputes.Patch("/:dispute_id", h.dispute.PatchStatus)
+	// Phase 1: dispute ยังไม่เปิด
+	// disputes := api.Group("/disputes")
+	// disputes.Patch("/:dispute_id", h.dispute.PatchStatus)
 
 	paymentSchedules := api.Group("/payment-schedules")
 	paymentSchedules.Patch("/:schedule_id", h.paymentSchedule.PatchStatus)

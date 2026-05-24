@@ -709,4 +709,4 @@ func splitOrderStatuses(raw string) []string {
 // GetByIDForUpdateTx locks an order row for atomic status transitions.
 // MarkCompletedTx sets order status to CP and stores completed timestamp.
 // UpsertCompletedStepTx writes production step_id=6 as completed.
-// ListAutoCloseCandidates returns shipped orders older than cutoff and without open disputes/rejections.
+// ListAutoCloseCandidates returns shipped orders older than cutoff without rejected production steps.
