@@ -6,7 +6,7 @@
 --   001 — schema + reference seed (factory types, certs, production steps, category stubs for 002)
 --   002 — category master data (lbi_categories / lbi_sub_categories / lbi_factory_types names)
 --   003 — address master data (lbi_provinces / lbi_districts / lbi_sub_districts)
---   004 — demo seed ปิดไว้ (004_seed_demo.sql.disabled) — prod เริ่มต้นโล่ง
+--   demo seed ปิดไว้: 004_seed_demo.sql.disabled
 
 BEGIN;
 
@@ -412,7 +412,9 @@ CREATE TABLE IF NOT EXISTS tconfig (
 );
 
 INSERT INTO tconfig (key, value)
-VALUES ('shipping_days', '7')
+VALUES
+    ('shipping_days', '7'),
+    ('rfq_expired', '30')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 
 CREATE TABLE IF NOT EXISTS production_updates (
@@ -496,6 +498,7 @@ CREATE TABLE IF NOT EXISTS rfqs (
     target_lead_time_days INTEGER,
     delivery_address_id BIGINT,
     shipping_method_id BIGINT,
+    expired_date TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT rfqs_pkey PRIMARY KEY (rfq_id)
