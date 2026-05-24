@@ -1,6 +1,8 @@
 package api
 
 import (
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/jmoiron/sqlx"
@@ -20,9 +22,10 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 		ReadBufferSize: 16 * 1024,
 	})
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: cfg.CORSOrigins,
+		AllowOrigins: normalizeOrigins(cfg.CORSOrigins),
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-User-ID, X-Confirm-Payment-Trigger",
 		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+		AllowCredentials: true,
 	}))
 
 	// Serve static files for media uploads
@@ -351,4 +354,14 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	frontend.Get("/messages/threads", h.frontend.ListThreads)
 
 	return app
+}
+
+// normalizeOrigins parses comma-separated origins or returns wildcard.
+func normalizeOrigins(corsOrigins string) string {
+	corsOrigins = strings.TrimSpace(corsOrigins)
+	if corsOrigins == "" || corsOrigins == "*" {
+		return "*"
+	}
+	// If comma-separated, return as-is (Fiber CORS handles it)
+	return corsOrigins
 }
