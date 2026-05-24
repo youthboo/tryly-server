@@ -39,7 +39,16 @@ func runMigrations(db *sqlx.DB) error {
 		_, _ = db.Exec(`SELECT pg_advisory_unlock($1)`, migrationLockKey)
 	}()
 
-	entries, err := os.ReadDir("migration")
+	// Try multiple paths to find migration directory
+	migrationPath := "migration"
+	if _, err := os.Stat(migrationPath); os.IsNotExist(err) {
+		// Try relative to executable
+		if exePath, err := os.Executable(); err == nil {
+			migrationPath = filepath.Join(filepath.Dir(exePath), "migration")
+		}
+	}
+
+	entries, err := os.ReadDir(migrationPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -74,7 +83,7 @@ func runMigrations(db *sqlx.DB) error {
 		if applied[name] {
 			continue
 		}
-		content, readErr := os.ReadFile(filepath.Join("migration", name))
+		content, readErr := os.ReadFile(filepath.Join(migrationPath, name))
 		if readErr != nil {
 			return readErr
 		}
