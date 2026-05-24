@@ -15,6 +15,9 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 		WriteTimeout: 0,
 		ReadTimeout:  0,
 		IdleTimeout:  0,
+		// Raise header buffer to 16 KB to accommodate large Authorization / Cookie headers
+		// (JWT tokens + session cookies can easily exceed the 4 KB default).
+		ReadBufferSize: 16 * 1024,
 	})
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: cfg.CORSOrigins,
