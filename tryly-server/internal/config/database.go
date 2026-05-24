@@ -1,21 +1,15 @@
 package config
 
 import (
-	"embed"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"github.com/yourusername/wemake/internal/logger"
 )
-
-//go:embed migration
-var migrationsFS embed.FS
 
 func InitDatabase(cfg *Config) (*sqlx.DB, error) {
 	db, err := sqlx.Connect("postgres", cfg.GetDSN())
@@ -46,28 +40,44 @@ func runMigrations(db *sqlx.DB) error {
 		_, _ = db.Exec(`SELECT pg_advisory_unlock($1)`, migrationLockKey)
 	}()
 
-	logger.Info("running migrations from embedded files")
+	// Find migration directory - try multiple locations
+	var migrationPath string
+	possiblePaths := []string{
+		"migration",
+		"./migration",
+		"../migration",
+		"../../migration",
+	}
 
-	// Read migration files from embedded filesystem
-	files := make([]string, 0)
-	err := fs.WalkDir(migrationsFS, "migration", func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
+	for _, path := range possiblePaths {
+		if info, err := os.Stat(path); err == nil && info.IsDir() {
+			migrationPath = path
+			break
 		}
-		if d.IsDir() {
-			return nil
-		}
-		if filepath.Ext(path) != ".sql" {
-			return nil
-		}
-		// Extract just the filename
-		name := filepath.Base(path)
-		files = append(files, name)
+	}
+
+	if migrationPath == "" {
+		logger.Warn("migration directory not found, skipping migrations")
 		return nil
-	})
+	}
+
+	logger.Info("running migrations", "path", migrationPath)
+
+	entries, err := os.ReadDir(migrationPath)
 	if err != nil {
-		logger.Error("failed to walk migration directory", "err", err)
+		logger.Error("failed to read migration directory", "path", migrationPath, "err", err)
 		return err
+	}
+
+	files := make([]string, 0)
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if filepath.Ext(entry.Name()) != ".sql" {
+			continue
+		}
+		files = append(files, entry.Name())
 	}
 
 	sort.Strings(files)
@@ -92,8 +102,7 @@ func runMigrations(db *sqlx.DB) error {
 		}
 		logger.Info("applying migration", "name", name)
 
-		// Read from embedded filesystem
-		content, readErr := fs.ReadFile(migrationsFS, filepath.Join("migration", name))
+		content, readErr := os.ReadFile(filepath.Join(migrationPath, name))
 		if readErr != nil {
 			logger.Error("failed to read migration file", "name", name, "err", readErr)
 			return readErr
