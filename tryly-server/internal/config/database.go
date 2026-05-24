@@ -14,7 +14,7 @@ import (
 	"github.com/yourusername/wemake/internal/logger"
 )
 
-//go:embed migration/*.sql
+//go:embed migration
 var migrationsFS embed.FS
 
 func InitDatabase(cfg *Config) (*sqlx.DB, error) {
