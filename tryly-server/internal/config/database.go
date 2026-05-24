@@ -8,6 +8,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	"github.com/yourusername/wemake/internal/logger"
 )
 
 func InitDatabase(cfg *Config) (*sqlx.DB, error) {
@@ -39,11 +40,24 @@ func runMigrations(db *sqlx.DB) error {
 		_, _ = db.Exec(`SELECT pg_advisory_unlock($1)`, migrationLockKey)
 	}()
 
-	entries, err := os.ReadDir("migration")
+	// Try multiple paths to find migration directory
+	migrationPath := "migration"
+	if _, err := os.Stat(migrationPath); os.IsNotExist(err) {
+		// Try relative to executable
+		if exePath, err := os.Executable(); err == nil {
+			migrationPath = filepath.Join(filepath.Dir(exePath), "migration")
+		}
+	}
+
+	logger.Info("running migrations", "path", migrationPath)
+
+	entries, err := os.ReadDir(migrationPath)
 	if err != nil {
 		if os.IsNotExist(err) {
+			logger.Warn("migration directory not found", "path", migrationPath)
 			return nil
 		}
+		logger.Error("failed to read migration directory", "path", migrationPath, "err", err)
 		return err
 	}
 
@@ -70,15 +84,21 @@ func runMigrations(db *sqlx.DB) error {
 		applied = map[string]bool{}
 	}
 
+	logger.Info("migrations to apply", "count", len(files), "files", files)
+
 	for _, name := range files {
 		if applied[name] {
+			logger.Info("migration already applied", "name", name)
 			continue
 		}
-		content, readErr := os.ReadFile(filepath.Join("migration", name))
+		logger.Info("applying migration", "name", name)
+		content, readErr := os.ReadFile(filepath.Join(migrationPath, name))
 		if readErr != nil {
+			logger.Error("failed to read migration file", "name", name, "err", readErr)
 			return readErr
 		}
 		if _, execErr := db.Exec(string(content)); execErr != nil {
+			logger.Error("migration failed", "name", name, "err", execErr)
 			return fmt.Errorf("migration %s failed: %w", name, execErr)
 		}
 		if _, err := db.Exec(`
@@ -86,8 +106,10 @@ func runMigrations(db *sqlx.DB) error {
 			VALUES ($1)
 			ON CONFLICT (filename) DO NOTHING
 		`, name); err != nil {
+			logger.Error("failed to record migration", "name", name, "err", err)
 			return fmt.Errorf("record migration %s failed: %w", name, err)
 		}
+		logger.Info("migration applied successfully", "name", name)
 	}
 
 	return nil
