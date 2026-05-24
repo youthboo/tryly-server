@@ -31,12 +31,6 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+      # Set in Render Dashboard (Neon / external Postgres). Do not commit credentials to git.
       - key: DATABASE_URL
-        fromDatabase:
-          name: wemake-postgres
-          property: connectionString
-
-databases:
-  - name: wemake-postgres
-    plan: free
-    region: singapore
+        sync: false
