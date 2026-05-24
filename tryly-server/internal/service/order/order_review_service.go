@@ -127,11 +127,7 @@ func (s *OrderService) CreateReview(orderID, userID int64, role string, input Cr
 		UserID:  order.FactoryID,
 		Type:    "REVIEW_RECEIVED",
 		Title:   "ได้รับรีวิวใหม่",
-<<<<<<< HEAD:wemake-server/internal/service/order/order_review_service.go
 		Message: fmt.Sprintf("ลูกค้าให้ %d ดาว: \"%s\"", int(review.Rating), helper.TrimNotificationPreview(review.Comment, 80)),
-=======
-		Message: fmt.Sprintf("ลูกค้าให้ %d ดาว: \"%s\"", review.Rating, helper.TrimNotificationPreview(review.Comment, 80)),
->>>>>>> origin/develop:tryly-server/internal/service/order/order_review_service.go
 		LinkTo:  helper.FactoryOrderLink(orderID),
 		Data: helper.NotificationData(map[string]interface{}{
 			"review_id": review.ReviewID,
