@@ -1,15 +1,21 @@
 package config
 
 import (
+	"embed"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"github.com/yourusername/wemake/internal/logger"
 )
+
+//go:embed migration/*.sql
+var migrationsFS embed.FS
 
 func InitDatabase(cfg *Config) (*sqlx.DB, error) {
 	db, err := sqlx.Connect("postgres", cfg.GetDSN())
@@ -40,56 +46,30 @@ func runMigrations(db *sqlx.DB) error {
 		_, _ = db.Exec(`SELECT pg_advisory_unlock($1)`, migrationLockKey)
 	}()
 
-	// Try multiple paths to find migration directory
-	possiblePaths := []string{
-		"migration",
-		"./migration",
-		"../migration",
-		"/root/migration",
-	}
+	logger.Info("running migrations from embedded files")
 
-	// Try relative to executable
-	if exePath, err := os.Executable(); err == nil {
-		exeDir := filepath.Dir(exePath)
-		possiblePaths = append(possiblePaths, filepath.Join(exeDir, "migration"))
-		possiblePaths = append(possiblePaths, filepath.Join(exeDir, "..", "migration"))
-	}
-
-	var migrationPath string
-	for _, path := range possiblePaths {
-		if _, err := os.Stat(path); err == nil {
-			migrationPath = path
-			break
+	// Read migration files from embedded filesystem
+	files := make([]string, 0)
+	err := fs.WalkDir(migrationsFS, "migration", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
-	}
-
-	if migrationPath == "" {
-		logger.Warn("no migration directory found in any expected path", "tried", possiblePaths)
-		return nil
-	}
-
-	logger.Info("running migrations", "path", migrationPath)
-
-	entries, err := os.ReadDir(migrationPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			logger.Warn("migration directory not found", "path", migrationPath)
+		if d.IsDir() {
 			return nil
 		}
-		logger.Error("failed to read migration directory", "path", migrationPath, "err", err)
+		if filepath.Ext(path) != ".sql" {
+			return nil
+		}
+		// Extract just the filename
+		name := filepath.Base(path)
+		files = append(files, name)
+		return nil
+	})
+	if err != nil {
+		logger.Error("failed to walk migration directory", "err", err)
 		return err
 	}
 
-	files := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		if filepath.Ext(entry.Name()) != ".sql" {
-			continue
-		}
-		files = append(files, entry.Name())
-	}
 	sort.Strings(files)
 
 	if err := ensureSchemaMigrations(db); err != nil {
@@ -111,7 +91,9 @@ func runMigrations(db *sqlx.DB) error {
 			continue
 		}
 		logger.Info("applying migration", "name", name)
-		content, readErr := os.ReadFile(filepath.Join(migrationPath, name))
+
+		// Read from embedded filesystem
+		content, readErr := fs.ReadFile(migrationsFS, filepath.Join("migration", name))
 		if readErr != nil {
 			logger.Error("failed to read migration file", "name", name, "err", readErr)
 			return readErr
