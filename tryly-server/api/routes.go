@@ -6,6 +6,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/config"
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/middleware"
 )
 
@@ -19,10 +20,15 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 		// (JWT tokens + session cookies can easily exceed the 4 KB default).
 		ReadBufferSize: 16 * 1024,
 	})
+	logger.Info("Setting up CORS", "corsOrigins", cfg.CORSOrigins)
+
+	// Fiber CORS middleware
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: cfg.CORSOrigins,
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-User-ID, X-Confirm-Payment-Trigger",
-		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+		AllowOrigins:     cfg.CORSOrigins,
+		AllowMethods:     "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
+		AllowHeaders:     "Origin,Content-Type,Accept,Authorization,X-User-ID,X-Confirm-Payment-Trigger",
+		AllowCredentials: true,
+		MaxAge:           3600,
 	}))
 
 	// Serve static files for media uploads
@@ -352,3 +358,4 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 
 	return app
 }
+

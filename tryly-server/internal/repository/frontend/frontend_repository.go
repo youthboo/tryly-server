@@ -430,7 +430,8 @@ func (r *FrontendRepository) ListOrdersByUserID(userID int64) ([]FrontendOrderRo
 				),
 				'YYYY-MM-DD'
 			) AS estimated_delivery,
-			TO_CHAR(o.created_at, 'YYYY-MM-DD') AS created_at,` + productionCurrentStepSelect + `
+			TO_CHAR(o.created_at, 'YYYY-MM-DD') AS created_at,
+			COALESCE(cur.step_id, CASE WHEN o.status IN ('PD', 'PR') THEN 0 END) AS current_step_id
 		FROM orders o
 		INNER JOIN quotations q ON q.quote_id = o.quote_id
 		INNER JOIN rfqs rfq ON rfq.rfq_id = q.rfq_id
@@ -461,7 +462,8 @@ func (r *FrontendRepository) GetOrderByUserID(userID, orderID int64) (*FrontendO
 				),
 				'YYYY-MM-DD'
 			) AS estimated_delivery,
-			TO_CHAR(o.created_at, 'YYYY-MM-DD') AS created_at,` + productionCurrentStepSelect + `
+			TO_CHAR(o.created_at, 'YYYY-MM-DD') AS created_at,
+			COALESCE(cur.step_id, CASE WHEN o.status IN ('PD', 'PR') THEN 0 END) AS current_step_id
 		FROM orders o
 		INNER JOIN quotations q ON q.quote_id = o.quote_id
 		INNER JOIN rfqs rfq ON rfq.rfq_id = q.rfq_id
