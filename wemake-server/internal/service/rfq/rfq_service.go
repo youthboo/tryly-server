@@ -131,6 +131,29 @@ func (s *RFQService) ListMatchingForFactory(factoryID int64, status string, kind
 	return s.repo.ListMatchingForFactory(factoryID, domainstatus.NormalizeCode(status), normalizedKind, showDismissed)
 }
 
+func (s *RFQService) GetFactoryBoard(factoryID int64, status, kind string, showDismissed bool) (*domain.FactoryRFQBoardResponse, error) {
+	rfqs, err := s.ListMatchingForFactory(factoryID, status, kind, showDismissed)
+	if err != nil {
+		return nil, err
+	}
+	if rfqs == nil {
+		rfqs = []domain.RFQ{}
+	}
+
+	catIDs, err := s.factoryRepo.ListFactoryCategoryIDs(factoryID)
+	if err != nil {
+		return nil, err
+	}
+	if catIDs == nil {
+		catIDs = []int64{}
+	}
+
+	return &domain.FactoryRFQBoardResponse{
+		RFQs:               rfqs,
+		FactoryCategoryIDs: catIDs,
+	}, nil
+}
+
 type PreviewFactoriesResult struct {
 	Kind          string  `json:"kind"`
 	CategoryID    int64   `json:"category_id"`

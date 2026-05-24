@@ -27,6 +27,7 @@ import (
 	wallethandler "github.com/yourusername/wemake/internal/handler/wallet"
 	"github.com/yourusername/wemake/internal/logger"
 	"github.com/yourusername/wemake/internal/media"
+	"github.com/yourusername/wemake/internal/sse"
 	adminrepo "github.com/yourusername/wemake/internal/repository/admin"
 	authrepo "github.com/yourusername/wemake/internal/repository/auth"
 	catalogrepo "github.com/yourusername/wemake/internal/repository/catalog"
@@ -34,6 +35,7 @@ import (
 	factoryrepo "github.com/yourusername/wemake/internal/repository/factory"
 	frontendrepo "github.com/yourusername/wemake/internal/repository/frontend"
 	masterrepo "github.com/yourusername/wemake/internal/repository/master"
+	merepo "github.com/yourusername/wemake/internal/repository/me"
 	messagerepo "github.com/yourusername/wemake/internal/repository/message"
 	notificationrepo "github.com/yourusername/wemake/internal/repository/notification"
 	orderrepo "github.com/yourusername/wemake/internal/repository/order"
@@ -53,6 +55,7 @@ import (
 	conversationservice "github.com/yourusername/wemake/internal/service/conversation"
 	factoryservice "github.com/yourusername/wemake/internal/service/factory"
 	frontendservice "github.com/yourusername/wemake/internal/service/frontend"
+	meservice "github.com/yourusername/wemake/internal/service/me"
 	masterservice "github.com/yourusername/wemake/internal/service/master"
 	messageservice "github.com/yourusername/wemake/internal/service/message"
 	notificationservice "github.com/yourusername/wemake/internal/service/notification"
@@ -85,7 +88,7 @@ type routeHandlers struct {
 	master            *masterhandler.MasterHandler
 	transaction       *wallethandler.TransactionHandler
 	frontend          *frontendhandler.FrontendHandler
-	session           *frontendhandler.SessionHandler
+	session           *mehandler.SessionHandler
 	media             *handler.MediaHandler
 	review            *userhandler.ReviewHandler
 	conversation      *conversationhandler.ConversationHandler
@@ -157,8 +160,11 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 	customerAdminRepo := adminrepo.NewCustomerAdminRepository(db)
 	settlementAdminRepo := adminrepo.NewSettlementAdminRepository(db)
 
+	sseHub := sse.NewHub()
+
 	authService := authservice.NewAuthService(authRepo, cfg.JWTSecret)
-	catalogService := catalogservice.NewCatalogService(catalogRepo)
+	showcaseService := showcaseservice.NewShowcaseService(showcaseRepo, factoryRepo)
+	catalogService := catalogservice.NewCatalogService(catalogRepo, showcaseService)
 	addressService := userservice.NewAddressService(addressRepo, factoryRepo)
 	walletService := walletservice.NewWalletService(walletRepo, transactionRepo)
 	notificationService := notificationservice.NewNotificationService(notificationRepo)
@@ -172,13 +178,15 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 	productionService := productionservice.NewProductionService(productionRepo)
 	masterService := masterservice.NewMasterService(masterRepo)
 	transactionService := walletservice.NewTransactionService(transactionRepo)
-	frontendService := frontendservice.NewFrontendService(frontendRepo, factoryRepo)
+	frontendService := frontendservice.NewFrontendService(frontendRepo, sessionRepo, factoryRepo)
 	reviewService := userservice.NewReviewService(reviewRepo)
-	conversationService := conversationservice.NewConversationService(conversationRepo, rfqRepo, messageService)
-	showcaseService := showcaseservice.NewShowcaseService(showcaseRepo, factoryRepo)
+	conversationService := conversationservice.NewConversationService(conversationRepo, rfqRepo, messageService, sseHub)
 	boqService := boqservice.NewBOQService(db, conversationRepo, rfqRepo, rfqItemRepo, quotationRepo, quotationItemRepo, orderService, messageService, notificationService, commissionService)
 	profileService := profileservice.NewProfileService(profileRepo, authRepo)
 	factoryService := factoryservice.NewFactoryService(factoryRepo)
+	profileInitService := factoryservice.NewProfileInitService(factoryService, masterService, catalogService, addressService)
+	meRFQOrdersRepo := merepo.NewRFQOrdersRepository(db)
+	meRFQOrdersService := meservice.NewRFQOrdersService(meRFQOrdersRepo)
 	favoriteService := userservice.NewFavoriteService(favoriteRepo)
 	certificateService := userservice.NewCertificateService(certificateRepo)
 	settlementService := walletservice.NewSettlementService(settlementRepo)
@@ -199,7 +207,7 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 	return &routeHandlers{
 		authService:       authService,
 		auth:              authhandler.NewAuthHandler(authService),
-		explore:           cataloghandler.NewExploreHandler(catalogService, showcaseService),
+		explore:           cataloghandler.NewExploreHandler(catalogService),
 		catalog:           cataloghandler.NewCatalogHandler(catalogService),
 		address:           userhandler.NewAddressHandler(addressService),
 		wallet:            wallethandler.NewWalletHandler(walletService),
@@ -208,20 +216,20 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 		order:             orderhandler.NewOrderHandler(orderService, authService, productionService),
 		orderPayment:      paymenthandler.NewOrderPaymentHandler(orderPaymentService),
 		production:        productionhandler.NewProductionHandler(productionService),
-		message:           messagehandler.NewMessageHandler(messageService),
+		message:           messagehandler.NewMessageHandler(messageService, sseHub),
 		master:            masterhandler.NewMasterHandler(masterService),
 		transaction:       wallethandler.NewTransactionHandler(transactionService),
 		frontend:          frontendhandler.NewFrontendHandler(frontendService),
-		session:           frontendhandler.NewSessionHandler(sessionRepo),
+		session:           mehandler.NewSessionHandler(frontendService),
 		media:             handler.NewMediaHandler(cfg.PublicBaseURL, cld),
 		review:            userhandler.NewReviewHandler(reviewService),
 		conversation:      conversationhandler.NewConversationHandler(conversationService),
-		notification:      notificationhandler.NewNotificationHandler(notificationService),
+		notification:      notificationhandler.NewNotificationHandler(notificationService, sseHub),
 		showcase:          showcasehandler.NewShowcaseHandler(showcaseService),
 		boq:               boqhandler.NewBOQHandler(boqService),
 		profile:           profilehandler.NewProfileHandler(profileService, cfg.PublicBaseURL, cld),
 		factory:           factoryhandler.NewFactoryHandler(factoryService, authService),
-		profileInit:       factoryhandler.NewProfileInitHandler(factoryService, masterService, catalogService, addressService, authService),
+		profileInit:       factoryhandler.NewProfileInitHandler(profileInitService, authService),
 		favorite:          userhandler.NewFavoriteHandler(favoriteService),
 		certificate:       userhandler.NewCertificateHandler(certificateService),
 		settlement:        wallethandler.NewSettlementHandler(settlementService),
@@ -238,7 +246,7 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 		adminConfig:       adminhandler.NewAdminConfigHandler(commissionRepo, adminAuditRepo),
 		adminUser:         adminhandler.NewAdminUserHandler(authService, authRepo),
 		adminCustomer:     adminhandler.NewAdminCustomerHandler(customerAdminRepo, settlementAdminRepo),
-		meRFQOrders:       mehandler.NewMeRFQOrdersHandler(db),
-		factoryRFQBoard:   rfqhandler.NewFactoryRFQBoardHandler(rfqService, quotationService, authService, db, platformConfigRepo),
+		meRFQOrders:       mehandler.NewMeRFQOrdersHandler(meRFQOrdersService),
+		factoryRFQBoard:   rfqhandler.NewFactoryRFQBoardHandler(rfqService, quotationService, authService, platformConfigRepo),
 	}
 }

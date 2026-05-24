@@ -2,9 +2,7 @@ package rfq
 
 import (
 	"database/sql"
-	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/lib/pq"
@@ -327,35 +325,15 @@ func (h *RFQHandler) GetDetail(c *fiber.Ctx) error {
 		quotes = []domain.Quotation{}
 	}
 
-	// Fetch history for all quotations in parallel
-	type histResult struct {
-		quoteID int64
-		entries []domain.QuotationHistoryEntry
-	}
-	results := make([]histResult, len(quotes))
-	var wg sync.WaitGroup
-	for i, q := range quotes {
-		wg.Add(1)
-		go func(idx int, qid int64) {
-			defer wg.Done()
-			entries, e := h.quotationService.ListHistory(qid)
-			if e != nil || entries == nil {
-				entries = []domain.QuotationHistoryEntry{}
-			}
-			results[idx] = histResult{quoteID: qid, entries: entries}
-		}(i, q.QuotationID)
-	}
-	wg.Wait()
-
-	quoteHistories := make(map[string][]domain.QuotationHistoryEntry, len(results))
-	for _, r := range results {
-		quoteHistories[fmt.Sprintf("%d", r.quoteID)] = r.entries
+	quoteHistories, err := h.quotationService.HistoriesForQuotes(quotes)
+	if err != nil {
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to fetch quotation histories"), rfqNotFoundErrorMap)
 	}
 
-	return c.JSON(fiber.Map{
-		"rfq":             rfq,
-		"quotations":      quotes,
-		"quote_histories": quoteHistories,
+	return c.JSON(domain.RFQDetailBundle{
+		RFQ:            rfq,
+		Quotations:     quotes,
+		QuoteHistories: quoteHistories,
 	})
 }
 

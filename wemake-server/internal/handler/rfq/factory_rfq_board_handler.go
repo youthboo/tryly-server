@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/helper"
 	platformrepo "github.com/yourusername/wemake/internal/repository/platform_config"
@@ -13,13 +12,10 @@ import (
 	rfqservice "github.com/yourusername/wemake/internal/service/rfq"
 )
 
-// FactoryRFQBoardHandler provides unified endpoints for the factory RFQ board
-// and detail pages, consolidating multiple round-trips into single calls.
 type FactoryRFQBoardHandler struct {
 	rfqService       *rfqservice.RFQService
 	quotationService *quotationservice.QuotationService
 	auth             *authservice.AuthService
-	db               *sqlx.DB
 	platformConfig   *platformrepo.PlatformConfigRepository
 }
 
@@ -27,25 +23,16 @@ func NewFactoryRFQBoardHandler(
 	rfqService *rfqservice.RFQService,
 	quotationService *quotationservice.QuotationService,
 	auth *authservice.AuthService,
-	db *sqlx.DB,
 	platformConfig *platformrepo.PlatformConfigRepository,
 ) *FactoryRFQBoardHandler {
 	return &FactoryRFQBoardHandler{
 		rfqService:       rfqService,
 		quotationService: quotationService,
 		auth:             auth,
-		db:               db,
 		platformConfig:   platformConfig,
 	}
 }
 
-type factoryRFQBoardResponse struct {
-	RFQs               interface{} `json:"rfqs"`
-	FactoryCategoryIDs []int64     `json:"factory_category_ids"`
-}
-
-// GetBoard handles GET /factory/rfq-board
-// Returns matching RFQs + factory's own category IDs in one call.
 func (h *FactoryRFQBoardHandler) GetBoard(c *fiber.Ctx) error {
 	userID, _, err := helper.RequireFactoryUser(c, h.auth)
 	if err != nil {
@@ -56,25 +43,11 @@ func (h *FactoryRFQBoardHandler) GetBoard(c *fiber.Ctx) error {
 	kind := query.String("kind")
 	showDismissed := strings.EqualFold(query.String("show_dismissed"), "true")
 
-	rfqs, err := h.rfqService.ListMatchingForFactory(userID, "", kind, showDismissed)
+	resp, err := h.rfqService.GetFactoryBoard(userID, "", kind, showDismissed)
 	if err != nil {
 		return helper.JSONError(c, fiber.StatusInternalServerError, "failed to fetch matching rfqs")
 	}
-
-	var catIDs []int64
-	if err := h.db.Select(&catIDs, `
-		SELECT category_id FROM map_factory_categories WHERE factory_id = $1 ORDER BY category_id
-	`, userID); err != nil {
-		catIDs = []int64{}
-	}
-	if catIDs == nil {
-		catIDs = []int64{}
-	}
-
-	return c.JSON(factoryRFQBoardResponse{
-		RFQs:               rfqs,
-		FactoryCategoryIDs: catIDs,
-	})
+	return c.JSON(resp)
 }
 
 type commissionConfigPayload struct {
@@ -88,8 +61,6 @@ type factoryRFQDetailResponse struct {
 	CommissionConfig commissionConfigPayload `json:"commission_config"`
 }
 
-// GetDetail handles GET /factory/rfqs/:rfq_id/detail
-// Returns RFQ detail + all quotations for that RFQ in one call.
 func (h *FactoryRFQBoardHandler) GetDetail(c *fiber.Ctx) error {
 	userID, _, err := helper.RequireFactoryUser(c, h.auth)
 	if err != nil {

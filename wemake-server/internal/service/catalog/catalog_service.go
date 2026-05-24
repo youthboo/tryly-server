@@ -2,15 +2,42 @@ package catalog
 
 import (
 	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/logger"
 	catalogrepo "github.com/yourusername/wemake/internal/repository/catalog"
+	showcaseservice "github.com/yourusername/wemake/internal/service/showcase"
 )
 
+var exploreShowcaseTypes = []string{"PD", "MT", "PM", "ID"}
+
 type CatalogService struct {
-	repo *catalogrepo.CatalogRepository
+	repo            *catalogrepo.CatalogRepository
+	showcaseService *showcaseservice.ShowcaseService
 }
 
-func NewCatalogService(repo *catalogrepo.CatalogRepository) *CatalogService {
-	return &CatalogService{repo: repo}
+func NewCatalogService(repo *catalogrepo.CatalogRepository, showcaseService *showcaseservice.ShowcaseService) *CatalogService {
+	return &CatalogService{repo: repo, showcaseService: showcaseService}
+}
+
+func (s *CatalogService) GetExplore() (*domain.ExploreResponse, error) {
+	logger.Debug("building explore page data")
+
+	categories, err := s.GetCategories(domain.CatalogScopeAll, 6)
+	if err != nil {
+		return nil, err
+	}
+	if categories == nil {
+		categories = []domain.Category{}
+	}
+
+	showcases, err := s.showcaseService.GetHomeShowcases(exploreShowcaseTypes, 8)
+	if err != nil {
+		return nil, err
+	}
+
+	return &domain.ExploreResponse{
+		Categories: categories,
+		Showcases:  showcases,
+	}, nil
 }
 
 func (s *CatalogService) GetCategories(scope string, limit int) ([]domain.Category, error) {

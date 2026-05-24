@@ -13,7 +13,7 @@ import (
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/domainutil"
 	"github.com/yourusername/wemake/internal/helper"
-	notificationhandler "github.com/yourusername/wemake/internal/handler/notification"
+	"github.com/yourusername/wemake/internal/sse"
 	conversationrepo "github.com/yourusername/wemake/internal/repository/conversation"
 	rfqrepo "github.com/yourusername/wemake/internal/repository/rfq"
 	messageservice "github.com/yourusername/wemake/internal/service/message"
@@ -23,13 +23,14 @@ type ConversationService struct {
 	repo     *conversationrepo.ConversationRepository
 	rfqs     *rfqrepo.RFQRepository
 	messages *messageservice.MessageService
+	hub      *sse.Hub
 }
 
 var ErrConversationForbidden = errors.New("conversation forbidden")
 var ErrConversationNotFound = errors.New("conversation not found")
 
-func NewConversationService(repo *conversationrepo.ConversationRepository, rfqs *rfqrepo.RFQRepository, messages *messageservice.MessageService) *ConversationService {
-	return &ConversationService{repo: repo, rfqs: rfqs, messages: messages}
+func NewConversationService(repo *conversationrepo.ConversationRepository, rfqs *rfqrepo.RFQRepository, messages *messageservice.MessageService, hub *sse.Hub) *ConversationService {
+	return &ConversationService{repo: repo, rfqs: rfqs, messages: messages, hub: hub}
 }
 
 func (s *ConversationService) ListByUserID(userID int64) ([]domain.ConversationResponse, error) {
@@ -110,8 +111,10 @@ func (s *ConversationService) MarkAsRead(convID, userID int64) error {
 	if userID == conv.CustomerID {
 		senderID = conv.FactoryID
 	}
-	data, _ := json.Marshal(map[string]any{"conv_id": convID, "reader_id": userID})
-	notificationhandler.PushEvent(senderID, "messages_read", string(data))
+	if s.hub != nil {
+		data, _ := json.Marshal(map[string]any{"conv_id": convID, "reader_id": userID})
+		s.hub.Push(senderID, "messages_read", string(data))
+	}
 
 	return nil
 }
