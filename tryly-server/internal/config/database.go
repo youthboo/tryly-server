@@ -41,12 +41,31 @@ func runMigrations(db *sqlx.DB) error {
 	}()
 
 	// Try multiple paths to find migration directory
-	migrationPath := "migration"
-	if _, err := os.Stat(migrationPath); os.IsNotExist(err) {
-		// Try relative to executable
-		if exePath, err := os.Executable(); err == nil {
-			migrationPath = filepath.Join(filepath.Dir(exePath), "migration")
+	possiblePaths := []string{
+		"migration",
+		"./migration",
+		"../migration",
+		"/root/migration",
+	}
+
+	// Try relative to executable
+	if exePath, err := os.Executable(); err == nil {
+		exeDir := filepath.Dir(exePath)
+		possiblePaths = append(possiblePaths, filepath.Join(exeDir, "migration"))
+		possiblePaths = append(possiblePaths, filepath.Join(exeDir, "..", "migration"))
+	}
+
+	var migrationPath string
+	for _, path := range possiblePaths {
+		if _, err := os.Stat(path); err == nil {
+			migrationPath = path
+			break
 		}
+	}
+
+	if migrationPath == "" {
+		logger.Warn("no migration directory found in any expected path", "tried", possiblePaths)
+		return nil
 	}
 
 	logger.Info("running migrations", "path", migrationPath)
