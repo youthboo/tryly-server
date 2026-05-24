@@ -14,28 +14,36 @@ type Transaction struct {
 	UploadedAt  time.Time `db:"uploaded_at" json:"uploaded_at"`
 }
 
+// LBIProvince — row_id is the official DOPA province code (1–77).
+// GeographyID: 1=ภาคเหนือ 2=ภาคกลาง 3=ภาคตะวันออกเฉียงเหนือ
+//              4=ภาคตะวันออก 5=ภาคตะวันตก 6=ภาคใต้
 type LBIProvince struct {
-	RowID  int64  `db:"row_id" json:"row_id"`
-	NameTH string `db:"name_th" json:"name_th"`
-	NameEN string `db:"name_en" json:"name_en"`
-	Status string `db:"status" json:"status"`
+	RowID       int32  `db:"row_id"       json:"row_id"`
+	NameTH      string `db:"name_th"      json:"name_th"`
+	NameEN      string `db:"name_en"      json:"name_en"`
+	Status      string `db:"status"       json:"status"`
+	GeographyID *int16 `db:"geography_id" json:"geography_id,omitempty"`
 }
 
+// LBIDistrict — row_id is the official 4-digit district code (e.g. 1001).
+// province_id FK column stays BIGINT in DB → scan as int64.
 type LBIDistrict struct {
-	RowID      int64  `db:"row_id" json:"row_id"`
+	RowID      int32  `db:"row_id"      json:"row_id"`
 	ProvinceID int64  `db:"province_id" json:"province_id"`
-	NameTH     string `db:"name_th" json:"name_th"`
-	NameEN     string `db:"name_en" json:"name_en"`
-	Status     string `db:"status" json:"status"`
+	NameTH     string `db:"name_th"     json:"name_th"`
+	NameEN     string `db:"name_en"     json:"name_en"`
+	Status     string `db:"status"      json:"status"`
 }
 
+// LBISubDistrict — row_id is the official 6-digit sub-district code (e.g. 100101).
+// district_id FK column stays BIGINT in DB → scan as int64.
 type LBISubDistrict struct {
-	RowID      int64  `db:"row_id" json:"row_id"`
+	RowID      int32  `db:"row_id"      json:"row_id"`
 	DistrictID int64  `db:"district_id" json:"district_id"`
-	NameTH     string `db:"name_th" json:"name_th"`
-	NameEN     string `db:"name_en" json:"name_en"`
-	ZipCode    string `db:"zip_code" json:"zip_code"`
-	Status     string `db:"status" json:"status"`
+	NameTH     string `db:"name_th"     json:"name_th"`
+	NameEN     string `db:"name_en"     json:"name_en"`
+	ZipCode    string `db:"zip_code"    json:"zip_code"`
+	Status     string `db:"status"      json:"status"`
 }
 
 type LBIFactoryType struct {

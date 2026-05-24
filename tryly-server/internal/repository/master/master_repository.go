@@ -15,7 +15,7 @@ func NewMasterRepository(db *sqlx.DB) *MasterRepository {
 
 func (r *MasterRepository) GetProvinces() ([]domain.LBIProvince, error) {
 	var items []domain.LBIProvince
-	query := "SELECT row_id, name_th, name_en, status FROM lbi_provinces WHERE status = '1' ORDER BY row_id"
+	query := "SELECT row_id, name_th, name_en, status, geography_id FROM lbi_provinces WHERE status = '1' ORDER BY row_id"
 	err := r.db.Select(&items, query)
 	return items, err
 }
