@@ -15,16 +15,20 @@ func main() {
 	}
 
 	// Initialize configuration
+	logger.Info("loading configuration...")
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		logger.Fatal("failed to load config", "err", err)
 	}
+	logger.Info("configuration loaded", "database_url", cfg.DatabaseURL)
 
 	// Initialize database
+	logger.Info("initializing database...")
 	db, err := config.InitDatabase(cfg)
 	if err != nil {
 		logger.Fatal("failed to initialize database", "err", err)
 	}
+	logger.Info("database initialized successfully")
 	defer db.Close()
 
 	// Start background jobs (expiration + auto-matching notifications)

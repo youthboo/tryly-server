@@ -7,6 +7,8 @@ services:
     region: singapore
     buildCommand: go build -tags netgo -ldflags '-s -w' -o app ./cmd/app
     startCommand: ./app
+    includeFiles:
+      - migration
     autoDeploy: true
     healthCheckPath: /health
     envVars:

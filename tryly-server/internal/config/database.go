@@ -40,28 +40,36 @@ func runMigrations(db *sqlx.DB) error {
 		_, _ = db.Exec(`SELECT pg_advisory_unlock($1)`, migrationLockKey)
 	}()
 
-	// Try multiple paths to find migration directory
-	migrationPath := "migration"
-	if _, err := os.Stat(migrationPath); os.IsNotExist(err) {
-		// Try relative to executable
-		if exePath, err := os.Executable(); err == nil {
-			migrationPath = filepath.Join(filepath.Dir(exePath), "migration")
+	// Find migration directory - try multiple locations
+	var migrationPath string
+	possiblePaths := []string{
+		"migration",
+		"./migration",
+		"../migration",
+		"../../migration",
+	}
+
+	for _, path := range possiblePaths {
+		if info, err := os.Stat(path); err == nil && info.IsDir() {
+			migrationPath = path
+			break
 		}
+	}
+
+	if migrationPath == "" {
+		logger.Warn("migration directory not found, skipping migrations")
+		return nil
 	}
 
 	logger.Info("running migrations", "path", migrationPath)
 
 	entries, err := os.ReadDir(migrationPath)
 	if err != nil {
-		if os.IsNotExist(err) {
-			logger.Warn("migration directory not found", "path", migrationPath)
-			return nil
-		}
 		logger.Error("failed to read migration directory", "path", migrationPath, "err", err)
 		return err
 	}
 
-	files := make([]string, 0, len(entries))
+	files := make([]string, 0)
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -71,6 +79,7 @@ func runMigrations(db *sqlx.DB) error {
 		}
 		files = append(files, entry.Name())
 	}
+
 	sort.Strings(files)
 
 	if err := ensureSchemaMigrations(db); err != nil {
@@ -92,6 +101,7 @@ func runMigrations(db *sqlx.DB) error {
 			continue
 		}
 		logger.Info("applying migration", "name", name)
+
 		content, readErr := os.ReadFile(filepath.Join(migrationPath, name))
 		if readErr != nil {
 			logger.Error("failed to read migration file", "name", name, "err", readErr)
