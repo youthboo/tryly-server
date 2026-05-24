@@ -85,17 +85,13 @@ func (r *OrderRepository) UpsertCompletedStepTx(tx *sqlx.Tx, orderID int64, acto
 
 func (r *OrderRepository) ListAutoCloseCandidates(cutoff time.Time) ([]int64, error) {
 	var ids []int64
+	// Phase 1: ยังไม่มีตาราง disputes — ไม่ gate auto-close ด้วย open dispute
+	// (เมื่อมี disputes ให้เพิ่ม NOT EXISTS กลับ: d.status = 'OP')
 	err := r.db.Select(&ids, `
 		SELECT o.order_id
 		FROM orders o
 		WHERE o.status = 'SH'
 		  AND o.updated_at <= $1
-		  AND NOT EXISTS (
-			SELECT 1
-			FROM disputes d
-			WHERE d.order_id = o.order_id
-			  AND d.status = 'OP'
-		  )
 		  AND NOT EXISTS (
 			SELECT 1
 			FROM production_updates pu

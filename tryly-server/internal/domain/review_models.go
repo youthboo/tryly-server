@@ -7,7 +7,7 @@ type FactoryReview struct {
 	FactoryID      int64       `db:"factory_id" json:"factory_id"`
 	UserID         int64       `db:"user_id" json:"user_id"`
 	OrderID        *int64      `db:"order_id" json:"order_id,omitempty"`
-	Rating         int         `db:"rating" json:"rating"`
+	Rating         float64     `db:"rating" json:"rating"`
 	Comment        string      `db:"comment" json:"comment"`
 	ImageURLs      StringArray `db:"image_urls" json:"image_urls"`
 	CreatedAt      time.Time   `db:"created_at" json:"created_at"`
