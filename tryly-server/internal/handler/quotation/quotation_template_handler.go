@@ -1,0 +1,107 @@
+package quotation
+
+import (
+	"database/sql"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/dto"
+	"github.com/yourusername/wemake/internal/helper"
+	quotationservice "github.com/yourusername/wemake/internal/service/quotation"
+)
+
+type QuotationTemplateHandler struct {
+	service *quotationservice.QuotationTemplateService
+}
+
+func NewQuotationTemplateHandler(svc *quotationservice.QuotationTemplateService) *QuotationTemplateHandler {
+	return &QuotationTemplateHandler{service: svc}
+}
+
+var quotationTemplateNotFoundErrorMap = map[error]helper.ErrorResponse{
+	sql.ErrNoRows: helper.ErrorMessage(fiber.StatusNotFound, "quotation template not found"),
+}
+
+// GET /quotation-templates
+func (h *QuotationTemplateHandler) List(c *fiber.Ctx) error {
+	userID, err := helper.RequireAuthenticatedUserID(c)
+	if err != nil {
+		return err
+	}
+	items, err := h.service.ListByFactoryID(userID)
+	if err != nil {
+		return helper.JSONInternal(c, "failed to fetch quotation templates")
+	}
+	return c.JSON(items)
+}
+
+// POST /quotation-templates
+func (h *QuotationTemplateHandler) Create(c *fiber.Ctx) error {
+	userID, err := helper.RequireAuthenticatedUserID(c)
+	if err != nil {
+		return err
+	}
+	var req dto.CreateQuotationTemplateRequest
+	if err := helper.RequireBody(c, &req); err != nil {
+		return err
+	}
+	tmpl := &domain.QuotationTemplate{
+		FactoryID:    userID,
+		TemplateName: req.Name,
+		Note:         req.Description,
+	}
+	helper.AssignIfNotNil(&tmpl.IsActive, req.IsActive)
+	if err := h.service.Create(tmpl); err != nil {
+		return helper.JSONInternal(c, "failed to create quotation template")
+	}
+	return c.Status(fiber.StatusCreated).JSON(tmpl)
+}
+
+// PATCH /quotation-templates/:template_id
+func (h *QuotationTemplateHandler) Patch(c *fiber.Ctx) error {
+	userID, err := helper.RequireAuthenticatedUserID(c)
+	if err != nil {
+		return err
+	}
+	templateID, err := helper.ParsePositiveInt64Param(c, "template_id")
+	if err != nil {
+		return helper.BadRequestError(c, "invalid template_id")
+	}
+	var req dto.PatchQuotationTemplateRequest
+	if err := helper.RequireBody(c, &req); err != nil {
+		return err
+	}
+	tmpl := &domain.QuotationTemplate{
+		TemplateID: templateID,
+		FactoryID:  userID,
+	}
+	if req.Name != nil {
+		tmpl.TemplateName = *req.Name
+	}
+	if req.Description != nil {
+		tmpl.Note = req.Description
+	}
+	if req.IsActive != nil {
+		tmpl.IsActive = *req.IsActive
+	}
+	if err := h.service.Update(tmpl); err != nil {
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to update quotation template"), quotationTemplateNotFoundErrorMap)
+	}
+	return c.JSON(tmpl)
+}
+
+// DELETE /quotation-templates/:template_id
+func (h *QuotationTemplateHandler) Delete(c *fiber.Ctx) error {
+	userID, err := helper.RequireAuthenticatedUserID(c)
+	if err != nil {
+		return err
+	}
+	templateID, err := helper.ParsePositiveInt64Param(c, "template_id")
+	if err != nil {
+		return helper.BadRequestError(c, "invalid template_id")
+	}
+	if err := h.service.Delete(templateID, userID); err != nil {
+		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to delete quotation template"), quotationTemplateNotFoundErrorMap)
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}

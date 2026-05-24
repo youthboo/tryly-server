@@ -1,0 +1,910 @@
+package boq
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"math"
+	"strings"
+	"time"
+
+	"github.com/jmoiron/sqlx"
+	"github.com/shopspring/decimal"
+	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
+	"github.com/yourusername/wemake/internal/helper"
+	conversationrepo "github.com/yourusername/wemake/internal/repository/conversation"
+	quotationrepo "github.com/yourusername/wemake/internal/repository/quotation"
+	rfqrepo "github.com/yourusername/wemake/internal/repository/rfq"
+	messageservice "github.com/yourusername/wemake/internal/service/message"
+	notificationservice "github.com/yourusername/wemake/internal/service/notification"
+	orderservice "github.com/yourusername/wemake/internal/service/order"
+	walletservice "github.com/yourusername/wemake/internal/service/wallet"
+)
+
+var (
+	ErrBOQNotFound       = errors.New("BOQ_NOT_FOUND")
+	ErrBOQForbidden      = errors.New("BOQ_FORBIDDEN")
+	ErrBOQInvalidItems   = errors.New("BOQ_INVALID_ITEMS")
+	ErrBOQInvalidState   = errors.New("BOQ_INVALID_STATE")
+	ErrBOQExpired        = errors.New("BOQ_EXPIRED")
+	ErrBOQAlreadyHandled = errors.New("BOQ_ALREADY_HANDLED")
+)
+
+type BOQInput struct {
+	Items          []domain.RFQItem
+	Currency       string
+	DiscountAmount float64
+	VatPercent     float64
+	MOQ            *int
+	LeadTimeDays   *int
+	PaymentTerms   *string
+	ValidityDays   *int
+	Note           *string
+}
+
+type boqSnapshot struct {
+	Subtotal      float64
+	VatAmount     float64
+	GrandTotal    float64
+	Quantity      int64
+	Details       string
+	Currency      string
+	SubtotalDec   decimal.Decimal
+	DiscountDec   decimal.Decimal
+	VatPercentDec decimal.Decimal
+	VatAmountDec  decimal.Decimal
+	GrandTotalDec decimal.Decimal
+}
+
+type BOQService struct {
+	db             *sqlx.DB
+	conversations  *conversationrepo.ConversationRepository
+	rfqs           *rfqrepo.RFQRepository
+	rfqItems       *rfqrepo.RFQItemRepository
+	quotations     *quotationrepo.QuotationRepository
+	quotationItems *quotationrepo.QuotationItemRepository
+	orders         *orderservice.OrderService
+	messages       *messageservice.MessageService
+	notifications  *notificationservice.NotificationService
+	commissions    *walletservice.CommissionService
+}
+
+func NewBOQService(
+	db *sqlx.DB,
+	conversations *conversationrepo.ConversationRepository,
+	rfqs *rfqrepo.RFQRepository,
+	rfqItems *rfqrepo.RFQItemRepository,
+	quotations *quotationrepo.QuotationRepository,
+	quotationItems *quotationrepo.QuotationItemRepository,
+	orders *orderservice.OrderService,
+	messages *messageservice.MessageService,
+	notifications *notificationservice.NotificationService,
+	commissions *walletservice.CommissionService,
+) *BOQService {
+	return &BOQService{
+		db: db, conversations: conversations, rfqs: rfqs, rfqItems: rfqItems,
+		quotations: quotations, quotationItems: quotationItems, orders: orders,
+		messages: messages, notifications: notifications, commissions: commissions,
+	}
+}
+
+func computeBOQTotals(items []domain.RFQItem, discountAmount float64, vatPercent float64) (float64, float64, float64) {
+	subtotal := 0.0
+	for i := range items {
+		line := helper.RoundMoney(items[i].Qty * items[i].UnitPrice * (1 - items[i].DiscountPct/100))
+		items[i].LineTotal = line
+		subtotal += line
+	}
+	vatBase := helper.RoundMoney(subtotal - discountAmount)
+	vatAmount := helper.RoundMoney(vatBase * vatPercent / 100)
+	grandTotal := helper.RoundMoney(vatBase + vatAmount)
+	return helper.RoundMoney(subtotal), vatAmount, grandTotal
+}
+
+func prepareBOQSnapshot(input BOQInput) boqSnapshot {
+	subtotal, vatAmount, grandTotal := computeBOQTotals(input.Items, input.DiscountAmount, input.VatPercent)
+	quantity := int64(0)
+	for _, item := range input.Items {
+		quantity += int64(math.Round(item.Qty))
+	}
+	if quantity <= 0 {
+		quantity = 1
+	}
+	details := helper.DerefString(input.Note)
+	if details == "" && len(input.Items) > 0 {
+		details = input.Items[0].Description
+	}
+	return boqSnapshot{
+		Subtotal:      subtotal,
+		VatAmount:     vatAmount,
+		GrandTotal:    grandTotal,
+		Quantity:      quantity,
+		Details:       details,
+		Currency:      input.Currency,
+		SubtotalDec:   helper.MoneyDecimal(subtotal),
+		DiscountDec:   helper.MoneyDecimal(input.DiscountAmount),
+		VatPercentDec: helper.MoneyDecimal(input.VatPercent),
+		VatAmountDec:  helper.MoneyDecimal(vatAmount),
+		GrandTotalDec: helper.MoneyDecimal(grandTotal),
+	}
+}
+
+func applyBOQSnapshot(rfq *domain.RFQ, input BOQInput, snapshot boqSnapshot, sentAt time.Time) {
+	rfq.Quantity = snapshot.Quantity
+	rfq.Details = snapshot.Details
+	rfq.BOQCurrency = &snapshot.Currency
+	rfq.BOQSubtotal = &snapshot.SubtotalDec
+	rfq.BOQDiscountAmount = &snapshot.DiscountDec
+	rfq.BOQVatPercent = &snapshot.VatPercentDec
+	rfq.BOQVatAmount = &snapshot.VatAmountDec
+	rfq.BOQGrandTotal = &snapshot.GrandTotalDec
+	rfq.BOQMOQ = input.MOQ
+	rfq.BOQLeadTimeDays = input.LeadTimeDays
+	rfq.BOQPaymentTerms = input.PaymentTerms
+	rfq.BOQValidityDays = input.ValidityDays
+	rfq.BOQNote = input.Note
+	rfq.BOQSentAt = &sentAt
+}
+
+func normalizeBOQInput(in BOQInput) BOQInput {
+	in.Currency = domainutil.NormalizeStatus(in.Currency)
+	if in.Currency == "" {
+		in.Currency = "THB"
+	}
+	if in.ValidityDays == nil || *in.ValidityDays <= 0 {
+		v := domain.DefaultBOQValidityDays
+		in.ValidityDays = &v
+	}
+	if in.VatPercent < 0 {
+		in.VatPercent = 0
+	}
+	note := strings.TrimSpace(helper.DerefString(in.Note))
+	if note == "" {
+		in.Note = nil
+	} else {
+		in.Note = &note
+	}
+	paymentTerms := strings.TrimSpace(helper.DerefString(in.PaymentTerms))
+	if paymentTerms == "" {
+		in.PaymentTerms = nil
+	} else {
+		in.PaymentTerms = &paymentTerms
+	}
+	for i := range in.Items {
+		in.Items[i].Description = strings.TrimSpace(in.Items[i].Description)
+		if in.Items[i].ItemNo <= 0 {
+			in.Items[i].ItemNo = i + 1
+		}
+		if in.Items[i].Specification != nil {
+			spec := strings.TrimSpace(*in.Items[i].Specification)
+			if spec == "" {
+				in.Items[i].Specification = nil
+			} else {
+				in.Items[i].Specification = &spec
+			}
+		}
+		if in.Items[i].Unit != nil {
+			unit := strings.TrimSpace(*in.Items[i].Unit)
+			if unit == "" {
+				in.Items[i].Unit = nil
+			} else {
+				in.Items[i].Unit = &unit
+			}
+		}
+		if in.Items[i].Note != nil {
+			n := strings.TrimSpace(*in.Items[i].Note)
+			if n == "" {
+				in.Items[i].Note = nil
+			} else {
+				in.Items[i].Note = &n
+			}
+		}
+	}
+	return in
+}
+
+func validateBOQInput(in BOQInput) error {
+	if len(in.Items) == 0 {
+		return ErrBOQInvalidItems
+	}
+	for _, item := range in.Items {
+		if item.Description == "" || item.Qty <= 0 || item.UnitPrice < 0 || item.DiscountPct < 0 || item.DiscountPct > 100 {
+			return ErrBOQInvalidItems
+		}
+	}
+	if in.DiscountAmount < 0 || in.VatPercent < 0 {
+		return ErrBOQInvalidItems
+	}
+	return nil
+}
+
+func boqExpiresAt(rfq *domain.RFQ) *time.Time {
+	if rfq == nil || rfq.BOQSentAt == nil {
+		return nil
+	}
+	days := domain.DefaultBOQValidityDays
+	if rfq.BOQValidityDays != nil && *rfq.BOQValidityDays > 0 {
+		days = *rfq.BOQValidityDays
+	}
+	t := rfq.BOQSentAt.Add(time.Duration(days) * 24 * time.Hour)
+	return &t
+}
+
+func boqIsExpired(rfq *domain.RFQ) bool {
+	expiresAt := boqExpiresAt(rfq)
+	return expiresAt != nil && time.Now().After(*expiresAt)
+}
+
+func (s *BOQService) Create(convID, actorUserID int64, input BOQInput) (*domain.BOQDetail, *domain.Message, error) {
+	conv, err := s.conversations.GetByID(convID)
+	if err != nil {
+		return nil, nil, ErrBOQNotFound
+	}
+	if conv.FactoryID != actorUserID {
+		return nil, nil, ErrBOQForbidden
+	}
+
+	input = normalizeBOQInput(input)
+	if err := validateBOQInput(input); err != nil {
+		return nil, nil, err
+	}
+	snapshot := prepareBOQSnapshot(input)
+
+	primaryCategoryID, _ := s.lookupFactoryPrimaryCategory(actorUserID)
+	now := time.Now()
+	title := fmt.Sprintf("BOQ - %s - %s", helper.DerefString(conv.FactoryName), now.Format("2006-01-02"))
+	rfq := &domain.RFQ{
+		UserID:           conv.CustomerID,
+		CategoryID:       primaryCategoryID,
+		Title:            title,
+		Status:           "OP",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+		RFQType:          "BQ",
+		InitiatedBy:      "factory",
+		FactoryUserID:    &actorUserID,
+		SourceShowcaseID: conv.SourceShowcaseID,
+		SourceConvID:     &convID,
+	}
+	applyBOQSnapshot(rfq, input, snapshot, now)
+
+	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+		if err := s.rfqs.CreateTx(tx, rfq); err != nil {
+			return err
+		}
+		for i := range input.Items {
+			input.Items[i].RFQID = rfq.RFQID
+		}
+		if err := s.rfqItems.BulkInsertTx(tx, rfq.RFQID, input.Items); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`
+		UPDATE conversations
+		SET last_message = 'BOQ ใหม่',
+		    unread_customer = COALESCE(unread_customer, 0) + 1,
+		    updated_at = NOW()
+		WHERE conv_id = $1
+		`, convID); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, nil, err
+	}
+
+	quoteDataStr, _ := s.buildBOQQuoteDataString(rfq, input.Items, helper.DerefString(conv.FactoryName))
+	msg := &domain.Message{
+		SenderID:    actorUserID,
+		ReceiverID:  conv.CustomerID,
+		Content:     "โรงงานส่ง BOQ มาให้แล้ว กรุณาตรวจสอบ",
+		ConvID:      &convID,
+		MessageType: "BQ",
+		QuoteData:   quoteDataStr,
+		BOQRfqID:    &rfq.RFQID,
+		IsRead:      false,
+	}
+	if err := s.messages.Create(msg); err != nil {
+		return nil, nil, err
+	}
+	if s.notifications != nil {
+		_ = s.notifications.Create(&domain.Notification{
+			UserID:      conv.CustomerID,
+			Type:        "BQ",
+			Title:       "โรงงานส่ง BOQ มาแล้ว",
+			Message:     fmt.Sprintf("%s ส่ง BOQ มูลค่า ฿%.2f มาให้คุณ", helper.DerefString(conv.FactoryName), snapshot.GrandTotal),
+			LinkTo:      fmt.Sprintf("/chat/%d", convID),
+			ReferenceID: &rfq.RFQID,
+		})
+	}
+	detail, _, err := s.Get(rfq.RFQID, actorUserID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return detail, msg, nil
+}
+
+func (s *BOQService) Get(rfqID, actorUserID int64) (*domain.BOQDetail, *domain.Message, error) {
+	rfq, err := s.rfqs.GetByIDAny(rfqID)
+	if err != nil {
+		return nil, nil, ErrBOQNotFound
+	}
+	if rfq.RFQType != "BQ" || rfq.InitiatedBy != "factory" {
+		return nil, nil, ErrBOQNotFound
+	}
+	if actorUserID != rfq.UserID && (rfq.FactoryUserID == nil || *rfq.FactoryUserID != actorUserID) {
+		return nil, nil, ErrBOQForbidden
+	}
+	items, err := s.rfqItems.ListByRFQID(rfqID)
+	if err != nil {
+		return nil, nil, err
+	}
+	detail, err := s.buildBOQDetail(rfq, items)
+	if err != nil {
+		return nil, nil, err
+	}
+	return detail, nil, nil
+}
+
+func (s *BOQService) Update(rfqID, actorUserID int64, input BOQInput) (*domain.BOQDetail, error) {
+	rfq, err := s.rfqs.GetByIDAny(rfqID)
+	if err != nil {
+		return nil, ErrBOQNotFound
+	}
+	if rfq.FactoryUserID == nil || *rfq.FactoryUserID != actorUserID {
+		return nil, ErrBOQForbidden
+	}
+	if rfq.BOQResponse != nil {
+		return nil, ErrBOQAlreadyHandled
+	}
+	if boqIsExpired(rfq) {
+		return nil, ErrBOQExpired
+	}
+
+	input = normalizeBOQInput(input)
+	if err := validateBOQInput(input); err != nil {
+		return nil, err
+	}
+	snapshot := prepareBOQSnapshot(input)
+	now := time.Now()
+	applyBOQSnapshot(rfq, input, snapshot, now)
+
+	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+		if _, err := tx.Exec(`
+		UPDATE rfqs
+		SET quantity = $2,
+		    details = $3,
+		    updated_at = NOW()
+		WHERE rfq_id = $1
+	`, rfqID, snapshot.Quantity, snapshot.Details); err != nil {
+			return err
+		}
+		if err := s.rfqItems.DeleteByRFQIDTx(tx, rfqID); err != nil {
+			return err
+		}
+		for i := range input.Items {
+			input.Items[i].RFQID = rfqID
+		}
+		if err := s.rfqItems.BulkInsertTx(tx, rfqID, input.Items); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`
+		UPDATE conversations
+		SET last_message = 'BOQ อัปเดต',
+		    unread_customer = COALESCE(unread_customer, 0) + 1,
+		    updated_at = NOW()
+		WHERE conv_id = $1
+	`, domainutil.Nullable(rfq.SourceConvID)); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	if rfq.SourceConvID != nil {
+		quoteDataStr, _ := s.buildBOQQuoteDataString(rfq, input.Items, "")
+		_ = s.messages.Create(&domain.Message{
+			SenderID:    actorUserID,
+			ReceiverID:  rfq.UserID,
+			Content:     "โรงงานอัปเดต BOQ แล้ว กรุณาตรวจสอบ",
+			ConvID:      rfq.SourceConvID,
+			MessageType: "BQ",
+			QuoteData:   quoteDataStr,
+			BOQRfqID:    &rfqID,
+			IsRead:      false,
+		})
+	}
+	detail, _, err := s.Get(rfqID, actorUserID)
+	return detail, err
+}
+
+func (s *BOQService) Accept(rfqID, buyerUserID int64) (*domain.Order, int64, error) {
+	rfq, err := s.rfqs.GetByIDAny(rfqID)
+	if err != nil {
+		return nil, 0, ErrBOQNotFound
+	}
+	if rfq.UserID != buyerUserID {
+		return nil, 0, ErrBOQForbidden
+	}
+	if rfq.BOQResponse != nil {
+		return nil, 0, ErrBOQAlreadyHandled
+	}
+	if boqIsExpired(rfq) {
+		return nil, 0, ErrBOQExpired
+	}
+	if rfq.FactoryUserID == nil {
+		return nil, 0, ErrBOQInvalidState
+	}
+	items, err := s.rfqItems.ListByRFQID(rfqID)
+	if err != nil {
+		return nil, 0, err
+	}
+	if len(items) == 0 {
+		return nil, 0, ErrBOQInvalidItems
+	}
+
+	shippingMethodID, err := s.lookupDefaultShippingMethodID()
+	if err != nil {
+		return nil, 0, err
+	}
+	discountAmount := helper.DerefDecimalToFloat(rfq.BOQDiscountAmount)
+	commissionRate, configID, commissionAmount, factoryNet, err := s.resolveBOQCommission(*rfq.FactoryUserID, items, discountAmount, helper.DerefDecimalToFloat(rfq.BOQGrandTotal))
+	if err != nil {
+		return nil, 0, err
+	}
+	validityDays := domain.DefaultBOQValidityDays
+	if rfq.BOQValidityDays != nil && *rfq.BOQValidityDays > 0 {
+		validityDays = *rfq.BOQValidityDays
+	}
+	pricePerPiece := helper.DerefDecimalToFloat(rfq.BOQGrandTotal) / float64(helper.MaxInt64(rfq.Quantity, 1))
+	now := time.Now()
+	quotation := &domain.Quotation{
+		RFQID:                    rfq.RFQID,
+		FactoryID:                *rfq.FactoryUserID,
+		PricePerPiece:            helper.MoneyDecimal(pricePerPiece),
+		MoldCost:                 helper.ZeroMoney(),
+		LeadTimeDays:             int64(domainutil.IntValue(rfq.BOQLeadTimeDays)),
+		ShippingMethodID:         shippingMethodID,
+		Status:                   domain.QuotationStatusPrepared,
+		CreateTime:               now,
+		LogTimestamp:             now,
+		Subtotal:                 helper.MoneyDecimal(helper.DerefDecimalToFloat(rfq.BOQSubtotal)),
+		DiscountAmount:           helper.MoneyDecimal(discountAmount),
+		VatRate:                  helper.MoneyDecimal(helper.DerefDecimalToFloat(rfq.BOQVatPercent)),
+		VatAmount:                helper.MoneyDecimal(helper.DerefDecimalToFloat(rfq.BOQVatAmount)),
+		GrandTotal:               helper.MoneyDecimal(helper.DerefDecimalToFloat(rfq.BOQGrandTotal)),
+		PlatformCommissionRate:   helper.MoneyDecimal(commissionRate),
+		PlatformCommissionAmount: helper.MoneyDecimal(commissionAmount),
+		FactoryNetReceivable:     helper.MoneyDecimal(factoryNet),
+		PlatformConfigID:         &configID,
+		PaymentTerms:             rfq.BOQPaymentTerms,
+		ValidityDays:             validityDays,
+		ValidUntil:               boqExpiresAt(rfq),
+		RevisionNo:               1,
+	}
+
+	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+		if err := s.quotations.CreateTx(tx, quotation); err != nil {
+			return err
+		}
+		qItems := make([]domain.QuotationItem, 0, len(items))
+		for _, item := range items {
+			qItems = append(qItems, domain.QuotationItem{
+				ItemNo:      item.ItemNo,
+				Description: item.Description,
+				Qty:         item.Qty,
+				Unit:        item.Unit,
+				UnitPrice:   item.UnitPrice,
+				DiscountPct: item.DiscountPct,
+				LineTotal:   item.LineTotal,
+				Note:        item.Note,
+			})
+		}
+		return s.quotationItems.BulkInsert(tx, quotation.QuotationID, qItems)
+	}); err != nil {
+		return nil, 0, err
+	}
+
+	order, err := s.orders.CreateFromQuotation(quotation.QuotationID, buyerUserID)
+	if err != nil {
+		return nil, quotation.QuotationID, err
+	}
+	if err := s.finalizeAcceptedBOQ(rfq, order); err != nil {
+		return nil, quotation.QuotationID, err
+	}
+	return order, quotation.QuotationID, nil
+}
+
+func (s *BOQService) finalizeAcceptedBOQ(rfq *domain.RFQ, order *domain.Order) error {
+	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+		if _, err := tx.Exec(`
+		UPDATE rfqs
+		SET updated_at = NOW()
+		WHERE rfq_id = $1
+	`, rfq.RFQID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`
+		UPDATE orders
+		SET deposit_amount = total_amount,
+		    payment_type = 'FP',
+		    updated_at = NOW()
+		WHERE order_id = $1
+	`, order.OrderID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(`
+		UPDATE payment_schedules
+		SET amount = $2
+		WHERE order_id = $1 AND installment_no = 1
+	`, order.OrderID, order.TotalAmount); err != nil {
+			return err
+		}
+		if rfq.SourceConvID != nil {
+			if _, err := tx.Exec(`
+			UPDATE conversations
+			SET last_message = $2,
+			    unread_factory = COALESCE(unread_factory, 0) + 1,
+			    updated_at = NOW()
+			WHERE conv_id = $1
+		`, *rfq.SourceConvID, fmt.Sprintf("ยืนยัน BOQ แล้ว — คำสั่งซื้อ #%d ถูกสร้างแล้ว", order.OrderID)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if rfq.SourceConvID != nil {
+		_ = s.messages.Create(&domain.Message{
+			SenderID:    rfq.UserID,
+			ReceiverID:  domainutil.Int64Value(rfq.FactoryUserID),
+			Content:     fmt.Sprintf("ยืนยัน BOQ แล้ว — คำสั่งซื้อ #%d ถูกสร้างแล้ว", order.OrderID),
+			ConvID:      rfq.SourceConvID,
+			MessageType: "TX",
+			IsRead:      false,
+		})
+	}
+	if s.notifications != nil && rfq.FactoryUserID != nil {
+		refID := order.OrderID
+		_ = s.notifications.Create(&domain.Notification{
+			UserID:      *rfq.FactoryUserID,
+			Type:        "BQ",
+			Title:       "ลูกค้ายืนยัน BOQ แล้ว",
+			Message:     "ลูกค้ายืนยัน BOQ แล้ว รอรับชำระเงิน",
+			LinkTo:      fmt.Sprintf("/factory/orders/%d", order.OrderID),
+			ReferenceID: &refID,
+		})
+	}
+	return nil
+}
+
+func (s *BOQService) Decline(rfqID, buyerUserID int64, reason *string) (*domain.RFQ, error) {
+	rfq, err := s.rfqs.GetByIDAny(rfqID)
+	if err != nil {
+		return nil, ErrBOQNotFound
+	}
+	if rfq.UserID != buyerUserID {
+		return nil, ErrBOQForbidden
+	}
+	if rfq.BOQResponse != nil {
+		return nil, ErrBOQAlreadyHandled
+	}
+	if boqIsExpired(rfq) {
+		return nil, ErrBOQExpired
+	}
+	now := time.Now()
+
+	if err := helper.WithTx(context.Background(), s.db, func(tx *sqlx.Tx) error {
+		if _, err := tx.Exec(`
+		UPDATE rfqs
+		SET status = 'CC',
+		    updated_at = NOW()
+		WHERE rfq_id = $1
+	`, rfqID); err != nil {
+			return err
+		}
+		if rfq.SourceConvID != nil {
+			if _, err := tx.Exec(`
+			UPDATE conversations
+			SET last_message = 'ลูกค้าปฏิเสธ BOQ',
+			    unread_factory = COALESCE(unread_factory, 0) + 1,
+			    updated_at = NOW()
+			WHERE conv_id = $1
+		`, *rfq.SourceConvID); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	rfq.Status = "CC"
+	resp := "declined"
+	rfq.BOQResponse = &resp
+	rfq.BOQRespondedAt = &now
+	rfq.BOQDeclineReason = reason
+	if rfq.SourceConvID != nil {
+		_ = s.messages.Create(&domain.Message{
+			SenderID:    buyerUserID,
+			ReceiverID:  domainutil.Int64Value(rfq.FactoryUserID),
+			Content:     "ลูกค้าปฏิเสธ BOQ",
+			ConvID:      rfq.SourceConvID,
+			MessageType: "TX",
+			IsRead:      false,
+		})
+	}
+	if s.notifications != nil && rfq.FactoryUserID != nil {
+		refID := rfqID
+		_ = s.notifications.Create(&domain.Notification{
+			UserID:      *rfq.FactoryUserID,
+			Type:        "BQ",
+			Title:       "ลูกค้าปฏิเสธ BOQ",
+			Message:     "ลูกค้าปฏิเสธ BOQ",
+			LinkTo:      "/factory/messages",
+			ReferenceID: &refID,
+		})
+	}
+	return rfq, nil
+}
+
+func (s *BOQService) ListMine(factoryUserID int64, status string) ([]domain.BOQSummary, error) {
+	type row struct {
+		RFQID            int64      `db:"rfq_id"`
+		Status           string     `db:"status"`
+		BOQResponse      *string    `db:"boq_response"`
+		BOQDeclineReason *string    `db:"boq_decline_reason"`
+		BOQSentAt        *time.Time `db:"boq_sent_at"`
+		BOQRespondedAt   *time.Time `db:"boq_responded_at"`
+		BOQValidityDays  int        `db:"boq_validity_days"`
+		BOQGrandTotal    float64    `db:"boq_grand_total"`
+		BOQCurrency      string     `db:"boq_currency"`
+		SourceConvID     *int64     `db:"source_conv_id"`
+		SourceShowcaseID *int64     `db:"source_showcase_id"`
+		BuyerDisplayName string     `db:"buyer_display_name"`
+		FactoryName      string     `db:"factory_name"`
+	}
+	var rows []row
+	if err := s.db.Select(&rows, `
+		SELECT r.rfq_id, r.status, NULL::text AS boq_response, NULL::text AS boq_decline_reason,
+		       NULL::timestamp AS boq_sent_at, NULL::timestamp AS boq_responded_at,
+		       $1::int AS boq_validity_days,
+		       0::float8 AS boq_grand_total,
+		       'THB'::text AS boq_currency,
+		       NULL::bigint AS source_conv_id, NULL::bigint AS source_showcase_id,
+		       COALESCE(NULLIF(TRIM(CONCAT(c.first_name, ' ', c.last_name)), ''), 'ลูกค้า #' || r.user_id::text) AS buyer_display_name,
+		       '' AS factory_name
+		FROM rfqs r
+		LEFT JOIN customers c ON c.user_id = r.user_id
+		WHERE FALSE
+		ORDER BY r.created_at DESC
+	`, domain.DefaultBOQValidityDays); err != nil {
+		return nil, err
+	}
+	out := make([]domain.BOQSummary, 0, len(rows))
+	now := time.Now()
+	for _, row := range rows {
+		var expiresAt *time.Time
+		expires := false
+		if row.BOQSentAt != nil {
+			t := row.BOQSentAt.Add(time.Duration(row.BOQValidityDays) * 24 * time.Hour)
+			expiresAt = &t
+			expires = now.After(t)
+		}
+		item := domain.BOQSummary{
+			RFQID:            row.RFQID,
+			Status:           row.Status,
+			BOQResponse:      row.BOQResponse,
+			BOQDeclineReason: row.BOQDeclineReason,
+			BOQSentAt:        row.BOQSentAt,
+			BOQRespondedAt:   row.BOQRespondedAt,
+			BOQValidityDays:  row.BOQValidityDays,
+			BOQExpiresAt:     expiresAt,
+			IsExpired:        expires,
+			BOQGrandTotal:    row.BOQGrandTotal,
+			BOQCurrency:      row.BOQCurrency,
+			SourceConvID:     row.SourceConvID,
+			SourceShowcaseID: row.SourceShowcaseID,
+			BuyerDisplayName: row.BuyerDisplayName,
+			FactoryName:      row.FactoryName,
+		}
+		if statusFilterMatches(status, &item) {
+			out = append(out, item)
+		}
+	}
+	return out, nil
+}
+
+func statusFilterMatches(status string, item *domain.BOQSummary) bool {
+	switch domainutil.NormalizeLower(status) {
+	case "", "all":
+		return true
+	case "pending":
+		return item.BOQResponse == nil && !item.IsExpired
+	case "accepted":
+		return item.BOQResponse != nil && *item.BOQResponse == "accepted"
+	case "declined":
+		return item.BOQResponse != nil && *item.BOQResponse == "declined"
+	case "expired":
+		return item.BOQResponse == nil && item.IsExpired
+	default:
+		return true
+	}
+}
+
+func (s *BOQService) buildBOQDetail(rfq *domain.RFQ, items []domain.RFQItem) (*domain.BOQDetail, error) {
+	factoryName, imageURL, err := s.lookupFactorySummary(domainutil.Int64Value(rfq.FactoryUserID))
+	if err != nil {
+		return nil, err
+	}
+	buyerName, err := s.lookupBuyerName(rfq.UserID)
+	if err != nil {
+		return nil, err
+	}
+	expiresAt := boqExpiresAt(rfq)
+	return &domain.BOQDetail{
+		RFQID:             rfq.RFQID,
+		RFQType:           rfq.RFQType,
+		InitiatedBy:       rfq.InitiatedBy,
+		Status:            rfq.Status,
+		BOQResponse:       rfq.BOQResponse,
+		BOQDeclineReason:  rfq.BOQDeclineReason,
+		BOQSentAt:         rfq.BOQSentAt,
+		BOQRespondedAt:    rfq.BOQRespondedAt,
+		BOQValidityDays:   helper.MaxInt(domainutil.IntValue(rfq.BOQValidityDays), domain.DefaultBOQValidityDays),
+		BOQExpiresAt:      expiresAt,
+		IsExpired:         boqIsExpired(rfq),
+		BOQGrandTotal:     helper.DerefDecimalToFloat(rfq.BOQGrandTotal),
+		BOQCurrency:       helper.DerefString(rfq.BOQCurrency),
+		BOQSubtotal:       helper.DerefDecimalToFloat(rfq.BOQSubtotal),
+		BOQDiscountAmount: helper.DerefDecimalToFloat(rfq.BOQDiscountAmount),
+		BOQVatPercent:     helper.DerefDecimalToFloat(rfq.BOQVatPercent),
+		BOQVatAmount:      helper.DerefDecimalToFloat(rfq.BOQVatAmount),
+		BOQMOQ:            rfq.BOQMOQ,
+		BOQLeadTimeDays:   rfq.BOQLeadTimeDays,
+		BOQPaymentTerms:   rfq.BOQPaymentTerms,
+		BOQNote:           rfq.BOQNote,
+		SourceConvID:      rfq.SourceConvID,
+		SourceShowcaseID:  rfq.SourceShowcaseID,
+		Factory: domain.BOQFactorySummary{
+			FactoryID:   domainutil.Int64Value(rfq.FactoryUserID),
+			FactoryName: factoryName,
+			ImageURL:    imageURL,
+		},
+		Buyer: domain.BOQBuyerSummary{
+			UserID:      rfq.UserID,
+			DisplayName: buyerName,
+		},
+		Items: items,
+	}, nil
+}
+
+func (s *BOQService) buildBOQQuoteDataString(rfq *domain.RFQ, items []domain.RFQItem, factoryName string) (*string, error) {
+	expiresAt := boqExpiresAt(rfq)
+	var validUntil *string
+	if expiresAt != nil {
+		v := helper.FormatThaiShortDate(*expiresAt)
+		validUntil = &v
+	}
+	data := domain.BOQQuoteData{
+		BOQRFQID:       rfq.RFQID,
+		FactoryName:    factoryName,
+		Items:          items,
+		Currency:       helper.DerefString(rfq.BOQCurrency),
+		Subtotal:       helper.DerefDecimalToFloat(rfq.BOQSubtotal),
+		DiscountAmount: helper.DerefDecimalToFloat(rfq.BOQDiscountAmount),
+		VatPercent:     helper.DerefDecimalToFloat(rfq.BOQVatPercent),
+		VatAmount:      helper.DerefDecimalToFloat(rfq.BOQVatAmount),
+		GrandTotal:     helper.DerefDecimalToFloat(rfq.BOQGrandTotal),
+		MOQ:            rfq.BOQMOQ,
+		LeadTimeDays:   rfq.BOQLeadTimeDays,
+		PaymentTerms:   rfq.BOQPaymentTerms,
+		ValidityDays:   helper.MaxInt(domainutil.IntValue(rfq.BOQValidityDays), domain.DefaultBOQValidityDays),
+		ExpiresAt:      expiresAt,
+		Note:           rfq.BOQNote,
+		Status:         boqCardStatus(rfq),
+		Price:          helper.DerefDecimalToFloat(rfq.BOQGrandTotal),
+		LeadTime:       rfq.BOQLeadTimeDays,
+		ValidUntil:     validUntil,
+	}
+	b, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	sv := string(b)
+	return &sv, nil
+}
+
+func boqCardStatus(rfq *domain.RFQ) string {
+	if rfq.BOQResponse != nil {
+		return *rfq.BOQResponse
+	}
+	if boqIsExpired(rfq) {
+		return "expired"
+	}
+	return "pending"
+}
+
+func (s *BOQService) lookupFactoryPrimaryCategory(factoryID int64) (int64, error) {
+	var categoryID int64
+	err := s.db.Get(&categoryID, `
+		SELECT category_id
+		FROM map_factory_categories
+		WHERE factory_id = $1
+		ORDER BY category_id
+		LIMIT 1
+	`, factoryID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return categoryID, err
+}
+
+func (s *BOQService) lookupDefaultShippingMethodID() (int64, error) {
+	var shippingMethodID int64
+	err := s.db.Get(&shippingMethodID, `
+		SELECT shipping_method_id
+		FROM lbi_shipping_methods
+		WHERE status = '1'
+		ORDER BY shipping_method_id
+		LIMIT 1
+	`)
+	return shippingMethodID, err
+}
+
+func (s *BOQService) resolveBOQCommission(factoryID int64, items []domain.RFQItem, discountAmount float64, grandTotal float64) (float64, int64, float64, float64, error) {
+	qItems := make([]domain.QuotationItem, 0, len(items))
+	for _, item := range items {
+		qItems = append(qItems, domain.QuotationItem{
+			ItemNo:      item.ItemNo,
+			Description: item.Description,
+			Qty:         item.Qty,
+			Unit:        item.Unit,
+			UnitPrice:   item.UnitPrice,
+			DiscountPct: item.DiscountPct,
+			LineTotal:   item.LineTotal,
+			Note:        item.Note,
+		})
+	}
+	breakdown, err := s.commissions.Calculate(walletservice.CommissionInput{
+		Items:          qItems,
+		DiscountAmount: discountAmount,
+		FactoryID:      &factoryID,
+	})
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	commissionAmount := helper.RoundMoney((breakdown.Subtotal * breakdown.PlatformCommissionRate) / 100)
+	factoryNet := helper.RoundMoney(grandTotal - commissionAmount)
+	return breakdown.PlatformCommissionRate, breakdown.PlatformConfigID, commissionAmount, factoryNet, nil
+}
+
+func (s *BOQService) lookupFactorySummary(factoryID int64) (string, *string, error) {
+	var row struct {
+		Name     string         `db:"factory_name"`
+		ImageURL sql.NullString `db:"image_url"`
+	}
+	err := s.db.Get(&row, `SELECT factory_name, image_url FROM factory_profiles WHERE user_id = $1`, factoryID)
+	if err != nil {
+		return "", nil, err
+	}
+	if row.ImageURL.Valid {
+		return row.Name, &row.ImageURL.String, nil
+	}
+	return row.Name, nil, nil
+}
+
+func (s *BOQService) lookupBuyerName(userID int64) (string, error) {
+	var name string
+	err := s.db.Get(&name, `
+		SELECT COALESCE(NULLIF(TRIM(CONCAT(first_name, ' ', last_name)), ''), 'ลูกค้า #' || user_id::text)
+		FROM customers
+		WHERE user_id = $1
+	`, userID)
+	return name, err
+}

@@ -1,0 +1,151 @@
+package user
+
+import (
+	"database/sql"
+	"errors"
+	"github.com/yourusername/wemake/internal/dto"
+	"github.com/yourusername/wemake/internal/helper"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/domain"
+	"github.com/yourusername/wemake/internal/domainutil"
+	userservice "github.com/yourusername/wemake/internal/service/user"
+)
+
+type AddressHandler struct {
+	service *userservice.AddressService
+}
+
+func NewAddressHandler(service *userservice.AddressService) *AddressHandler {
+	return &AddressHandler{service: service}
+}
+
+func normalizeAddressType(raw string) (string, bool) {
+	typ := domainutil.NormalizeStatus(raw)
+	switch typ {
+	case "B", "S", "C", "M":
+		return typ, true
+	default:
+		return typ, false
+	}
+}
+
+func (h *AddressHandler) ListAddresses(c *fiber.Ctx) error {
+	userID, err := helper.RequireAPIUserID(c, helper.BadRequestAPIError("INVALID_USER_ID", "invalid X-User-ID header"))
+	if err != nil {
+		return err
+	}
+
+	addresses, err := h.service.ListByUserID(userID)
+	if err != nil {
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("FETCH_ADDRESSES_FAILED", "failed to fetch addresses"))
+	}
+	return helper.WriteListResponse(c, addresses, len(addresses))
+}
+
+func (h *AddressHandler) CreateAddress(c *fiber.Ctx) error {
+	userID, err := helper.RequireAPIUserID(c, helper.BadRequestAPIError("INVALID_USER_ID", "invalid X-User-ID header"))
+	if err != nil {
+		return err
+	}
+
+	var req dto.CreateAddressRequest
+	if err := helper.RequireBody(c, &req); err != nil {
+		return err
+	}
+
+	v := domain.NewValidationCollector()
+	v.AddIf(helper.DereferenceString(&req.AddressType, "") == "", "address_type", "is required")
+	v.AddIf(helper.DereferenceString(&req.AddressDetail, "") == "", "address_detail", "is required")
+	if v.HasErrors() {
+		return helper.WriteAPIError(c, helper.BadRequestAPIError("MISSING_FIELDS", "address_type and address_detail are required"))
+	}
+	addressType, ok := normalizeAddressType(req.AddressType)
+	if !ok {
+		return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_ADDRESS_TYPE", "address_type must be one of B, S, C, M"))
+	}
+
+	address := &domain.Address{
+		UserID:        userID,
+		AddressType:   addressType,
+		AddressDetail: helper.DereferenceString(&req.AddressDetail, ""),
+		SubDistrictID: req.SubDistrictID,
+		DistrictID:    req.DistrictID,
+		ProvinceID:    req.ProvinceID,
+		ZipCode:       helper.DereferenceString(&req.ZipCode, ""),
+		IsDefault:     req.IsDefault,
+	}
+
+	if err := h.service.Create(address); err != nil {
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("CREATE_ADDRESS_FAILED", "failed to create address"))
+	}
+	c.Status(fiber.StatusCreated)
+	return c.JSON(address)
+}
+
+func (h *AddressHandler) PatchAddress(c *fiber.Ctx) error {
+	userID, err := helper.RequireAPIUserID(c, helper.BadRequestAPIError("INVALID_USER_ID", "invalid X-User-ID header"))
+	if err != nil {
+		return err
+	}
+
+	addressID, err := helper.RequireInt64Param(c, "address_id")
+	if err != nil {
+		return err
+	}
+
+	var req dto.PatchAddressRequest
+	if err := helper.RequireBody(c, &req); err != nil {
+		return err
+	}
+
+	fields := map[string]interface{}{}
+	if req.AddressType != nil {
+		addressType, ok := normalizeAddressType(*req.AddressType)
+		if !ok {
+			return helper.WriteAPIError(c, helper.BadRequestAPIError("INVALID_ADDRESS_TYPE", "address_type must be one of B, S, C, M"))
+		}
+		fields["address_type"] = addressType
+	}
+	if req.AddressDetail != nil {
+		fields["address_detail"] = helper.DereferenceString(req.AddressDetail, "")
+	}
+	if req.SubDistrictID != nil {
+		fields["sub_district_id"] = *req.SubDistrictID
+	}
+	if req.DistrictID != nil {
+		fields["district_id"] = *req.DistrictID
+	}
+	if req.ProvinceID != nil {
+		fields["province_id"] = *req.ProvinceID
+	}
+	if req.ZipCode != nil {
+		fields["zip_code"] = helper.DereferenceString(req.ZipCode, "")
+	}
+	if req.IsDefault != nil {
+		fields["is_default"] = *req.IsDefault
+	}
+
+	if err := h.service.Patch(userID, int64(addressID), fields); err != nil {
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("PATCH_ADDRESS_FAILED", "failed to patch address"))
+	}
+	return helper.WriteSuccess(c, "address updated", nil)
+}
+
+func (h *AddressHandler) DeleteAddress(c *fiber.Ctx) error {
+	userID, err := helper.RequireAPIUserID(c, helper.BadRequestAPIError("INVALID_USER_ID", "invalid X-User-ID header"))
+	if err != nil {
+		return err
+	}
+	addressID, err := helper.RequireInt64Param(c, "address_id")
+	if err != nil {
+		return err
+	}
+	if err := h.service.Delete(userID, int64(addressID)); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return helper.WriteAPIError(c, helper.NotFoundAPIError("ADDRESS_NOT_FOUND", "address not found"))
+		}
+		return helper.WriteAPIError(c, helper.InternalServerAPIError("DELETE_ADDRESS_FAILED", "failed to delete address"))
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
