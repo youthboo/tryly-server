@@ -13,6 +13,7 @@ FROM alpine:latest
 WORKDIR /root/
 
 COPY --from=builder /app/wemake .
+COPY --from=builder /app/migration ./migration
 
 EXPOSE 3000
 
