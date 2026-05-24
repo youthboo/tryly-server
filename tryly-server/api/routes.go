@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/jmoiron/sqlx"
 	"github.com/yourusername/wemake/internal/config"
 	"github.com/yourusername/wemake/internal/domain"
@@ -21,12 +20,27 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 		// (JWT tokens + session cookies can easily exceed the 4 KB default).
 		ReadBufferSize: 16 * 1024,
 	})
-	app.Use(cors.New(cors.Config{
-		AllowOrigins: normalizeOrigins(cfg.CORSOrigins),
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-User-ID, X-Confirm-Payment-Trigger",
-		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowCredentials: true,
-	}))
+	// Custom CORS middleware to handle origin validation
+	app.Use(func(c *fiber.Ctx) error {
+		origin := c.Get("Origin")
+		allowedOrigins := getAllowedOrigins(cfg.CORSOrigins)
+
+		// Check if origin is allowed
+		if isOriginAllowed(origin, allowedOrigins) {
+			c.Set("Access-Control-Allow-Origin", origin)
+			c.Set("Access-Control-Allow-Credentials", "true")
+		}
+
+		c.Set("Access-Control-Allow-Methods", "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS")
+		c.Set("Access-Control-Allow-Headers", "Origin,Content-Type,Accept,Authorization,X-User-ID,X-Confirm-Payment-Trigger")
+
+		// Handle preflight requests
+		if c.Method() == fiber.MethodOptions {
+			return c.SendStatus(fiber.StatusNoContent)
+		}
+
+		return c.Next()
+	})
 
 	// Serve static files for media uploads
 	app.Static("/uploads", "./uploads")
@@ -356,12 +370,31 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	return app
 }
 
-// normalizeOrigins parses comma-separated origins or returns wildcard.
-func normalizeOrigins(corsOrigins string) string {
+// getAllowedOrigins parses comma-separated origins or returns wildcard.
+func getAllowedOrigins(corsOrigins string) []string {
 	corsOrigins = strings.TrimSpace(corsOrigins)
 	if corsOrigins == "" || corsOrigins == "*" {
-		return "*"
+		return []string{"*"}
 	}
-	// If comma-separated, return as-is (Fiber CORS handles it)
-	return corsOrigins
+	origins := strings.Split(corsOrigins, ",")
+	for i := range origins {
+		origins[i] = strings.TrimSpace(origins[i])
+	}
+	return origins
+}
+
+// isOriginAllowed checks if the given origin is in the allowed list or wildcard is set.
+func isOriginAllowed(origin string, allowedOrigins []string) bool {
+	if len(allowedOrigins) == 0 {
+		return false
+	}
+	if allowedOrigins[0] == "*" {
+		return origin != ""
+	}
+	for _, allowed := range allowedOrigins {
+		if allowed == origin {
+			return true
+		}
+	}
+	return false
 }
