@@ -42,6 +42,9 @@ type FactoryListItem struct {
 	// Tags contains the factory's main category names (from map_factory_categories →
 	// lbi_categories). Used by the FE for keyword search and card display.
 	Tags               StringArray `json:"tags" db:"tags"`
+	// CategoryScopes holds distinct lbi_categories.scope values ("PD", "MT") from
+	// map_factory_categories — used by the factory-type dropdown on /factory-ideas.
+	CategoryScopes     StringArray `json:"category_scopes" db:"category_scopes"`
 }
 
 type FactoryProfileCategory struct {

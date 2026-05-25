@@ -225,8 +225,8 @@ func (s *FrontendService) GetCurrentUser(userID int64) (*domain.FrontendCurrentU
 	}, nil
 }
 
-func (s *FrontendService) ListFactories() ([]domain.FrontendFactoryCard, error) {
-	rows, err := s.repo.ListFactories()
+func (s *FrontendService) ListFactories(scope ...string) ([]domain.FrontendFactoryCard, error) {
+	rows, err := s.repo.ListFactories(scope...)
 	if err != nil {
 		return nil, err
 	}
@@ -597,6 +597,11 @@ func mapFactoryCard(row frontendrepo.FrontendFactoryRow) domain.FrontendFactoryC
 		minOrder = row.MinOrder.Int64
 	}
 
+	categoryScopes := []string{}
+	if len(row.CategoryScopes) > 0 {
+		categoryScopes = []string(row.CategoryScopes)
+	}
+
 	return domain.FrontendFactoryCard{
 		ID:              row.ID,
 		Name:            row.Name,
@@ -612,6 +617,7 @@ func mapFactoryCard(row frontendrepo.FrontendFactoryRow) domain.FrontendFactoryC
 		CompletedOrders: row.CompletedOrders,
 		PriceRange:      row.PriceRange.String,
 		Description:     row.Description.String,
+		CategoryScopes:  categoryScopes,
 	}
 }
 
