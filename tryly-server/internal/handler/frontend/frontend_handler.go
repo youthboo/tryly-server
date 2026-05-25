@@ -5,6 +5,7 @@ import (
 	"github.com/yourusername/wemake/internal/helper"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/logger"
 	frontendservice "github.com/yourusername/wemake/internal/service/frontend"
 )
@@ -54,7 +55,14 @@ func (h *FrontendHandler) GetCurrentUser(c *fiber.Ctx) error {
 }
 
 func (h *FrontendHandler) ListFactories(c *fiber.Ctx) error {
-	items, err := h.service.ListFactories()
+	scope := helper.QueryString(c, "scope") // optional: "PD" or "MT"
+	var items []domain.FrontendFactoryCard
+	var err error
+	if scope != "" {
+		items, err = h.service.ListFactories(scope)
+	} else {
+		items, err = h.service.ListFactories()
+	}
 	if err != nil {
 		return helper.JSONInternal(c, "failed to fetch factories")
 	}

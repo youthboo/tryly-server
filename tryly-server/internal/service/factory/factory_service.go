@@ -16,8 +16,8 @@ func NewFactoryService(repo *factoryrepo.FactoryRepository) *FactoryService {
 	return &FactoryService{repo: repo}
 }
 
-func (s *FactoryService) ListPublic() ([]domain.FactoryListItem, error) {
-	return s.repo.ListPublicVerified()
+func (s *FactoryService) ListPublic(scope ...string) ([]domain.FactoryListItem, error) {
+	return s.repo.ListPublicVerified(scope...)
 }
 
 func (s *FactoryService) GetPublicDetail(factoryID int64) (*domain.FactoryPublicDetail, error) {

@@ -41,6 +41,9 @@ type FrontendFactoryCard struct {
 	CompletedOrders int64    `json:"completedOrders"`
 	PriceRange      string   `json:"priceRange"`
 	Description     string   `json:"description,omitempty"`
+	// CategoryScopes lists the lbi_categories.scope values ("PD", "MT") linked
+	// via map_factory_categories — used by the factory-type dropdown on the FE.
+	CategoryScopes  []string `json:"category_scopes"`
 }
 
 type FrontendFactoryDetail struct {

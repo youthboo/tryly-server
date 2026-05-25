@@ -1,6 +1,8 @@
 package factory
 
 import (
+	"strings"
+
 	"github.com/yourusername/wemake/internal/dbutil"
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/dto"
@@ -83,9 +85,19 @@ func (h *FactoryHandler) Create(c *fiber.Ctx) error {
 }
 
 func (h *FactoryHandler) List(c *fiber.Ctx) error {
-	items, err := h.service.ListPublic()
+	scope := strings.ToUpper(strings.TrimSpace(c.Query("scope"))) // optional: "PD" or "MT"
+	var items []domain.FactoryListItem
+	var err error
+	if scope != "" {
+		items, err = h.service.ListPublic(scope)
+	} else {
+		items, err = h.service.ListPublic()
+	}
 	if err != nil {
 		return helper.WriteAPIError(c, helper.InternalServerAPIError("FETCH_FACTORIES_FAILED", "failed to fetch factories"))
+	}
+	if items == nil {
+		items = []domain.FactoryListItem{}
 	}
 	return helper.WriteListResponse(c, items, len(items))
 }
