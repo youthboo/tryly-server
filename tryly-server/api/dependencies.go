@@ -164,7 +164,7 @@ func newRouteHandlers(db *sqlx.DB, cfg *config.Config) *routeHandlers {
 
 	authService := authservice.NewAuthService(authRepo, cfg.JWTSecret)
 	showcaseService := showcaseservice.NewShowcaseService(showcaseRepo, factoryRepo)
-	catalogService := catalogservice.NewCatalogService(catalogRepo, showcaseService)
+	catalogService := catalogservice.NewCatalogService(catalogRepo, showcaseService, frontendRepo)
 	addressService := userservice.NewAddressService(addressRepo, factoryRepo)
 	walletService := walletservice.NewWalletService(walletRepo, transactionRepo)
 	notificationService := notificationservice.NewNotificationService(notificationRepo)
