@@ -143,7 +143,6 @@ func (s *MessageService) Create(item *domain.Message) error {
 		if err := s.repo.Create(item); err != nil {
 			return err
 		}
-		s.notifyReceiver(item)
 		return nil
 	}
 	conv, err := s.convRepo.GetByID(*item.ConvID)
@@ -169,7 +168,6 @@ func (s *MessageService) Create(item *domain.Message) error {
 	}); err != nil {
 		return err
 	}
-	s.notifyReceiver(item)
 	return nil
 }
 
@@ -302,72 +300,6 @@ func (s *MessageService) ListThreads(userID int64) ([]domain.MessageThread, erro
 	return s.repo.ListThreads(userID)
 }
 
-func (s *MessageService) notifyReceiver(item *domain.Message) {
-	if s.notifications == nil || item == nil || item.MessageType == "BQ" || item.MessageType == "system" {
-		return
-	}
-
-	title := "ข้อความใหม่"
-	preview := helper.TrimNotificationPreview(item.Content, 80)
-	if preview == "" {
-		switch item.MessageType {
-		case "IM":
-			preview = "ส่งรูปภาพใหม่"
-		case "QT":
-			preview = "ส่งใบเสนอราคาใหม่"
-		case "rfq_card":
-			preview = "แชร์ RFQ เข้ามาในแชต"
-		case "quotation_card":
-			preview = "มีใบเสนอราคาใหม่ในแชต"
-		default:
-			preview = "มีข้อความใหม่ในแชต"
-		}
-	}
-
-	link := ""
-	if item.ConvID != nil {
-		link = fmt.Sprintf("/chat/%d", *item.ConvID)
-	}
-
-	senderName := fmt.Sprintf("ผู้ใช้ #%d", item.SenderID)
-	if item.ConvID != nil && s.convRepo != nil {
-		if conv, err := s.convRepo.GetByID(*item.ConvID); err == nil {
-			if conv.FactoryID == item.SenderID {
-				if conv.FactoryName != nil && strings.TrimSpace(*conv.FactoryName) != "" {
-					senderName = strings.TrimSpace(*conv.FactoryName)
-				}
-			} else {
-				firstName := ""
-				lastName := ""
-				if conv.CustomerFirstName != nil {
-					firstName = *conv.CustomerFirstName
-				}
-				if conv.CustomerLastName != nil {
-					lastName = *conv.CustomerLastName
-				}
-				fullName := strings.TrimSpace(firstName + " " + lastName)
-				if fullName != "" {
-					senderName = fullName
-				}
-			}
-		}
-	}
-
-	helper.CreateNotificationSafe(s.notifications, &domain.Notification{
-		UserID:  item.ReceiverID,
-		Type:    "CHAT_MESSAGE",
-		Title:   title,
-		Message: fmt.Sprintf("%s: %s", senderName, preview),
-		LinkTo:  link,
-		Data: helper.NotificationData(map[string]interface{}{
-			"conv_id":     item.ConvID,
-			"sender_id":   item.SenderID,
-			"sender_name": senderName,
-			"url":         link,
-		}),
-		CreatedAt: item.CreatedAt,
-	})
-}
 
 func (s *MessageService) AutoSendQuotationCard(ctx context.Context, convID int64, customerID int64, q *domain.Quotation) error {
 	_ = ctx
