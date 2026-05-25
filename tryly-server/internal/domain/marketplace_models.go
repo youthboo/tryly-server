@@ -20,9 +20,22 @@ type Category struct {
 	Scope      string `db:"scope" json:"scope,omitempty"`
 }
 
+// ExploreFactory is a lightweight factory card returned in GET /api/v1/explore.
+type ExploreFactory struct {
+	ID       int64   `json:"id"`
+	Name     string  `json:"name"`
+	Image    string  `json:"image"`
+	Location string  `json:"location"`
+	Rating   float64 `json:"rating"`
+	Reviews  int64   `json:"reviews"`
+	MinOrder int64   `json:"min_order"`
+	Verified bool    `json:"verified"`
+}
+
 type ExploreResponse struct {
 	Categories []Category                       `json:"categories"`
 	Showcases  map[string][]ShowcaseExploreItem `json:"showcases"`
+	Factories  []ExploreFactory                 `json:"factories"`
 }
 
 type CategoryWithSubs struct {
