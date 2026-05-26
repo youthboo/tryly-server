@@ -66,10 +66,9 @@ func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
 
 	var req dto.CreateRFQRequest
 	if err := helper.ParseAndValidateBody(c, &req, map[string]string{
-		"CategoryID": "category_id, title, quantity, and address_id are required",
-		"Title":      "category_id, title, quantity, and address_id are required",
-		"Quantity":   "category_id, title, quantity, and address_id are required",
-		"AddressID":  "category_id, title, quantity, and address_id are required",
+		"CategoryID": "category_id, title, and quantity are required",
+		"Title":      "category_id, title, and quantity are required",
+		"Quantity":   "category_id, title, and quantity are required",
 	}); err != nil {
 		return err
 	}
@@ -95,6 +94,8 @@ func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
 		CertificationsRequired: req.CertificationsRequired,
 		ReferenceImages:        req.ReferenceImages,
 		RequestKind:            req.RequestKind,
+		Targeting:              req.Targeting,
+		TargetFactoryIDs:       req.FactoryIDs,
 	}
 	if rfq.DeliveryAddressID == nil {
 		rfq.DeliveryAddressID = &rfq.AddressID
@@ -112,6 +113,34 @@ func (h *RFQHandler) CreateRFQ(c *fiber.Ctx) error {
 	}
 	domain.EnrichRFQBudgetFields(rfq)
 	return c.Status(fiber.StatusCreated).JSON(rfq)
+}
+
+// UpdateRFQTargets replaces the target factory list for a specific-targeting RFQ.
+// PUT /api/v1/rfqs/:rfq_id/targets
+func (h *RFQHandler) UpdateRFQTargets(c *fiber.Ctx) error {
+	userID, err := helper.RequireUserID(c)
+	if err != nil {
+		return err
+	}
+	rfqID, err := helper.RequireInt64Param(c, "rfq_id")
+	if err != nil {
+		return err
+	}
+	var req dto.UpdateRFQTargetsRequest
+	if err := helper.RequireBody(c, &req); err != nil {
+		return err
+	}
+
+	if err := h.service.UpdateTargets(userID, rfqID, req.FactoryIDs); err != nil {
+		return helper.MapServiceError(c, err,
+			helper.ErrorMessage(fiber.StatusInternalServerError, "failed to update targets"),
+			map[error]helper.ErrorResponse{
+				rfqservice.ErrRFQNotEditable: helper.ErrorMessage(fiber.StatusConflict, "RFQ_NOT_EDITABLE"),
+				sql.ErrNoRows:                helper.ErrorMessage(fiber.StatusNotFound, "RFQ_NOT_FOUND"),
+			},
+		)
+	}
+	return c.JSON(fiber.Map{"ok": true})
 }
 
 func (h *RFQHandler) PatchRFQ(c *fiber.Ctx) error {
