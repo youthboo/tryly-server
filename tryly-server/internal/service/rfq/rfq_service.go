@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 	"github.com/yourusername/wemake/internal/domain"
 	domainstatus "github.com/yourusername/wemake/internal/domain/status"
@@ -89,9 +90,26 @@ func (s *RFQService) Create(rfq *domain.RFQ) error {
 			return ErrInvalidShippingMethod
 		}
 	}
-	if err := s.repo.Create(rfq); err != nil {
-		return err
+	if rfq.Targeting != "specific" {
+		rfq.Targeting = "all"
 	}
+
+	if rfq.Targeting == "specific" && len(rfq.TargetFactoryIDs) > 0 {
+		// Use a transaction so the RFQ row and target-factory rows land atomically.
+		if err := helper.WithTx(nil, s.repo.DB(), func(tx *sqlx.Tx) error {
+			if err := s.repo.CreateTx(tx, rfq); err != nil {
+				return err
+			}
+			return s.repo.InsertTargetFactoriesTx(tx, rfq.RFQID, rfq.TargetFactoryIDs)
+		}); err != nil {
+			return err
+		}
+	} else {
+		if err := s.repo.Create(rfq); err != nil {
+			return err
+		}
+	}
+
 	s.notifyMatchingFactories(rfq)
 	return nil
 }
@@ -385,13 +403,29 @@ func (s *RFQService) validateCategoryScope(kind string, categoryID int64) error 
 	return nil
 }
 
+// UpdateTargets replaces the target factory list for an RFQ owned by userID.
+func (s *RFQService) UpdateTargets(userID, rfqID int64, factoryIDs []int64) error {
+	err := s.repo.UpdateTargets(userID, rfqID, factoryIDs)
+	if err != nil && err.Error() == "RFQ_NOT_EDITABLE" {
+		return ErrRFQNotEditable
+	}
+	return err
+}
+
 func (s *RFQService) notifyMatchingFactories(rfq *domain.RFQ) {
 	if s.notifications == nil || s.repo == nil || rfq == nil || rfq.RFQID <= 0 {
 		return
 	}
-	factoryIDs, err := s.repo.ListMatchingFactoryIDs(rfq)
-	if err != nil {
-		return
+	var factoryIDs []int64
+	if rfq.Targeting == "specific" {
+		// Only notify the explicitly-chosen factories.
+		factoryIDs = rfq.TargetFactoryIDs
+	} else {
+		var err error
+		factoryIDs, err = s.repo.ListMatchingFactoryIDs(rfq)
+		if err != nil {
+			return
+		}
 	}
 	title := "RFQ ใหม่ตรงหมวด"
 	rfqTitle := strings.TrimSpace(rfq.Title)

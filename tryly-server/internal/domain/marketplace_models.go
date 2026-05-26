@@ -141,6 +141,12 @@ type RFQ struct {
 	BOQDeclineReason  *string        `db:"boq_decline_reason" json:"boq_decline_reason,omitempty"`
 	Items             []RFQItem      `db:"-" json:"items,omitempty"`
 
+	// Targeting: 'all' broadcasts to every matching factory; 'specific' restricts to rfq_target_factories.
+	Targeting       string             `db:"targeting"         json:"targeting"`
+	TargetFactories []RFQTargetFactory `db:"-"                 json:"target_factories,omitempty"`
+	// TargetFactoryIDs is a write-only field populated by the handler on create/update.
+	TargetFactoryIDs []int64           `db:"-"                 json:"-"`
+
 	// Budget UX: target_price is total budget (งบประมาณรวม), not per-piece price.
 	BudgetTotal    *decimal.Decimal `db:"-" json:"budget_total"`
 	BudgetPerPiece *decimal.Decimal `db:"-" json:"budget_per_piece"`
@@ -154,6 +160,12 @@ type RFQ struct {
 	MyQuoteStatus *string  `db:"my_quote_status" json:"my_quote_status,omitempty"`
 	MyQuoteID     *int64   `db:"my_quote_id"     json:"my_quote_id,omitempty"`
 	MyQuotedPrice *decimal.Decimal `db:"my_quoted_price" json:"my_quoted_price,omitempty"`
+}
+
+// RFQTargetFactory is one row from rfq_target_factories joined with the factory name.
+type RFQTargetFactory struct {
+	FactoryID   int64  `db:"factory_id"   json:"factory_id"`
+	FactoryName string `db:"factory_name" json:"factory_name"`
 }
 
 type FactoryRFQDismissal struct {
