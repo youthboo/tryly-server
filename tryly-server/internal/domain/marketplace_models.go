@@ -146,6 +146,8 @@ type RFQ struct {
 	TargetFactories []RFQTargetFactory `db:"-"                 json:"target_factories,omitempty"`
 	// TargetFactoryIDs is a write-only field populated by the handler on create/update.
 	TargetFactoryIDs []int64           `db:"-"                 json:"-"`
+	// IsTargeted is true when this RFQ was sent specifically to the viewing factory (set by ListMatchingForFactory).
+	IsTargeted      bool               `db:"is_targeted"       json:"is_targeted,omitempty"`
 
 	// Budget UX: target_price is total budget (งบประมาณรวม), not per-piece price.
 	BudgetTotal    *decimal.Decimal `db:"-" json:"budget_total"`
