@@ -316,7 +316,11 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 		       (COALESCE(q.status, '') NOT IN ('AC','PD')) AS can_dismiss,
 		       q.status          AS my_quote_status,
 		       q.quote_id        AS my_quote_id,
-		       q.price_per_piece AS my_quoted_price
+		       q.price_per_piece AS my_quoted_price,
+		       EXISTS (
+		           SELECT 1 FROM rfq_target_factories rtf
+		           WHERE rtf.rfq_id = r.rfq_id AND rtf.factory_id = $1
+		       ) AS is_targeted
 		FROM rfqs r
 		LEFT JOIN quotations q
 		       ON q.rfq_id = r.rfq_id AND q.factory_id = $1
@@ -338,24 +342,28 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 			  AND excl_o.status = 'PR'
 		  )
 		  AND (
-			EXISTS (
-				SELECT 1 FROM map_factory_categories mfc
-				WHERE mfc.factory_id = $1 AND mfc.category_id = r.category_id
-			)
-			OR (
-				r.sub_category_id IS NOT NULL
-				AND EXISTS (
-					SELECT 1 FROM map_factory_sub_categories ms
-					WHERE ms.factory_id = $1 AND ms.sub_category_id = r.sub_category_id
+			-- Category/sub-category match (normal discovery)
+			(
+			  COALESCE(r.targeting, 'all') = 'all'
+			  AND (
+				EXISTS (
+					SELECT 1 FROM map_factory_categories mfc
+					WHERE mfc.factory_id = $1 AND mfc.category_id = r.category_id
 				)
+				OR (
+					r.sub_category_id IS NOT NULL
+					AND EXISTS (
+						SELECT 1 FROM map_factory_sub_categories ms
+						WHERE ms.factory_id = $1 AND ms.sub_category_id = r.sub_category_id
+					)
+				)
+			  )
 			)
-		  )
-		  AND (
-		    COALESCE(r.targeting, 'all') = 'all'
-		    OR EXISTS (
-		        SELECT 1 FROM rfq_target_factories rtf
-		        WHERE rtf.rfq_id = r.rfq_id AND rtf.factory_id = $1
-		    )
+			-- OR specifically targeted to this factory (bypasses category check)
+			OR EXISTS (
+			    SELECT 1 FROM rfq_target_factories rtf
+			    WHERE rtf.rfq_id = r.rfq_id AND rtf.factory_id = $1
+			)
 		  )
 		ORDER BY r.created_at DESC
 	`
