@@ -9,7 +9,7 @@ type CreateRFQRequest struct {
 	Quantity               int64    `json:"quantity" validate:"gt=0"`
 	Unit                   string   `json:"unit"`
 	Details                string   `json:"details"`
-	AddressID              int64    `json:"address_id" validate:"gt=0"`
+	AddressID              int64    `json:"address_id"`
 	ShippingMethodID       *int64   `json:"shipping_method_id"`
 	MaterialGrade          *string  `json:"material_grade"`
 	TargetPrice            *float64 `json:"target_price"`
@@ -19,6 +19,9 @@ type CreateRFQRequest struct {
 	CertificationsRequired []string `json:"certifications_required"`
 	ReferenceImages        []string `json:"reference_images"`
 	RequestKind            string   `json:"request_kind"`
+	// Targeting: 'all' (default) or 'specific'. When 'specific', FactoryIDs is required.
+	Targeting  string  `json:"targeting"`
+	FactoryIDs []int64 `json:"factory_ids"`
 }
 
 type PatchRFQRequest struct {
@@ -39,6 +42,11 @@ type PatchRFQRequest struct {
 
 type CancelRFQRequest struct {
 	Reason string `json:"reason" validate:"notblank"`
+}
+
+// UpdateRFQTargetsRequest replaces the target factory list for a specific-targeting RFQ.
+type UpdateRFQTargetsRequest struct {
+	FactoryIDs []int64 `json:"factory_ids"`
 }
 
 type PreviewFactoriesRequest struct {

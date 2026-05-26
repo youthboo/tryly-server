@@ -1,6 +1,12 @@
 -- Rebuilt from /Users/poon/Downloads/DB Prototype (1).xlsx, sheet Final_db!!!.
 -- This migration intentionally replaces the legacy incremental migration chain.
 -- WARNING: it drops managed application tables and recreates the canonical schema.
+--
+-- Migration chain (fresh prod):
+--   001 — schema + reference seed (factory types, certs, production steps, category stubs for 002)
+--   002 — category master data (lbi_categories / lbi_sub_categories / lbi_factory_types names)
+--   003 — address master data (lbi_provinces / lbi_districts / lbi_sub_districts)
+--   demo seed ปิดไว้: 004_seed_demo.sql.disabled
 
 BEGIN;
 
@@ -406,7 +412,9 @@ CREATE TABLE IF NOT EXISTS tconfig (
 );
 
 INSERT INTO tconfig (key, value)
-VALUES ('shipping_days', '7')
+VALUES
+    ('shipping_days', '7'),
+    ('rfq_expired', '30')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
 
 CREATE TABLE IF NOT EXISTS production_updates (
@@ -490,6 +498,7 @@ CREATE TABLE IF NOT EXISTS rfqs (
     target_lead_time_days INTEGER,
     delivery_address_id BIGINT,
     shipping_method_id BIGINT,
+    expired_date TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT rfqs_pkey PRIMARY KEY (rfq_id)
@@ -781,6 +790,72 @@ CREATE INDEX IF NOT EXISTS idx_factory_showcases_factory ON factory_showcases(fa
 -- - factory_showcases.sub_category_id -> public.lbi_sub_categories(sub_category_id)
 -- - map_factory_sub_categories.sub_category_id -> public.lbi_sub_categories(sub_category_id)
 -- - rfqs.sub_category_id -> public.lbi_sub_categories(sub_category_id)
+
+-- ═══════════════════════════════════════════════════════════════
+-- Reference seed: required before 002_category_masterdata.
+-- Address + sub-categories are loaded by 002 / 003 — not seeded here.
+-- ═══════════════════════════════════════════════════════════════
+
+INSERT INTO lbi_factory_types (type_name, status) VALUES
+  ('โรงงานอาหารสัตว์เลี้ยง',         '1'),
+  ('โรงงานขนมสัตว์เลี้ยง',           '1'),
+  ('โรงงานอาหารเสริมสัตว์เลี้ยง',    '1'),
+  ('โรงงานบรรจุภัณฑ์อาหารสัตว์',     '1'),
+  ('โรงงานผลิตของเล่นสัตว์เลี้ยง',   '1'),
+  ('โรงงานผลิตเสื้อผ้าสัตว์เลี้ยง',  '1'),
+  ('โรงงานผลิตวัคซีน/ยาสัตว์',       '1'),
+  ('โรงงานผลิตอุปกรณ์สัตว์เลี้ยง',   '1'),
+  ('โรงงานแปรรูปวัตถุดิบ',           '1'),
+  ('อื่นๆ',                           '1');
+
+INSERT INTO lbi_certificates (cert_name, description, status) VALUES
+  ('GMP',        'Good Manufacturing Practice — มาตรฐานการผลิตที่ดี',                                        '1'),
+  ('HACCP',      'Hazard Analysis Critical Control Points — ระบบวิเคราะห์อันตรายและจุดวิกฤต',               '1'),
+  ('ISO 9001',   'ระบบบริหารคุณภาพ',                                                                         '1'),
+  ('ISO 22000',  'ระบบการจัดการความปลอดภัยของอาหาร',                                                         '1'),
+  ('Halal',      'ใบรับรองฮาลาล — มาตรฐานอาหารสำหรับผู้นับถือศาสนาอิสลาม',                                  '1'),
+  ('อย.',        'สำนักงานคณะกรรมการอาหารและยา (FDA Thailand)',                                              '1'),
+  ('มกษ.',       'มาตรฐานสินค้าเกษตร — กรมวิชาการเกษตร',                                                     '1'),
+  ('FAMI-QS',    'Feed Additives & Premixtures Quality System',                                              '1'),
+  ('BRC',        'British Retail Consortium Global Standard for Food Safety',                                '1'),
+  ('GHP',        'Good Hygiene Practice — หลักปฏิบัติด้านสุขลักษณะที่ดี',                                    '1');
+
+INSERT INTO lbi_shipping_methods (method_name, status) VALUES
+  ('ลูกค้ารับเองที่โรงงาน',  '1'),
+  ('จัดส่งเดลิเวอร์รี่',     '1');
+
+INSERT INTO lbi_production (step_id, step_name, step_name_th, description, sort_order) VALUES
+  (0, 'Accept Order',          'ยืนยันรับงาน',         'โรงงานยืนยันรับงานและเริ่มกระบวนการผลิต',                           0)
+ON CONFLICT (step_id) DO NOTHING;
+
+INSERT INTO lbi_production (step_name, step_name_th, description, sort_order) VALUES
+  ('Material Preparation',    'จัดเตรียมวัตถุดิบ',    'ตรวจรับและเตรียมวัตถุดิบก่อนเริ่มการผลิต',                          1),
+  ('Processing / Production', 'ขั้นตอนการผลิต',       'กระบวนการผลิตหลัก เช่น อัดเม็ด อบ ฟรีซดราย ฯลฯ',                  2),
+  ('Quality Control (QC)',    'ตรวจสอบคุณภาพ',         'ตรวจสอบคุณภาพสินค้าก่อนบรรจุ ทดสอบค่าโภชนาการและความปลอดภัย',    3),
+  ('Ship Order',              'จัดส่งแล้ว',           'จัดส่งสินค้าไปยังลูกค้า',                                            4),
+  ('Delivery Confirmed',      'จัดส่งสำเร็จ',          'รอลูกค้ายืนยันรับสินค้า หรือระบบปิดอัตโนมัติหลัง 14 วัน',           5);
+
+-- Stubs for 002_category_masterdata (IDs 1–16; 002 renames and replaces sub-categories).
+INSERT INTO lbi_categories (name, scope) VALUES
+  ('อาหารเม็ดสัตว์เลี้ยง',          'PD'),
+  ('อาหารเปียก / Wet Food',         'PD'),
+  ('ขนมสัตว์เลี้ยง',                'PD'),
+  ('อาหารฟรีซดราย',                 'PD'),
+  ('ท้อปเปอร์ / โรยหน้า',           'PD'),
+  ('อาหารเสริมและวิตามิน',          'PD'),
+  ('บรรจุภัณฑ์สำเร็จรูป',          'PD'),
+  ('ของเล่นสัตว์เลี้ยง',           'PD'),
+  ('เสื้อผ้าและเครื่องแต่งกาย',    'PD'),
+  ('อุปกรณ์และของใช้',              'PD'),
+  ('วัตถุดิบโปรตีนสัตว์',           'MT'),
+  ('วัตถุดิบโปรตีนพืช',             'MT'),
+  ('วิตามินและแร่ธาตุ',             'MT'),
+  ('วัตถุเจือปนอาหารและสารกันเสีย', 'MT'),
+  ('วัตถุดิบเส้นใย / ธัญพืช',       'MT'),
+  ('วัตถุดิบบรรจุภัณฑ์',            'MT');
+
+SELECT setval(pg_get_serial_sequence('lbi_categories', 'category_id'), GREATEST((SELECT MAX(category_id) FROM lbi_categories), 16));
+SELECT setval(pg_get_serial_sequence('lbi_factory_types', 'factory_type_id'), GREATEST((SELECT MAX(factory_type_id) FROM lbi_factory_types), 10));
 
 DELETE FROM schema_migrations;
 

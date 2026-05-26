@@ -1,9 +1,12 @@
 package catalog
 
 import (
+	"sort"
+
 	"github.com/yourusername/wemake/internal/domain"
 	"github.com/yourusername/wemake/internal/logger"
 	catalogrepo "github.com/yourusername/wemake/internal/repository/catalog"
+	frontendrepo "github.com/yourusername/wemake/internal/repository/frontend"
 	showcaseservice "github.com/yourusername/wemake/internal/service/showcase"
 )
 
@@ -12,10 +15,11 @@ var exploreShowcaseTypes = []string{"PD", "MT", "PM", "ID"}
 type CatalogService struct {
 	repo            *catalogrepo.CatalogRepository
 	showcaseService *showcaseservice.ShowcaseService
+	frontendRepo    *frontendrepo.FrontendRepository
 }
 
-func NewCatalogService(repo *catalogrepo.CatalogRepository, showcaseService *showcaseservice.ShowcaseService) *CatalogService {
-	return &CatalogService{repo: repo, showcaseService: showcaseService}
+func NewCatalogService(repo *catalogrepo.CatalogRepository, showcaseService *showcaseservice.ShowcaseService, frontendRepo *frontendrepo.FrontendRepository) *CatalogService {
+	return &CatalogService{repo: repo, showcaseService: showcaseService, frontendRepo: frontendRepo}
 }
 
 func (s *CatalogService) GetExplore() (*domain.ExploreResponse, error) {
@@ -34,9 +38,42 @@ func (s *CatalogService) GetExplore() (*domain.ExploreResponse, error) {
 		return nil, err
 	}
 
+	// โรงงานแนะนำ: verified ก่อน → rating สูงก่อน → ตัดสูงสุด 8 ตัว
+	exploreFactories := make([]domain.ExploreFactory, 0)
+	if factoryRows, fErr := s.frontendRepo.ListFactories(); fErr == nil {
+		sort.Slice(factoryRows, func(i, j int) bool {
+			if factoryRows[i].Verified != factoryRows[j].Verified {
+				return factoryRows[i].Verified
+			}
+			return factoryRows[i].Rating > factoryRows[j].Rating
+		})
+		if len(factoryRows) > 8 {
+			factoryRows = factoryRows[:8]
+		}
+		for _, f := range factoryRows {
+			minOrder := int64(0)
+			if f.MinOrder.Valid {
+				minOrder = f.MinOrder.Int64
+			}
+			exploreFactories = append(exploreFactories, domain.ExploreFactory{
+				ID:       f.ID,
+				Name:     f.Name,
+				Image:    f.ImageURL.String,
+				Location: f.Location.String,
+				Rating:   f.Rating,
+				Reviews:  f.ReviewCount,
+				MinOrder: minOrder,
+				Verified: f.Verified,
+			})
+		}
+	} else {
+		logger.Warn("explore: failed to fetch factories, returning empty", "err", fErr)
+	}
+
 	return &domain.ExploreResponse{
 		Categories: categories,
 		Showcases:  showcases,
+		Factories:  exploreFactories,
 	}, nil
 }
 

@@ -44,7 +44,8 @@ const rfqSelectColumns = `
 		NULL::numeric AS boq_vat_percent, NULL::numeric AS boq_vat_amount, NULL::numeric AS boq_grand_total,
 		NULL::integer AS boq_moq, NULL::integer AS boq_lead_time_days, NULL::text AS boq_payment_terms,
 		NULL::integer AS boq_validity_days, NULL::text AS boq_note, NULL::timestamptz AS boq_sent_at,
-		NULL::timestamptz AS boq_responded_at, NULL::text AS boq_response, NULL::text AS boq_decline_reason
+		NULL::timestamptz AS boq_responded_at, NULL::text AS boq_response, NULL::text AS boq_decline_reason,
+		COALESCE(targeting, 'all') AS targeting
 `
 
 const rfqSelectColumnsR = `
@@ -59,16 +60,22 @@ const rfqSelectColumnsR = `
 		NULL::numeric AS boq_vat_percent, NULL::numeric AS boq_vat_amount, NULL::numeric AS boq_grand_total,
 		NULL::integer AS boq_moq, NULL::integer AS boq_lead_time_days, NULL::text AS boq_payment_terms,
 		NULL::integer AS boq_validity_days, NULL::text AS boq_note, NULL::timestamptz AS boq_sent_at,
-		NULL::timestamptz AS boq_responded_at, NULL::text AS boq_response, NULL::text AS boq_decline_reason
+		NULL::timestamptz AS boq_responded_at, NULL::text AS boq_response, NULL::text AS boq_decline_reason,
+		COALESCE(r.targeting, 'all') AS targeting
 `
 
 func (r *RFQRepository) createWithExecutor(exec dbutil.QueryRower, rfq *domain.RFQ) error {
+	targeting := rfq.Targeting
+	if targeting != "specific" {
+		targeting = "all"
+	}
 	query := `
 		INSERT INTO rfqs (
 			user_id, category_id, sub_category_id, title, quantity, details,
 			shipping_method_id, status, request_kind, created_at, updated_at,
 			material_grade, target_price, target_lead_time_days, delivery_address_id,
 			certifications_required, reference_images,
+			targeting,
 			expired_date
 		)
 		VALUES (
@@ -76,7 +83,8 @@ func (r *RFQRepository) createWithExecutor(exec dbutil.QueryRower, rfq *domain.R
 			$7, $8, $9, $10, $11,
 			$12, $13, $14, $15,
 			$16, $17,
-			$10 + (SELECT COALESCE((value || ' days')::interval, INTERVAL '30 days') FROM tconfig WHERE key = 'rfq_expired')
+			$18,
+			CURRENT_TIMESTAMP + (SELECT COALESCE((value || ' days')::interval, INTERVAL '30 days') FROM tconfig WHERE key = 'rfq_expired')
 		)
 		RETURNING rfq_id
 	`
@@ -99,6 +107,7 @@ func (r *RFQRepository) createWithExecutor(exec dbutil.QueryRower, rfq *domain.R
 		domainutil.Nullable(rfq.DeliveryAddressID),
 		rfq.CertificationsRequired,
 		rfq.ReferenceImages,
+		targeting,
 	).Scan(&rfq.RFQID)
 }
 
@@ -151,6 +160,7 @@ func (r *RFQRepository) GetByID(userID, rfqID int64) (*domain.RFQ, error) {
 		return nil, err
 	}
 	domain.EnrichRFQBudgetFields(&rfq)
+	_ = r.LoadTargetFactories(&rfq) // best-effort; non-fatal if this fails
 	return &rfq, nil
 }
 
@@ -266,6 +276,7 @@ func (r *RFQRepository) GetByIDAny(rfqID int64) (*domain.RFQ, error) {
 		return nil, err
 	}
 	domain.EnrichRFQBudgetFields(&rfq)
+	_ = r.LoadTargetFactories(&rfq) // best-effort
 	return &rfq, nil
 }
 
@@ -338,6 +349,13 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 					WHERE ms.factory_id = $1 AND ms.sub_category_id = r.sub_category_id
 				)
 			)
+		  )
+		  AND (
+		    COALESCE(r.targeting, 'all') = 'all'
+		    OR EXISTS (
+		        SELECT 1 FROM rfq_target_factories rtf
+		        WHERE rtf.rfq_id = r.rfq_id AND rtf.factory_id = $1
+		    )
 		  )
 		ORDER BY r.created_at DESC
 	`
@@ -560,4 +578,78 @@ func (r *RFQRepository) LinkConversationTx(tx *sqlx.Tx, rfqID, userID, convID in
 		WHERE rfq_id = $1 AND user_id = $2
 	`, rfqID, userID)
 	return err
+}
+
+// InsertTargetFactoriesTx bulk-inserts rows into rfq_target_factories inside an existing transaction.
+// Duplicate rows are silently ignored via ON CONFLICT DO NOTHING.
+func (r *RFQRepository) InsertTargetFactoriesTx(tx *sqlx.Tx, rfqID int64, factoryIDs []int64) error {
+	if len(factoryIDs) == 0 {
+		return nil
+	}
+	for _, fid := range factoryIDs {
+		if _, err := tx.Exec(`
+			INSERT INTO rfq_target_factories (rfq_id, factory_id)
+			VALUES ($1, $2)
+			ON CONFLICT DO NOTHING
+		`, rfqID, fid); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// UpdateTargets replaces the target factory list for an RFQ owned by userID.
+// Only allowed when rfq.status = 'OP'.
+// Returns sql.ErrNoRows if the RFQ is not found or not owned by userID.
+func (r *RFQRepository) UpdateTargets(userID, rfqID int64, factoryIDs []int64) error {
+	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
+		// Verify ownership and status
+		var status string
+		if err := tx.Get(&status, `
+			SELECT status FROM rfqs WHERE rfq_id = $1 AND user_id = $2
+		`, rfqID, userID); err != nil {
+			return err
+		}
+		if status == "CC" || status == "CL" {
+			return rfqNotEditableErr
+		}
+		// Replace all target factories
+		if _, err := tx.Exec(`DELETE FROM rfq_target_factories WHERE rfq_id = $1`, rfqID); err != nil {
+			return err
+		}
+		for _, fid := range factoryIDs {
+			if _, err := tx.Exec(`
+				INSERT INTO rfq_target_factories (rfq_id, factory_id)
+				VALUES ($1, $2)
+				ON CONFLICT DO NOTHING
+			`, rfqID, fid); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// ErrRFQNotEditable is a sentinel used by UpdateTargets when the RFQ cannot be modified.
+var rfqNotEditableErr = errRFQNotEditable{}
+
+type errRFQNotEditable struct{}
+
+func (errRFQNotEditable) Error() string { return "RFQ_NOT_EDITABLE" }
+
+// LoadTargetFactories enriches rfq.TargetFactories from the DB (best-effort; used after GetByID).
+func (r *RFQRepository) LoadTargetFactories(rfq *domain.RFQ) error {
+	if rfq == nil || rfq.Targeting != "specific" {
+		return nil
+	}
+	query := `
+		SELECT rtf.factory_id,
+		       COALESCE(fp.factory_name, u.name, '') AS factory_name
+		FROM rfq_target_factories rtf
+		LEFT JOIN factory_profiles fp ON fp.user_id = rtf.factory_id
+		LEFT JOIN users u ON u.user_id = rtf.factory_id
+		WHERE rtf.rfq_id = $1
+		ORDER BY rtf.created_at
+	`
+	return r.db.Select(&rfq.TargetFactories, query, rfq.RFQID)
 }

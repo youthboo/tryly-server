@@ -58,6 +58,7 @@ type ShowcaseExploreItem struct {
 	FactoryImageURL *string         `db:"factory_image_url" json:"-"`
 	FactoryRating   *float64        `db:"factory_rating" json:"factory_rating,omitempty"`
 	FactoryVerified bool            `db:"factory_verified" json:"factory_verified"`
+	ProvinceName    *string         `db:"province_name" json:"province_name,omitempty"`
 	CategoryName    *string         `db:"category_name" json:"-"`
 	SubCategoryName *string         `db:"sub_category_name" json:"sub_category_name,omitempty"`
 }

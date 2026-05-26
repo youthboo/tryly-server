@@ -66,6 +66,9 @@ type FrontendFactoryRow struct {
 	LeadTimeDesc    sql.NullString  `db:"lead_time_desc"`
 	ImageURL        sql.NullString  `db:"image_url"`
 	PriceRange      sql.NullString  `db:"price_range"`
+	// CategoryScopes holds distinct lbi_categories.scope values from map_factory_categories
+	// e.g. ["PD"], ["MT"], ["PD","MT"] — used by the factory-type dropdown on /factory-ideas
+	CategoryScopes  pq.StringArray  `db:"category_scopes"`
 }
 
 type FrontendFactoryDetailRow struct {
@@ -213,8 +216,16 @@ func (r *FrontendRepository) ListCategories() ([]FrontendCategoryRow, error) {
 	return items, err
 }
 
-func (r *FrontendRepository) ListFactories() ([]FrontendFactoryRow, error) {
+// ListFactories returns all active factories.
+// Pass an optional scope ("PD" or "MT") to restrict to factories that have at
+// least one lbi_categories entry with that scope in map_factory_categories.
+func (r *FrontendRepository) ListFactories(scope ...string) ([]FrontendFactoryRow, error) {
 	var items []FrontendFactoryRow
+	filterScope := ""
+	if len(scope) > 0 {
+		filterScope = domainutil.NormalizeStatus(scope[0])
+	}
+
 	query := `
 		SELECT
 			u.user_id AS id,
@@ -230,7 +241,8 @@ func (r *FrontendRepository) ListFactories() ([]FrontendFactoryRow, error) {
 			fp.min_order,
 			fp.lead_time_desc,
 			fp.image_url,
-			NULL::text AS price_range
+			NULL::text AS price_range,
+			COALESCE(cats.category_scopes, ARRAY[]::text[]) AS category_scopes
 		FROM users u
 		INNER JOIN factory_profiles fp ON fp.user_id = u.user_id
 		LEFT JOIN lbi_factory_types ft ON ft.factory_type_id = fp.factory_type_id
@@ -255,10 +267,23 @@ func (r *FrontendRepository) ListFactories() ([]FrontendFactoryRow, error) {
 			FROM quotations
 			GROUP BY factory_id
 		) lead ON lead.factory_id = u.user_id
-		WHERE u.role = 'FT' AND u.is_active = TRUE
-		ORDER BY completed_orders DESC, fp.factory_name ASC
-	`
-	err := r.db.Select(&items, query)
+		LEFT JOIN (
+			SELECT mfc.factory_id,
+				array_agg(DISTINCT COALESCE(c.scope, 'PD')::text) AS category_scopes
+			FROM map_factory_categories mfc
+			JOIN lbi_categories c ON c.category_id = mfc.category_id
+			GROUP BY mfc.factory_id
+		) cats ON cats.factory_id = u.user_id
+		WHERE u.role = 'FT' AND u.is_active = TRUE`
+
+	var args []interface{}
+	if filterScope != "" {
+		query += " AND $1 = ANY(COALESCE(cats.category_scopes, ARRAY['PD']::text[]))"
+		args = append(args, filterScope)
+	}
+	query += "\n\t\tORDER BY completed_orders DESC, fp.factory_name ASC"
+
+	err := r.db.Select(&items, query, args...)
 	return items, err
 }
 
@@ -430,7 +455,8 @@ func (r *FrontendRepository) ListOrdersByUserID(userID int64) ([]FrontendOrderRo
 				),
 				'YYYY-MM-DD'
 			) AS estimated_delivery,
-			TO_CHAR(o.created_at, 'YYYY-MM-DD') AS created_at,` + productionCurrentStepSelect + `
+			TO_CHAR(o.created_at, 'YYYY-MM-DD') AS created_at,
+			COALESCE(cur.step_id, CASE WHEN o.status IN ('PD', 'PR') THEN 0 END) AS current_step_id
 		FROM orders o
 		INNER JOIN quotations q ON q.quote_id = o.quote_id
 		INNER JOIN rfqs rfq ON rfq.rfq_id = q.rfq_id
@@ -461,7 +487,8 @@ func (r *FrontendRepository) GetOrderByUserID(userID, orderID int64) (*FrontendO
 				),
 				'YYYY-MM-DD'
 			) AS estimated_delivery,
-			TO_CHAR(o.created_at, 'YYYY-MM-DD') AS created_at,` + productionCurrentStepSelect + `
+			TO_CHAR(o.created_at, 'YYYY-MM-DD') AS created_at,
+			COALESCE(cur.step_id, CASE WHEN o.status IN ('PD', 'PR') THEN 0 END) AS current_step_id
 		FROM orders o
 		INNER JOIN quotations q ON q.quote_id = o.quote_id
 		INNER JOIN rfqs rfq ON rfq.rfq_id = q.rfq_id
