@@ -29,7 +29,7 @@ func (r *CatalogRepository) GetCategories(scope string, limit int) ([]domain.Cat
 		query += " WHERE COALESCE(scope, $1) = $2"
 		args = append(args, scope)
 	}
-	query += " ORDER BY category_id ASC"
+	query += " ORDER BY CASE WHEN name = 'ทั้งหมด' THEN 0 ELSE 1 END ASC, category_id ASC"
 	if limit > 0 {
 		query += fmt.Sprintf(" LIMIT $%d", len(args)+1)
 		args = append(args, limit)
@@ -44,7 +44,7 @@ func (r *CatalogRepository) GetSubCategories(categoryID int64) ([]domain.SubCate
 		SELECT sub_category_id, category_id, name, sort_order, status
 		FROM lbi_sub_categories
 		WHERE category_id = $1 AND status = '1'
-		ORDER BY sort_order ASC, sub_category_id ASC, name ASC
+		ORDER BY CASE WHEN name = 'ทั้งหมด' THEN 0 ELSE 1 END ASC, sort_order ASC, sub_category_id ASC, name ASC
 	`
 	err := r.db.Select(&subCategories, query, categoryID)
 	return subCategories, err
@@ -63,7 +63,7 @@ func (r *CatalogRepository) GetAllSubCategories(scope string) ([]domain.SubCateg
 		query += " AND COALESCE(c.scope, $1) = $1"
 		args = append(args, scope)
 	}
-	query += " ORDER BY s.category_id ASC, s.sort_order ASC, s.sub_category_id ASC"
+	query += " ORDER BY s.category_id ASC, CASE WHEN s.name = 'ทั้งหมด' THEN 0 ELSE 1 END ASC, s.sort_order ASC, s.sub_category_id ASC"
 	err := r.db.Select(&subs, query, args...)
 	return subs, err
 }
