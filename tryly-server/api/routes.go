@@ -105,6 +105,11 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	auth.Post("/login", h.auth.Login)
 	auth.Post("/forgot-password", h.auth.ForgotPassword)
 	auth.Post("/reset-password", h.auth.ResetPassword)
+	auth.Get("/email-check", h.auth.CheckEmail)
+	auth.Post("/upgrade-to-factory", middleware.RequireAuth, h.auth.UpgradeToFactory)
+	auth.Post("/upgrade-to-customer", middleware.RequireAuth, h.auth.UpgradeToCustomer)
+	auth.Post("/switch-role", middleware.RequireAuth, h.auth.SwitchRole)
+	auth.Get("/available-roles", middleware.RequireAuth, h.auth.AvailableRoles)
 
 	api.Get("/explore", h.explore.GetExplore)
 	api.Get("/categories", h.catalog.GetCategories)

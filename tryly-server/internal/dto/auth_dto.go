@@ -34,3 +34,28 @@ type ResetPasswordRequest struct {
 	Token       string `json:"token" validate:"notblank"`
 	NewPassword string `json:"new_password" validate:"notblank"`
 }
+
+// UpgradeToFactoryRequest is used when an authenticated CT user adds a factory
+// profile. No role/email/password fields — those come from the JWT session.
+type UpgradeToFactoryRequest struct {
+	FactoryName    string  `json:"factory_name" validate:"notblank"`
+	FactoryTypeID  int64   `json:"factory_type_id" validate:"required"`
+	TaxID          string  `json:"tax_id"`
+	ProvinceID     *int64  `json:"province_id"`
+	CategoryIDs    []int64 `json:"category_ids"`
+	SubCategoryIDs []int64 `json:"sub_category_ids"`
+	CertID         int64   `json:"cert_id"`
+	DocumentURL    string  `json:"document_url"`
+	CertNumber     string  `json:"cert_number"`
+	CertExpireDate string  `json:"cert_expire_date"`
+}
+
+type UpgradeToCustomerRequest struct {
+	FirstName string `json:"first_name" validate:"notblank"`
+	LastName  string `json:"last_name" validate:"notblank"`
+}
+
+// SwitchRoleRequest lets a dual-profile user toggle their active role.
+type SwitchRoleRequest struct {
+	Role string `json:"role" validate:"notblank"`
+}
