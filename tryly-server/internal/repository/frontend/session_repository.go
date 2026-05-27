@@ -81,6 +81,10 @@ type SessionThreadRow struct {
 	Unread              int64          `db:"unread"`
 }
 
+func (r *SessionRepository) GetSession(userID int64) (*SessionUserRow, error) {
+	return r.GetUser(userID)
+}
+
 func (r *SessionRepository) GetUser(userID int64) (*SessionUserRow, error) {
 	var row SessionUserRow
 	err := r.db.Get(&row, `
