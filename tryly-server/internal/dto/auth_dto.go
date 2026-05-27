@@ -19,6 +19,11 @@ type RegisterRequest struct {
 	DocumentURL    string `json:"document_url"`
 	CertNumber     string `json:"cert_number"`
 	CertExpireDate string `json:"cert_expire_date"`
+	// Address fields for FT role — creates a default address row
+	AddressDetail string `json:"address_detail"`
+	SubDistrictID int64  `json:"sub_district_id"`
+	DistrictID    int64  `json:"district_id"`
+	ZipCode       string `json:"zip_code"`
 }
 
 type LoginRequest struct {
@@ -48,6 +53,11 @@ type UpgradeToFactoryRequest struct {
 	DocumentURL    string  `json:"document_url"`
 	CertNumber     string  `json:"cert_number"`
 	CertExpireDate string  `json:"cert_expire_date"`
+	// Address fields — creates a default address row
+	AddressDetail string `json:"address_detail"`
+	SubDistrictID int64  `json:"sub_district_id"`
+	DistrictID    int64  `json:"district_id"`
+	ZipCode       string `json:"zip_code"`
 }
 
 type UpgradeToCustomerRequest struct {

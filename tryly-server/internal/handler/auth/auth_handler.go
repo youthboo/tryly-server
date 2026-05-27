@@ -45,6 +45,10 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		DocumentURL:    req.DocumentURL,
 		CertNumber:     req.CertNumber,
 		CertExpireDate: req.CertExpireDate,
+		AddressDetail:  req.AddressDetail,
+		SubDistrictID:  req.SubDistrictID,
+		DistrictID:     req.DistrictID,
+		ZipCode:        req.ZipCode,
 	})
 	if err != nil {
 		switch err {
@@ -134,6 +138,10 @@ func (h *AuthHandler) UpgradeToFactory(c *fiber.Ctx) error {
 		DocumentURL:    req.DocumentURL,
 		CertNumber:     req.CertNumber,
 		CertExpireDate: req.CertExpireDate,
+		AddressDetail:  req.AddressDetail,
+		SubDistrictID:  req.SubDistrictID,
+		DistrictID:     req.DistrictID,
+		ZipCode:        req.ZipCode,
 	})
 	if err != nil {
 		switch err {

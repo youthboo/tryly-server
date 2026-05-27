@@ -83,7 +83,7 @@ func (r *AuthRepository) CreateCustomerUser(user *domain.User, customer *domain.
 	})
 }
 
-func (r *AuthRepository) CreateFactoryUser(user *domain.User, factory *domain.FactoryProfile, categoryIDs []int64, subCategoryIDs []int64, certID int64, documentURL string, certNumber string, certExpireDate string) error {
+func (r *AuthRepository) CreateFactoryUser(user *domain.User, factory *domain.FactoryProfile, categoryIDs []int64, subCategoryIDs []int64, certID int64, documentURL string, certNumber string, certExpireDate string, addr *domain.Address) error {
 	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
 		const userInsert = `
 			INSERT INTO users (role, email, phone, password_hash, is_active, created_at, updated_at)
@@ -157,6 +157,17 @@ func (r *AuthRepository) CreateFactoryUser(user *domain.User, factory *domain.Fa
 				return err
 			}
 		}
+
+		// Insert default address if provided
+		if addr != nil && addr.ProvinceID > 0 {
+			if _, err := tx.Exec(`
+				INSERT INTO addresses (user_id, address_type, address_detail, sub_district_id, district_id, province_id, zip_code, is_default)
+				VALUES ($1, 'B', $2, $3, $4, $5, $6, true)
+			`, user.UserID, addr.AddressDetail, addr.SubDistrictID, addr.DistrictID, addr.ProvinceID, addr.ZipCode); err != nil {
+				return err
+			}
+		}
+
 		return nil
 	})
 }
@@ -230,7 +241,7 @@ func (r *AuthRepository) UpgradeToCustomer(userID int64, firstName, lastName str
 
 // UpgradeToFactory upgrades an existing CT user to FT within one transaction.
 // The caller must confirm the user exists and is CT before calling this.
-func (r *AuthRepository) UpgradeToFactory(userID int64, factory *domain.FactoryProfile, categoryIDs []int64, subCategoryIDs []int64, certID int64, documentURL string, certNumber string, certExpireDate string) error {
+func (r *AuthRepository) UpgradeToFactory(userID int64, factory *domain.FactoryProfile, categoryIDs []int64, subCategoryIDs []int64, certID int64, documentURL string, certNumber string, certExpireDate string, addr *domain.Address) error {
 	return helper.WithTx(nil, r.db, func(tx *sqlx.Tx) error {
 		// 1. Update user role to FT
 		if _, err := tx.Exec(
@@ -296,6 +307,18 @@ func (r *AuthRepository) UpgradeToFactory(userID int64, factory *domain.FactoryP
 		}
 
 		// 5. CT already has a wallet — skip wallet creation
+
+		// 6. Insert default address if provided
+		if addr != nil && addr.ProvinceID > 0 {
+			if _, err := tx.Exec(`
+				INSERT INTO addresses (user_id, address_type, address_detail, sub_district_id, district_id, province_id, zip_code, is_default)
+				VALUES ($1, 'B', $2, $3, $4, $5, $6, true)
+				ON CONFLICT DO NOTHING
+			`, userID, addr.AddressDetail, addr.SubDistrictID, addr.DistrictID, addr.ProvinceID, addr.ZipCode); err != nil {
+				return err
+			}
+		}
+
 		return nil
 	})
 }
