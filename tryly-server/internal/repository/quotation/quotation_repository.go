@@ -24,7 +24,11 @@ func NewQuotationRepository(db *sqlx.DB) *QuotationRepository {
 
 func quotationSelectBase() string {
 	return `SELECT q.quote_id, q.rfq_id, q.factory_id,
-		NULLIF(TRIM(COALESCE(to_jsonb(u)->>'factory_name', CONCAT_WS(' ', to_jsonb(u)->>'first_name', to_jsonb(u)->>'last_name'))), '') AS factory_name,
+		COALESCE(
+			NULLIF(TRIM(fp.factory_name), ''),
+			NULLIF(TRIM(CONCAT_WS(' ', fc.first_name, fc.last_name)), ''),
+			fu.email
+		) AS factory_name,
 		fp.image_url AS factory_logo_url,
 		fp.rating::double precision AS factory_rating_avg,
 		COALESCE(r.quantity, 1)::double precision AS quote_quantity,
@@ -48,8 +52,9 @@ func quotationSelectBase() string {
 		'[]'::jsonb AS certifications
 		FROM quotations q
 		LEFT JOIN rfqs r ON r.rfq_id = q.rfq_id
-		LEFT JOIN users u ON u.user_id = q.factory_id
 		LEFT JOIN factory_profiles fp ON fp.user_id = q.factory_id
+		LEFT JOIN users fu ON fu.user_id = q.factory_id
+		LEFT JOIN customers fc ON fc.user_id = q.factory_id
 		LEFT JOIN lbi_shipping_methods sm ON sm.shipping_method_id = q.shipping_method_id`
 }
 
