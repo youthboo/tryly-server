@@ -15,12 +15,17 @@ import (
 )
 
 var (
-	ErrEmailAlreadyExists = errors.New("email already exists")
-	ErrInvalidRole        = errors.New("invalid role")
-	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrUserInactive       = errors.New("user is inactive")
-	ErrInvalidResetToken  = errors.New("invalid or expired reset token")
-	ErrMissingRoleData    = errors.New("missing required fields for role")
+	ErrEmailAlreadyExists  = errors.New("email already exists")
+	ErrInvalidRole         = errors.New("invalid role")
+	ErrInvalidCredentials  = errors.New("invalid credentials")
+	ErrUserInactive        = errors.New("user is inactive")
+	ErrInvalidResetToken   = errors.New("invalid or expired reset token")
+	ErrMissingRoleData     = errors.New("missing required fields for role")
+	ErrNotCustomerAccount  = errors.New("account is not a customer account")
+	ErrFactoryAlreadySetup  = errors.New("factory profile already exists for this account")
+	ErrCustomerAlreadySetup = errors.New("customer profile already exists for this account")
+	ErrMissingProfile       = errors.New("no profile exists for the requested role")
+	ErrAlreadyActiveRole    = errors.New("this role is already active")
 )
 
 type AuthService struct {
@@ -59,6 +64,12 @@ func NewAuthService(repo *authrepo.AuthRepository, jwtSecret string) *AuthServic
 
 func (s *AuthService) GetUserByID(userID int64) (*domain.User, error) {
 	return s.repo.GetUserByID(userID)
+}
+
+// CheckEmailExists looks up whether an email is already registered.
+// Returns the user (with Role populated) if found, or nil if not found.
+func (s *AuthService) CheckEmailExists(email string) (*domain.User, error) {
+	return s.repo.GetUserByEmail(domainutil.NormalizeLower(email))
 }
 
 func (s *AuthService) Register(input RegisterInput) (*LoginResult, error) {
@@ -123,6 +134,146 @@ func (s *AuthService) Register(input RegisterInput) (*LoginResult, error) {
 		return nil, err
 	}
 
+	user.PasswordHash = ""
+	return &LoginResult{Token: token, User: user}, nil
+}
+
+// UpgradeToFactory adds a factory profile to an existing user and switches to FT.
+// Works for any user that doesn't already have a factory_profiles row.
+func (s *AuthService) UpgradeToFactory(userID int64, input RegisterInput) (*LoginResult, error) {
+	user, err := s.repo.GetUserByID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Block if already has a factory profile
+	hasFT, _ := s.repo.HasProfile(userID, domain.RoleFactory)
+	if hasFT {
+		return nil, ErrFactoryAlreadySetup
+	}
+
+	if strings.TrimSpace(input.FactoryName) == "" || input.FactoryTypeID <= 0 {
+		return nil, ErrMissingRoleData
+	}
+
+	factory := &domain.FactoryProfile{
+		FactoryName:   strings.TrimSpace(input.FactoryName),
+		FactoryTypeID: input.FactoryTypeID,
+		TaxID:         strings.TrimSpace(input.TaxID),
+		ProvinceID:    input.ProvinceID,
+	}
+	if err := s.repo.UpgradeToFactory(
+		userID, factory,
+		input.CategoryIDs, input.SubCategoryIDs,
+		input.CertID, input.DocumentURL, input.CertNumber, input.CertExpireDate,
+	); err != nil {
+		return nil, err
+	}
+
+	// Build updated user object with FT role for token generation
+	user.Role = domain.RoleFactory
+	token, err := s.generateToken(user)
+	if err != nil {
+		return nil, err
+	}
+	user.PasswordHash = ""
+	return &LoginResult{Token: token, User: user}, nil
+}
+
+func (s *AuthService) HasFactoryProfile(userID int64) (bool, error) {
+	return s.repo.HasProfile(userID, domain.RoleFactory)
+}
+
+func (s *AuthService) HasCustomerProfile(userID int64) (bool, error) {
+	return s.repo.HasProfile(userID, domain.RoleCustomer)
+}
+
+func (s *AuthService) UpgradeToCustomer(userID int64, firstName, lastName string) (*LoginResult, error) {
+	user, err := s.repo.GetUserByID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	hasCT, _ := s.repo.HasProfile(userID, domain.RoleCustomer)
+	if hasCT {
+		return nil, ErrCustomerAlreadySetup
+	}
+
+	if strings.TrimSpace(firstName) == "" || strings.TrimSpace(lastName) == "" {
+		return nil, ErrMissingRoleData
+	}
+
+	if err := s.repo.UpgradeToCustomer(userID, strings.TrimSpace(firstName), strings.TrimSpace(lastName)); err != nil {
+		return nil, err
+	}
+
+	user.Role = domain.RoleCustomer
+	token, err := s.generateToken(user)
+	if err != nil {
+		return nil, err
+	}
+	user.PasswordHash = ""
+	return &LoginResult{Token: token, User: user}, nil
+}
+
+// GetAvailableRoles returns all roles that a user has profiles for,
+// plus their current active role.
+func (s *AuthService) GetAvailableRoles(userID int64) ([]string, error) {
+	user, err := s.repo.GetUserByID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	var roles []string
+	hasCT, _ := s.repo.HasProfile(userID, domain.RoleCustomer)
+	hasFT, _ := s.repo.HasProfile(userID, domain.RoleFactory)
+	if hasCT {
+		roles = append(roles, domain.RoleCustomer)
+	}
+	if hasFT {
+		roles = append(roles, domain.RoleFactory)
+	}
+	// If neither profile found, at least return current role
+	if len(roles) == 0 {
+		roles = append(roles, strings.ToUpper(user.Role))
+	}
+	return roles, nil
+}
+
+// SwitchRole changes the active role for a dual-profile user.
+// The target role must be CT or FT, different from the current role,
+// and the user must have the matching profile row.
+func (s *AuthService) SwitchRole(userID int64, targetRole string) (*LoginResult, error) {
+	if targetRole != domain.RoleCustomer && targetRole != domain.RoleFactory {
+		return nil, ErrInvalidRole
+	}
+
+	user, err := s.repo.GetUserByID(userID)
+	if err != nil {
+		return nil, err
+	}
+	if strings.ToUpper(user.Role) == targetRole {
+		return nil, ErrAlreadyActiveRole
+	}
+
+	// Check the user actually has a profile for the target role
+	hasProfile, err := s.repo.HasProfile(userID, targetRole)
+	if err != nil {
+		return nil, err
+	}
+	if !hasProfile {
+		return nil, ErrMissingProfile
+	}
+
+	if err := s.repo.UpdateRole(userID, targetRole); err != nil {
+		return nil, err
+	}
+
+	user.Role = targetRole
+	token, err := s.generateToken(user)
+	if err != nil {
+		return nil, err
+	}
 	user.PasswordHash = ""
 	return &LoginResult{Token: token, User: user}, nil
 }
