@@ -338,13 +338,7 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 			  AND excl_o.status = 'PR'
 		  )
 		  AND (
-		    -- 1) Specific targeting: bypass category checks
-		    (COALESCE(r.targeting, 'all') = 'specific' AND EXISTS (
-		        SELECT 1 FROM rfq_target_factories rtf
-		        WHERE rtf.rfq_id = r.rfq_id AND rtf.factory_id = $1
-		    ))
-		    -- 2) Match by category/subcategory profile
-		    OR EXISTS (
+			EXISTS (
 				SELECT 1 FROM map_factory_categories mfc
 				WHERE mfc.factory_id = $1 AND mfc.category_id = r.category_id
 			)
@@ -355,17 +349,6 @@ func (r *RFQRepository) ListMatchingForFactory(factoryID int64, status string, k
 					WHERE ms.factory_id = $1 AND ms.sub_category_id = r.sub_category_id
 				)
 			)
-		    -- 3) MT Request Kind: match by active showcases
-		    OR (
-		        COALESCE(r.request_kind, 'PR') = 'MT'
-		        AND EXISTS (
-		            SELECT 1 FROM factory_showcases fs
-		            WHERE fs.factory_id = $1 
-		              AND fs.category_id = r.category_id
-		              AND fs.content_type = 'MT'
-		              AND fs.status = 'AC'
-		        )
-		    )
 		  )
 		  AND (
 		    COALESCE(r.targeting, 'all') = 'all'
