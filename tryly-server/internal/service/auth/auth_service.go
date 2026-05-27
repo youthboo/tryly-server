@@ -51,6 +51,11 @@ type RegisterInput struct {
 	DocumentURL    string
 	CertNumber     string
 	CertExpireDate string
+	// Address fields — inserted as default address row
+	AddressDetail string
+	SubDistrictID int64
+	DistrictID    int64
+	ZipCode       string
 }
 
 type LoginResult struct {
@@ -124,7 +129,22 @@ func (s *AuthService) Register(input RegisterInput) (*LoginResult, error) {
 			TaxID:         strings.TrimSpace(input.TaxID),
 			ProvinceID:    input.ProvinceID,
 		}
-		if err := s.repo.CreateFactoryUser(user, factory, input.CategoryIDs, input.SubCategoryIDs, input.CertID, input.DocumentURL, input.CertNumber, input.CertExpireDate); err != nil {
+		var addr *domain.Address
+		if input.SubDistrictID > 0 || input.DistrictID > 0 || (input.ProvinceID != nil && *input.ProvinceID > 0) {
+			pid := int64(0)
+			if input.ProvinceID != nil {
+				pid = *input.ProvinceID
+			}
+			addr = &domain.Address{
+				AddressDetail: strings.TrimSpace(input.AddressDetail),
+				SubDistrictID: input.SubDistrictID,
+				DistrictID:    input.DistrictID,
+				ProvinceID:    pid,
+				ZipCode:       strings.TrimSpace(input.ZipCode),
+				IsDefault:     true,
+			}
+		}
+		if err := s.repo.CreateFactoryUser(user, factory, input.CategoryIDs, input.SubCategoryIDs, input.CertID, input.DocumentURL, input.CertNumber, input.CertExpireDate, addr); err != nil {
 			return nil, err
 		}
 	}
@@ -162,10 +182,26 @@ func (s *AuthService) UpgradeToFactory(userID int64, input RegisterInput) (*Logi
 		TaxID:         strings.TrimSpace(input.TaxID),
 		ProvinceID:    input.ProvinceID,
 	}
+	var addr *domain.Address
+	if input.SubDistrictID > 0 || input.DistrictID > 0 || (input.ProvinceID != nil && *input.ProvinceID > 0) {
+		pid := int64(0)
+		if input.ProvinceID != nil {
+			pid = *input.ProvinceID
+		}
+		addr = &domain.Address{
+			AddressDetail: strings.TrimSpace(input.AddressDetail),
+			SubDistrictID: input.SubDistrictID,
+			DistrictID:    input.DistrictID,
+			ProvinceID:    pid,
+			ZipCode:       strings.TrimSpace(input.ZipCode),
+			IsDefault:     true,
+		}
+	}
 	if err := s.repo.UpgradeToFactory(
 		userID, factory,
 		input.CategoryIDs, input.SubCategoryIDs,
 		input.CertID, input.DocumentURL, input.CertNumber, input.CertExpireDate,
+		addr,
 	); err != nil {
 		return nil, err
 	}
