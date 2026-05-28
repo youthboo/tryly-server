@@ -510,6 +510,17 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     CONSTRAINT schema_migrations_pkey PRIMARY KEY (filename)
 );
 
+CREATE TABLE IF NOT EXISTS domain_events (
+    event_id BIGSERIAL NOT NULL,
+    event_type VARCHAR(100) NOT NULL,
+    payload JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT domain_events_pkey PRIMARY KEY (event_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_domain_events_type ON domain_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_domain_events_created_at ON domain_events(created_at);
+
 CREATE TABLE IF NOT EXISTS transactions (
     tx_id BIGSERIAL NOT NULL,
     wallet_id BIGINT NOT NULL,
