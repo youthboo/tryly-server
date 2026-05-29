@@ -51,6 +51,7 @@ type CreateProductionUpdateRequest struct {
 	Status          string   `json:"status" validate:"notblank"`
 	CompletedAt     *string  `json:"completed_at"` // RFC3339
 	Notes           *string  `json:"notes"`
+	Description     *string  `json:"description"`
 	ImageURLs       []string `json:"image_urls"`
 	ProgressPercent *int     `json:"progress_percent"`
 	// step_id=4 (จัดส่งแล้ว): บันทึก tracking_no / courier ลง orders table
