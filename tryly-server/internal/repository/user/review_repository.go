@@ -123,11 +123,11 @@ func (r *ReviewRepository) GetSummaryByFactoryID(factoryID int64) (*domain.Facto
 		SELECT
 			COALESCE(ROUND(AVG(rating::numeric), 2), 0)::float8 AS average_rating,
 			COUNT(*)::bigint AS review_count,
-			COUNT(*) FILTER (WHERE rating = 5)::bigint AS star5,
-			COUNT(*) FILTER (WHERE rating = 4)::bigint AS star4,
-			COUNT(*) FILTER (WHERE rating = 3)::bigint AS star3,
-			COUNT(*) FILTER (WHERE rating = 2)::bigint AS star2,
-			COUNT(*) FILTER (WHERE rating = 1)::bigint AS star1
+			COUNT(*) FILTER (WHERE ROUND(rating::numeric) = 5)::bigint AS star5,
+			COUNT(*) FILTER (WHERE ROUND(rating::numeric) = 4)::bigint AS star4,
+			COUNT(*) FILTER (WHERE ROUND(rating::numeric) = 3)::bigint AS star3,
+			COUNT(*) FILTER (WHERE ROUND(rating::numeric) = 2)::bigint AS star2,
+			COUNT(*) FILTER (WHERE ROUND(rating::numeric) = 1)::bigint AS star1
 		FROM factory_reviews
 		WHERE factory_id = $1 AND deleted_at IS NULL
 	`, factoryID); err != nil {

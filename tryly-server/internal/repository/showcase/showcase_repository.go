@@ -1,7 +1,9 @@
 package showcase
 
 import (
+	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/jmoiron/sqlx"
@@ -625,6 +627,82 @@ func (r *ShowcaseRepository) ListLinkedShowcaseCards(ids []int64) ([]domain.Link
 		}
 	}
 	return out, nil
+}
+
+// GetFactoryReviewsForShowcase returns review summary + latest items for the factory that owns a showcase.
+func (r *ShowcaseRepository) GetFactoryReviewsForShowcase(factoryID int64) (*domain.ShowcaseEmbeddedReviews, error) {
+	type summaryRow struct {
+		Average float64 `db:"average"`
+		Total   int64   `db:"total"`
+		Star5   int64   `db:"star5"`
+		Star4   int64   `db:"star4"`
+		Star3   int64   `db:"star3"`
+		Star2   int64   `db:"star2"`
+		Star1   int64   `db:"star1"`
+	}
+	var sr summaryRow
+	if err := r.db.Get(&sr, `
+		SELECT
+			COALESCE(ROUND(AVG(rating::numeric),2),0)::float8 AS average,
+			COUNT(*)::bigint AS total,
+			COUNT(*) FILTER (WHERE ROUND(rating::numeric) = 5)::bigint AS star5,
+			COUNT(*) FILTER (WHERE ROUND(rating::numeric) = 4)::bigint AS star4,
+			COUNT(*) FILTER (WHERE ROUND(rating::numeric) = 3)::bigint AS star3,
+			COUNT(*) FILTER (WHERE ROUND(rating::numeric) = 2)::bigint AS star2,
+			COUNT(*) FILTER (WHERE ROUND(rating::numeric) = 1)::bigint AS star1
+		FROM factory_reviews WHERE factory_id = $1 AND deleted_at IS NULL
+	`, factoryID); err != nil {
+		return nil, err
+	}
+
+	type itemRow struct {
+		ReviewID     int64              `db:"review_id"`
+		ReviewerName sql.NullString     `db:"reviewer_name"`
+		Rating       float64            `db:"rating"`
+		Comment      string             `db:"comment"`
+		CreatedAt    string             `db:"created_at"`
+		ImageURLs    domain.StringArray `db:"image_urls"`
+	}
+	var items []itemRow
+	if err := r.db.Select(&items, `
+		SELECT fr.review_id, fr.rating, fr.comment, fr.image_urls,
+		       TO_CHAR(fr.created_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
+		       NULLIF(TRIM(CONCAT(c.first_name,' ',c.last_name)),'') AS reviewer_name
+		FROM factory_reviews fr
+		LEFT JOIN customers c ON c.user_id = fr.user_id
+		WHERE fr.factory_id = $1 AND fr.deleted_at IS NULL
+		ORDER BY fr.created_at DESC LIMIT 5
+	`, factoryID); err != nil {
+		return nil, err
+	}
+
+	result := &domain.ShowcaseEmbeddedReviews{
+		Summary: domain.ShowcaseReviewSummary{
+			Average:   sr.Average,
+			Total:     sr.Total,
+			Breakdown: map[string]int64{"5": sr.Star5, "4": sr.Star4, "3": sr.Star3, "2": sr.Star2, "1": sr.Star1},
+		},
+		Items: make([]domain.ShowcaseReviewItem, 0, len(items)),
+	}
+	for _, it := range items {
+		name := "ลูกค้า"
+		if it.ReviewerName.Valid && it.ReviewerName.String != "" {
+			name = it.ReviewerName.String
+		}
+		imgURLs := it.ImageURLs
+		if imgURLs == nil {
+			imgURLs = domain.StringArray{}
+		}
+		result.Items = append(result.Items, domain.ShowcaseReviewItem{
+			ReviewID:     strconv.FormatInt(it.ReviewID, 10),
+			ReviewerName: name,
+			Rating:       it.Rating,
+			Comment:      it.Comment,
+			ImageURLs:    imgURLs,
+			CreatedAt:    it.CreatedAt,
+		})
+	}
+	return result, nil
 }
 
 // CreateImage adds a gallery image to a showcase (max 10 per showcase, ownership verified).

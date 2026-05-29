@@ -180,9 +180,31 @@ type ShowcaseDetail struct {
 	ProvinceName          *string              `db:"province_name" json:"province_name,omitempty"`
 	CategoryName          *string              `db:"category_name" json:"category_name,omitempty"`
 	SubCategoryName       *string              `db:"sub_category_name" json:"sub_category_name,omitempty"`
-	Specs                 []ShowcaseSpec       `db:"-" json:"specs"`
-	Sections              []ShowcaseSection    `db:"-" json:"sections"`
-	LinkedShowcaseCards   []LinkedShowcaseCard `db:"-" json:"linked_showcase_cards,omitempty"`
+	Specs                 []ShowcaseSpec              `db:"-" json:"specs"`
+	Sections              []ShowcaseSection           `db:"-" json:"sections"`
+	LinkedShowcaseCards   []LinkedShowcaseCard        `db:"-" json:"linked_showcase_cards,omitempty"`
+	Reviews               *ShowcaseEmbeddedReviews    `db:"-" json:"reviews,omitempty"`
+}
+
+// ShowcaseEmbeddedReviews embeds review summary + latest items in the showcase detail payload.
+type ShowcaseEmbeddedReviews struct {
+	Summary ShowcaseReviewSummary  `json:"summary"`
+	Items   []ShowcaseReviewItem   `json:"items"`
+}
+
+type ShowcaseReviewSummary struct {
+	Average   float64            `json:"average"`
+	Total     int64              `json:"total"`
+	Breakdown map[string]int64   `json:"breakdown"`
+}
+
+type ShowcaseReviewItem struct {
+	ReviewID     string      `json:"review_id"`
+	ReviewerName string      `json:"reviewer_name"`
+	Rating       float64     `json:"rating"`
+	Comment      string      `json:"comment"`
+	CreatedAt    string      `json:"created_at"`
+	ImageURLs    StringArray `json:"image_urls"`
 }
 
 type LinkedShowcaseCard struct {

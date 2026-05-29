@@ -69,6 +69,7 @@ type OrderDetailRow struct {
 	RFQCreatedAt       time.Time  `db:"rfq_created_at"`
 	RFQCategoryID      int64      `db:"rfq_category_id"`
 	RFQCategoryName    *string    `db:"rfq_category_name"`
+	RFQRequestKind     string     `db:"rfq_request_kind"`
 	// RFQ enrichment
 	RFQSubCategoryID      *int64          `db:"rfq_sub_category_id"`
 	RFQSubCategoryName    *string         `db:"rfq_sub_category_name"`
@@ -590,6 +591,7 @@ func (r *OrderRepository) GetDetailByParticipant(orderID, userID int64, role str
 			r.created_at AS rfq_created_at,
 			r.category_id AS rfq_category_id,
 			cat.name AS rfq_category_name,
+			COALESCE(r.request_kind, '') AS rfq_request_kind,
 			(
 				SELECT ps.due_date::timestamp
 				FROM payment_schedules ps

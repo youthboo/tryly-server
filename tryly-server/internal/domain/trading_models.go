@@ -196,6 +196,7 @@ type RfqNested struct {
 	BudgetPerPiece      decimal.Decimal `json:"budget_per_piece"`
 	CategoryID          int64           `json:"category_id"`
 	CategoryName        string          `json:"category_name"`
+	RequestKind         string          `json:"request_kind,omitempty"`
 	SubCategoryID       *int64          `json:"sub_category_id,omitempty"`
 	SubCategoryName     *string         `json:"sub_category_name,omitempty"`
 	ShippingMethodName  *string         `json:"shipping_method_name,omitempty"`

@@ -75,11 +75,12 @@ type FrontendFactoryProfile struct {
 }
 
 type FrontendFactoryReview struct {
-	ID       string  `json:"id"`
-	Reviewer string  `json:"reviewer"`
-	Rating   float64 `json:"rating"`
-	Comment  string  `json:"comment"`
-	Date     string  `json:"date"`
+	ID        string      `json:"id"`
+	Reviewer  string      `json:"reviewer"`
+	Rating    float64     `json:"rating"`
+	Comment   string      `json:"comment"`
+	Date      string      `json:"date"`
+	ImageURLs StringArray `json:"image_urls"`
 }
 
 type FrontendShowcaseItem struct {

@@ -156,6 +156,7 @@ func (s *OrderService) buildOrderDetailResponse(row *orderrepo.OrderDetailRow) (
 			BudgetPerPiece:      helper.MoneyDecimal(row.RFQBudget),
 			CategoryID:          row.RFQCategoryID,
 			CategoryName:        rfqCategoryName,
+			RequestKind:         row.RFQRequestKind,
 			SubCategoryID:       row.RFQSubCategoryID,
 			SubCategoryName:     row.RFQSubCategoryName,
 			ShippingMethodName:  row.RFQShippingMethodName,

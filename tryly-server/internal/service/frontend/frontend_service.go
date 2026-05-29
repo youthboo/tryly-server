@@ -287,6 +287,28 @@ func (s *FrontendService) GetFactoryDetail(factoryID int64) (*domain.FrontendFac
 		subCategories = []domain.FactoryProfileSubCategory{}
 	}
 
+	// Fetch reviews from DB (soft-fail with empty slice)
+	reviewRows, _ := s.repo.ListFactoryReviews(factoryID)
+	reviews := make([]domain.FrontendFactoryReview, 0, len(reviewRows))
+	for _, rr := range reviewRows {
+		reviewer := "ลูกค้า"
+		if rr.ReviewerName.Valid && rr.ReviewerName.String != "" {
+			reviewer = rr.ReviewerName.String
+		}
+		imgURLs := rr.ImageURLs
+		if imgURLs == nil {
+			imgURLs = domain.StringArray{}
+		}
+		reviews = append(reviews, domain.FrontendFactoryReview{
+			ID:        strconv.FormatInt(rr.ReviewID, 10),
+			Reviewer:  reviewer,
+			Rating:    rr.Rating,
+			Comment:   rr.Comment,
+			Date:      rr.CreatedAt,
+			ImageURLs: imgURLs,
+		})
+	}
+
 	return &domain.FrontendFactoryDetail{
 		Factory: mapFactoryCard(frontendrepo.FrontendFactoryRow{
 			ID:              row.ID,
@@ -314,7 +336,7 @@ func (s *FrontendService) GetFactoryDetail(factoryID int64) (*domain.FrontendFac
 			AcceptedProductTypes: []string{},
 			Certificates:         []string{},
 		},
-		Reviews:       []domain.FrontendFactoryReview{},
+		Reviews:       reviews,
 		Products:      []domain.FrontendShowcaseItem{},
 		Promos:        []domain.FrontendShowcaseItem{},
 		Ideas:         []domain.FrontendShowcaseItem{},
