@@ -21,6 +21,7 @@ type Quotation struct {
 	ShippingMethodID   int64      `db:"shipping_method_id" json:"shipping_method_id"`
 	ShippingMethodName *string    `db:"shipping_method_name" json:"shipping_method_name"`
 	FactoryHighlight   *string    `db:"factory_highlight" json:"factory_highlight,omitempty"`
+	FactoryNote        *string    `db:"factory_note" json:"factory_note,omitempty"`
 	Status             string     `db:"status" json:"status"`
 	CreateTime         time.Time  `db:"create_time" json:"create_time"`
 	LogTimestamp       time.Time  `db:"log_timestamp" json:"log_timestamp"`
@@ -236,6 +237,7 @@ type QuoteNested struct {
 	PaymentTerms     *string         `json:"payment_terms,omitempty"`
 	ImageURLs        StringArray     `json:"image_urls"`
 	FactoryHighlight *string         `json:"factory_highlight,omitempty"`
+	FactoryNote      *string         `json:"factory_note,omitempty"`
 }
 
 // OrderDetailResponse extends the legacy order payload with FE-ready action state.

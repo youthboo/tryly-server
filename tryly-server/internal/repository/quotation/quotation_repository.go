@@ -37,7 +37,7 @@ func quotationSelectBase() string {
 		COALESCE(r.request_kind, 'PR') AS request_kind,
 		NULL::integer AS sample_qty,
 		NULLIF(TRIM(COALESCE(to_jsonb(sm)->>'method_name', to_jsonb(sm)->>'name')), '') AS shipping_method_name,
-		q.factory_highlight,
+		q.factory_highlight, q.factory_note,
 		q.status, q.create_time, q.log_timestamp,
 		COALESCE(q.version, 1) AS version, COALESCE(q.is_locked, false) AS is_locked, NULL::timestamptz AS last_edited_at, NULL::bigint AS last_edited_by,
 		q.subtotal, q.discount_amount, q.shipping_cost, NULL::text AS shipping_method, q.packaging_cost, q.mold_cost AS tooling_mold_cost,
@@ -73,17 +73,17 @@ func (r *QuotationRepository) createWithExecutor(exec dbutil.QueryRower, item *d
 	}
 	query := `
 		INSERT INTO quotations (
-			rfq_id, factory_id, price_per_piece, mold_cost, lead_time_days, shipping_method_id, factory_highlight, status, create_time, log_timestamp,
+			rfq_id, factory_id, price_per_piece, mold_cost, lead_time_days, shipping_method_id, factory_highlight, factory_note, status, create_time, log_timestamp,
 			subtotal, discount_amount, shipping_cost, packaging_cost,
 			vat_rate, vat_amount, platform_commission_rate, platform_commission_amount, platform_config_id,
 			grand_total, factory_net_receivable, payment_terms,
 			validity_days, valid_until, image_urls
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-		        $11,$12,$13,$14,
-		        $15,$16,$17,$18,$19,
-		        $20,$21,$22,
-		        $23,$24,$25)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+		        $12,$13,$14,$15,
+		        $16,$17,$18,$19,$20,
+		        $21,$22,$23,
+		        $24,$25,$26)
 		RETURNING quote_id
 	`
 	if err := exec.QueryRow(
@@ -95,6 +95,7 @@ func (r *QuotationRepository) createWithExecutor(exec dbutil.QueryRower, item *d
 		item.LeadTimeDays,
 		domainutil.NullablePositiveInt64(item.ShippingMethodID),
 		domainutil.Nullable(item.FactoryHighlight),
+		domainutil.Nullable(item.FactoryNote),
 		item.Status,
 		item.CreateTime,
 		item.LogTimestamp,
@@ -309,6 +310,7 @@ func (r *QuotationRepository) UpdateBody(
 	factoryHighlight *string,
 	validityDays *int,
 	validUntil *time.Time,
+	factoryNote *string,
 ) error {
 	query := `
 		UPDATE quotations
@@ -322,6 +324,7 @@ func (r *QuotationRepository) UpdateBody(
 		    factory_highlight = CASE WHEN $10::text IS NOT NULL THEN $10 ELSE factory_highlight END,
 		    validity_days = CASE WHEN $11::int IS NOT NULL THEN $11 ELSE validity_days END,
 		    valid_until   = CASE WHEN $12::timestamp IS NOT NULL THEN $12 ELSE valid_until END,
+		    factory_note  = CASE WHEN $13::text IS NOT NULL THEN $13 ELSE factory_note END,
 		    version = $8,
 		    log_timestamp = NOW()
 		WHERE quote_id = $9 AND COALESCE(is_locked, false) = false AND status = 'PD'
@@ -333,7 +336,30 @@ func (r *QuotationRepository) UpdateBody(
 		newVersion, quoteID,
 		domainutil.Nullable(factoryHighlight),
 		validityDays, validUntil,
+		domainutil.Nullable(factoryNote),
 	)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// UpdateFactoryNote updates only factory_note — no lock/status check.
+// Any quotation owned by factoryID can be updated at any time.
+func (r *QuotationRepository) UpdateFactoryNote(quoteID, factoryID int64, note *string) error {
+	const query = `
+		UPDATE quotations
+		SET factory_note = $1, log_timestamp = NOW()
+		WHERE quote_id = $2 AND factory_id = $3
+	`
+	res, err := r.db.Exec(query, domainutil.Nullable(note), quoteID, factoryID)
 	if err != nil {
 		return err
 	}

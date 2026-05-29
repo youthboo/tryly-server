@@ -249,6 +249,7 @@ func (s *QuotationService) PatchBody(
 	factoryHighlight *string,
 	reason string,
 	validityDays int,
+	factoryNote *string,
 ) (*domain.Quotation, error) {
 	if strings.TrimSpace(reason) == "" {
 		reason = "อัปเดตใบเสนอราคา"
@@ -298,7 +299,7 @@ func (s *QuotationService) PatchBody(
 		vu := q.CreateTime.AddDate(0, 0, validityDays)
 		validUntilPtr = &vu
 	}
-	if err := s.repo.UpdateBody(quoteID, pricePerPiece, moldCost, shippingCost, packagingCost, toolingMoldCost, leadTimeDays, shippingMethodID, factoryUserID, newVersion, paymentTerms, nextHighlight, validityDaysPtr, validUntilPtr); err != nil {
+	if err := s.repo.UpdateBody(quoteID, pricePerPiece, moldCost, shippingCost, packagingCost, toolingMoldCost, leadTimeDays, shippingMethodID, factoryUserID, newVersion, paymentTerms, nextHighlight, validityDaysPtr, validUntilPtr, factoryNote); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrQuotationLocked
 		}
@@ -374,6 +375,15 @@ func (s *QuotationService) PatchBody(
 
 func (s *QuotationService) UpdateImageURLs(quoteID int64, imageURLs domain.StringArray) error {
 	return s.repo.UpdateImageURLs(quoteID, imageURLs)
+}
+
+// PatchFactoryNote updates factory_note only — bypasses lock/status.
+// Only the factory that owns the quotation can update it.
+func (s *QuotationService) PatchFactoryNote(quoteID, factoryID int64, note *string) error {
+	if err := s.repo.UpdateFactoryNote(quoteID, factoryID, note); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *QuotationService) Preview(items []domain.QuotationItem, discountAmount, shippingCost, packagingCost, toolingCost float64, factoryID *int64) (*walletservice.Breakdown, error) {

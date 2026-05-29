@@ -101,6 +101,7 @@ type OrderDetailRow struct {
 	QuotePaymentTerms     *string         `db:"quote_payment_terms"`
 	QuoteImageURLs        domain.StringArray `db:"quote_image_urls"`
 	QuoteFactoryHighlight *string         `db:"quote_factory_highlight"`
+	QuoteFactoryNote      *string         `db:"quote_factory_note"`
 }
 
 func NewOrderRepository(db *sqlx.DB) *OrderRepository {
@@ -627,7 +628,8 @@ func (r *OrderRepository) GetDetailByParticipant(orderID, userID int64, role str
 			TO_CHAR(COALESCE(q.valid_until, (q.create_time + (q.validity_days::text || ' day')::interval)::date), 'YYYY-MM-DD') AS quote_valid_until,
 			q.payment_terms AS quote_payment_terms,
 			COALESCE(q.image_urls::text, '[]') AS quote_image_urls,
-			q.factory_highlight AS quote_factory_highlight
+			q.factory_highlight AS quote_factory_highlight,
+			q.factory_note AS quote_factory_note
 		FROM orders o
 		INNER JOIN quotations q ON q.quote_id = o.quote_id
 		INNER JOIN rfqs r ON r.rfq_id = q.rfq_id
