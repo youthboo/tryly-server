@@ -156,6 +156,7 @@ type ShowcaseDetail struct {
 	CategoryID            *int64               `db:"category_id" json:"category_id,omitempty"`
 	SubCategoryID         *int64               `db:"sub_category_id" json:"sub_category_id,omitempty"`
 	MOQ                   *int                 `db:"moq" json:"moq,omitempty"`
+	LeadTimeDays          *int                 `db:"lead_time_days" json:"lead_time_days,omitempty"`
 	BasePrice             *float64             `db:"base_price" json:"base_price,omitempty"`
 	PromoPrice            *float64             `db:"promo_price" json:"promo_price,omitempty"`
 	StartDate             *time.Time           `db:"start_date" json:"start_date,omitempty"`
