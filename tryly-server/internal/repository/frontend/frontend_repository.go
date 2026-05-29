@@ -699,6 +699,34 @@ func (r *FrontendRepository) GetPromoCodes() ([]domain.PromoCode, error) {
 	return items, err
 }
 
+// FrontendFactoryReviewRow represents a review for the BFF factory detail endpoint.
+type FrontendFactoryReviewRow struct {
+	ReviewID     int64          `db:"review_id"`
+	Rating       float64        `db:"rating"`
+	Comment      string         `db:"comment"`
+	CreatedAt    string         `db:"created_at"`
+	ReviewerName sql.NullString `db:"reviewer_name"`
+}
+
+// ListFactoryReviews returns the latest reviews for a factory (max 20).
+func (r *FrontendRepository) ListFactoryReviews(factoryID int64) ([]FrontendFactoryReviewRow, error) {
+	var rows []FrontendFactoryReviewRow
+	err := r.db.Select(&rows, `
+		SELECT fr.review_id, fr.rating, fr.comment,
+		       TO_CHAR(fr.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
+		       NULLIF(TRIM(CONCAT(c.first_name, ' ', c.last_name)), '') AS reviewer_name
+		FROM factory_reviews fr
+		LEFT JOIN customers c ON c.user_id = fr.user_id
+		WHERE fr.factory_id = $1 AND fr.deleted_at IS NULL
+		ORDER BY fr.created_at DESC
+		LIMIT 20
+	`, factoryID)
+	if err == sql.ErrNoRows {
+		return []FrontendFactoryReviewRow{}, nil
+	}
+	return rows, err
+}
+
 // ListFavoriteShowcaseIDs returns the showcase IDs that a user has favorited.
 func (r *FrontendRepository) ListFavoriteShowcaseIDs(userID int64) ([]int64, error) {
 	var ids []int64

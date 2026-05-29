@@ -82,7 +82,15 @@ func (s *ShowcaseService) GetShowcasesByFactory(factoryID int64, contentType str
 }
 
 func (s *ShowcaseService) GetDetail(showcaseID int64) (*domain.ShowcaseDetail, error) {
-	return s.repo.GetDetail(showcaseID)
+	detail, err := s.repo.GetDetail(showcaseID)
+	if err != nil {
+		return nil, err
+	}
+	// Embed factory reviews (soft-fail — missing reviews should not block detail)
+	if reviews, rErr := s.repo.GetFactoryReviewsForShowcase(detail.FactoryID); rErr == nil {
+		detail.Reviews = reviews
+	}
+	return detail, nil
 }
 
 func (s *ShowcaseService) Create(showcase *domain.FactoryShowcase) error {
