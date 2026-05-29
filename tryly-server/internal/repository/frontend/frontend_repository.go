@@ -701,18 +701,19 @@ func (r *FrontendRepository) GetPromoCodes() ([]domain.PromoCode, error) {
 
 // FrontendFactoryReviewRow represents a review for the BFF factory detail endpoint.
 type FrontendFactoryReviewRow struct {
-	ReviewID     int64          `db:"review_id"`
-	Rating       float64        `db:"rating"`
-	Comment      string         `db:"comment"`
-	CreatedAt    string         `db:"created_at"`
-	ReviewerName sql.NullString `db:"reviewer_name"`
+	ReviewID     int64              `db:"review_id"`
+	Rating       float64            `db:"rating"`
+	Comment      string             `db:"comment"`
+	CreatedAt    string             `db:"created_at"`
+	ReviewerName sql.NullString     `db:"reviewer_name"`
+	ImageURLs    domain.StringArray `db:"image_urls"`
 }
 
 // ListFactoryReviews returns the latest reviews for a factory (max 20).
 func (r *FrontendRepository) ListFactoryReviews(factoryID int64) ([]FrontendFactoryReviewRow, error) {
 	var rows []FrontendFactoryReviewRow
 	err := r.db.Select(&rows, `
-		SELECT fr.review_id, fr.rating, fr.comment,
+		SELECT fr.review_id, fr.rating, fr.comment, fr.image_urls,
 		       TO_CHAR(fr.created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
 		       NULLIF(TRIM(CONCAT(c.first_name, ' ', c.last_name)), '') AS reviewer_name
 		FROM factory_reviews fr

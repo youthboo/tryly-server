@@ -199,11 +199,12 @@ type ShowcaseReviewSummary struct {
 }
 
 type ShowcaseReviewItem struct {
-	ReviewID     string  `json:"review_id"`
-	ReviewerName string  `json:"reviewer_name"`
-	Rating       float64 `json:"rating"`
-	Comment      string  `json:"comment"`
-	CreatedAt    string  `json:"created_at"`
+	ReviewID     string      `json:"review_id"`
+	ReviewerName string      `json:"reviewer_name"`
+	Rating       float64     `json:"rating"`
+	Comment      string      `json:"comment"`
+	CreatedAt    string      `json:"created_at"`
+	ImageURLs    StringArray `json:"image_urls"`
 }
 
 type LinkedShowcaseCard struct {

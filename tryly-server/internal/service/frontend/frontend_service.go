@@ -295,12 +295,17 @@ func (s *FrontendService) GetFactoryDetail(factoryID int64) (*domain.FrontendFac
 		if rr.ReviewerName.Valid && rr.ReviewerName.String != "" {
 			reviewer = rr.ReviewerName.String
 		}
+		imgURLs := rr.ImageURLs
+		if imgURLs == nil {
+			imgURLs = domain.StringArray{}
+		}
 		reviews = append(reviews, domain.FrontendFactoryReview{
-			ID:       strconv.FormatInt(rr.ReviewID, 10),
-			Reviewer: reviewer,
-			Rating:   rr.Rating,
-			Comment:  rr.Comment,
-			Date:     rr.CreatedAt,
+			ID:        strconv.FormatInt(rr.ReviewID, 10),
+			Reviewer:  reviewer,
+			Rating:    rr.Rating,
+			Comment:   rr.Comment,
+			Date:      rr.CreatedAt,
+			ImageURLs: imgURLs,
 		})
 	}
 

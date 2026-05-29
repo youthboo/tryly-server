@@ -656,15 +656,16 @@ func (r *ShowcaseRepository) GetFactoryReviewsForShowcase(factoryID int64) (*dom
 	}
 
 	type itemRow struct {
-		ReviewID     int64          `db:"review_id"`
-		ReviewerName sql.NullString `db:"reviewer_name"`
-		Rating       float64        `db:"rating"`
-		Comment      string         `db:"comment"`
-		CreatedAt    string         `db:"created_at"`
+		ReviewID     int64              `db:"review_id"`
+		ReviewerName sql.NullString     `db:"reviewer_name"`
+		Rating       float64            `db:"rating"`
+		Comment      string             `db:"comment"`
+		CreatedAt    string             `db:"created_at"`
+		ImageURLs    domain.StringArray `db:"image_urls"`
 	}
 	var items []itemRow
 	if err := r.db.Select(&items, `
-		SELECT fr.review_id, fr.rating, fr.comment,
+		SELECT fr.review_id, fr.rating, fr.comment, fr.image_urls,
 		       TO_CHAR(fr.created_at,'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
 		       NULLIF(TRIM(CONCAT(c.first_name,' ',c.last_name)),'') AS reviewer_name
 		FROM factory_reviews fr
@@ -688,11 +689,16 @@ func (r *ShowcaseRepository) GetFactoryReviewsForShowcase(factoryID int64) (*dom
 		if it.ReviewerName.Valid && it.ReviewerName.String != "" {
 			name = it.ReviewerName.String
 		}
+		imgURLs := it.ImageURLs
+		if imgURLs == nil {
+			imgURLs = domain.StringArray{}
+		}
 		result.Items = append(result.Items, domain.ShowcaseReviewItem{
 			ReviewID:     strconv.FormatInt(it.ReviewID, 10),
 			ReviewerName: name,
 			Rating:       it.Rating,
 			Comment:      it.Comment,
+			ImageURLs:    imgURLs,
 			CreatedAt:    it.CreatedAt,
 		})
 	}
