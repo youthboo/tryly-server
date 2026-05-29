@@ -193,6 +193,7 @@ func SetupRoutes(db *sqlx.DB, cfg *config.Config) *fiber.App {
 	quotations.Post("/:quotation_id/reject", h.quotation.Reject)
 	quotations.Patch("/:quotation_id", middleware.RequireRole(h.authService, domain.RoleFactory), h.quotation.PatchQuotation)
 	quotations.Patch("/:quotation_id/status", h.quotation.PatchQuotationStatus)
+	quotations.Patch("/:quotation_id/factory-note", middleware.RequireRole(h.authService, domain.RoleFactory), h.quotation.PatchFactoryNote)
 
 	wallets := api.Group("/wallets")
 	wallets.Get("/me", h.wallet.GetMyWallet)

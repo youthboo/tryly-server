@@ -16,6 +16,7 @@ type CreateQuotationRequest struct {
 	PaymentTerms     *string            `json:"payment_terms"`
 	ImageURLs        domain.StringArray `json:"image_urls"`
 	FactoryHighlight *string            `json:"factory_highlight"`
+	FactoryNote      *string            `json:"factory_note"`
 }
 
 type PreviewQuotationRequest struct {
@@ -42,6 +43,7 @@ type CreateDetailedQuotationRequest struct {
 	ValidityDays         int                    `json:"validity_days"`
 	WarrantyPeriodMonths *int                   `json:"warranty_period_months"`
 	FactoryHighlight     *string                `json:"factory_highlight"`
+	FactoryNote          *string                `json:"factory_note"`
 }
 
 type CreateRevisionQuotationRequest struct {
@@ -80,6 +82,7 @@ type PatchQuotationBodyRequest struct {
 	ShippingMethodID int64              `json:"shipping_method_id"`
 	PaymentTerms     *string            `json:"payment_terms"`
 	FactoryHighlight *string            `json:"factory_highlight"`
+	FactoryNote      *string            `json:"factory_note"`
 	Reason           string             `json:"reason"`
 	ImageURLs        domain.StringArray `json:"image_urls"`
 }

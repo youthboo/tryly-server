@@ -205,6 +205,7 @@ func (h *QuotationHandler) CreateDetailed(c *fiber.Ctx) error {
 		ValidityDays:         req.ValidityDays,
 		WarrantyPeriodMonths: req.WarrantyPeriodMonths,
 		FactoryHighlight:     req.FactoryHighlight,
+		FactoryNote:          req.FactoryNote,
 	}
 	helper.AssignIfNotNil(&item.LeadTimeDays, req.LeadTimeDays)
 	if helper.DereferenceString(req.ProductionStartDate, "") != "" {
@@ -323,6 +324,7 @@ func (h *QuotationHandler) PatchQuotation(c *fiber.Ctx) error {
 		req.FactoryHighlight,
 		req.Reason,
 		req.ValidityDays,
+		req.FactoryNote,
 	)
 	if err != nil {
 		return helper.MapServiceError(c, err, helper.ErrorMessage(fiber.StatusInternalServerError, "failed to update quotation"), handlerregistry.PatchQuotationErrorMap())
@@ -337,6 +339,32 @@ func (h *QuotationHandler) PatchQuotation(c *fiber.Ctx) error {
 		}
 	}
 	return c.JSON(item)
+}
+
+// PatchFactoryNote updates only factory_note — no lock/status check.
+// PATCH /quotations/:quotation_id/factory-note
+func (h *QuotationHandler) PatchFactoryNote(c *fiber.Ctx) error {
+	userID, err := helper.RequireUserID(c)
+	if err != nil {
+		return err
+	}
+	quotationID, err := helper.RequireInt64Param(c, "quotation_id")
+	if err != nil {
+		return err
+	}
+	var body struct {
+		FactoryNote *string `json:"factory_note"`
+	}
+	if err := c.BodyParser(&body); err != nil {
+		return helper.BadRequestError(c, "invalid request body")
+	}
+	if err := h.service.PatchFactoryNote(int64(quotationID), userID, body.FactoryNote); err != nil {
+		if dbutil.IsNotFoundError(err) {
+			return helper.WriteAPIError(c, helper.NotFoundAPIError("QUOTATION_NOT_FOUND", "quotation not found"))
+		}
+		return helper.InternalServerError(c, "failed to update factory note")
+	}
+	return c.JSON(fiber.Map{"message": "factory note updated"})
 }
 
 func (h *QuotationHandler) PatchQuotationStatus(c *fiber.Ctx) error {

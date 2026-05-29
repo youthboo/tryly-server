@@ -476,6 +476,7 @@ CREATE TABLE IF NOT EXISTS quotations (
     valid_until DATE,
     version INTEGER DEFAULT 1 NOT NULL,
     is_locked BOOLEAN DEFAULT FALSE NOT NULL,
+    factory_note TEXT,
     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     log_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT quotations_pkey PRIMARY KEY (quote_id)

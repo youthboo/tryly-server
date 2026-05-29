@@ -223,7 +223,9 @@ func FrontendRFQ(value string, offerCount int64) string {
 
 func FrontendOrder(value string) string {
 	switch NormalizeOrder(value) {
-	case domain.OrderStatusProduction, domain.OrderStatusQualityCheck:
+	case domain.OrderStatusPaymentPending:
+		return "pending_payment"
+	case domain.OrderStatusPaymentDone, domain.OrderStatusProduction, domain.OrderStatusQualityCheck, domain.OrderStatusWaitingFinalPayment:
 		return "in_production"
 	case domain.OrderStatusShipping:
 		return "shipped"

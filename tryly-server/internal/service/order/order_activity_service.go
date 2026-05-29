@@ -185,6 +185,7 @@ func (s *OrderService) buildOrderDetailResponse(row *orderrepo.OrderDetailRow) (
 			PaymentTerms:     row.QuotePaymentTerms,
 			ImageURLs:        domain.StringArray(row.QuoteImageURLs),
 			FactoryHighlight: row.QuoteFactoryHighlight,
+			FactoryNote:      row.QuoteFactoryNote,
 		},
 	}, nil
 }
