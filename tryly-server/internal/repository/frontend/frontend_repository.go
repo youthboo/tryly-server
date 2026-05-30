@@ -96,15 +96,17 @@ type FrontendFactoryDetailRow struct {
 }
 
 type FrontendRFQRow struct {
-	ID          int64   `db:"id"`
-	ProjectName string  `db:"project_name"`
-	Category    string  `db:"category"`
-	Status      string  `db:"status"`
-	OfferCount  int64   `db:"offer_count"`
-	Budget      float64 `db:"budget"`
-	Quantity    int64   `db:"quantity"`
-	CreatedAt   string  `db:"created_at"`
-	Description string  `db:"description"`
+	ID            int64   `db:"id"`
+	ProjectName   string  `db:"project_name"`
+	Category      string  `db:"category"`
+	Status        string  `db:"status"`
+	OfferCount    int64   `db:"offer_count"`
+	AcceptedCount int64   `db:"accepted_count"`
+	PendingCount  int64   `db:"pending_count"`
+	Budget        float64 `db:"budget"`
+	Quantity      int64   `db:"quantity"`
+	CreatedAt     string  `db:"created_at"`
+	Description   string  `db:"description"`
 }
 
 type FrontendQuotationRow struct {
@@ -355,6 +357,8 @@ func (r *FrontendRepository) ListRFQsByUserID(userID int64) ([]FrontendRFQRow, e
 			c.name AS category,
 			r.status,
 			COUNT(q.quote_id) AS offer_count,
+			COUNT(q.quote_id) FILTER (WHERE q.status = 'AC') AS accepted_count,
+			COUNT(q.quote_id) FILTER (WHERE q.status = 'PD') AS pending_count,
 			COALESCE(r.target_price, 0) AS budget,
 			r.quantity,
 			TO_CHAR(r.created_at, 'YYYY-MM-DD') AS created_at,
@@ -379,6 +383,8 @@ func (r *FrontendRepository) GetRFQByUserID(userID, rfqID int64) (*FrontendRFQRo
 			c.name AS category,
 			r.status,
 			COUNT(q.quote_id) AS offer_count,
+			COUNT(q.quote_id) FILTER (WHERE q.status = 'AC') AS accepted_count,
+			COUNT(q.quote_id) FILTER (WHERE q.status = 'PD') AS pending_count,
 			COALESCE(r.target_price, 0) AS budget,
 			r.quantity,
 			TO_CHAR(r.created_at, 'YYYY-MM-DD') AS created_at,
