@@ -761,15 +761,17 @@ func mapSessionThread(row frontendrepo.SessionThreadRow) domain.SessionThread {
 
 func mapRFQCard(row frontendrepo.FrontendRFQRow) domain.FrontendRFQCard {
 	return domain.FrontendRFQCard{
-		ID:          row.ID,
-		ProjectName: row.ProjectName,
-		Category:    row.Category,
-		Status:      domainstatus.FrontendRFQ(row.Status, row.OfferCount),
-		OfferCount:  row.OfferCount,
-		Budget:      row.Budget,
-		Quantity:    row.Quantity,
-		CreatedAt:   row.CreatedAt,
-		Description: row.Description,
+		ID:            row.ID,
+		ProjectName:   row.ProjectName,
+		Category:      row.Category,
+		Status:        domainstatus.FrontendRFQ(row.Status, row.OfferCount),
+		OfferCount:    row.OfferCount,
+		AcceptedCount: row.AcceptedCount,
+		PendingCount:  row.PendingCount,
+		Budget:        row.Budget,
+		Quantity:      row.Quantity,
+		CreatedAt:     row.CreatedAt,
+		Description:   row.Description,
 	}
 }
 

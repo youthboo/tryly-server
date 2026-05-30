@@ -92,17 +92,19 @@ type FrontendShowcaseItem struct {
 }
 
 type FrontendRFQCard struct {
-	ID          int64                   `json:"id"`
-	ProjectName string                  `json:"projectName"`
-	Category    string                  `json:"category"`
-	Status      string                  `json:"status"`
-	OfferCount  int64                   `json:"offerCount"`
-	Budget      float64                 `json:"budget"`
-	Quantity    int64                   `json:"quantity"`
-	CreatedAt   string                  `json:"createdAt"`
-	Description string                  `json:"description"`
-	Offers      []FrontendQuotationCard `json:"offers,omitempty"`
-	Images      []string                `json:"images,omitempty"`
+	ID            int64                   `json:"id"`
+	ProjectName   string                  `json:"projectName"`
+	Category      string                  `json:"category"`
+	Status        string                  `json:"status"`
+	OfferCount    int64                   `json:"offerCount"`
+	AcceptedCount int64                   `json:"acceptedCount"`
+	PendingCount  int64                   `json:"pendingCount"`
+	Budget        float64                 `json:"budget"`
+	Quantity      int64                   `json:"quantity"`
+	CreatedAt     string                  `json:"createdAt"`
+	Description   string                  `json:"description"`
+	Offers        []FrontendQuotationCard `json:"offers,omitempty"`
+	Images        []string                `json:"images,omitempty"`
 }
 
 type FrontendQuotationCard struct {
