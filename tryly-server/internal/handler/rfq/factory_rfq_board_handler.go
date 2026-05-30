@@ -56,8 +56,8 @@ type commissionConfigPayload struct {
 }
 
 type factoryRFQDetailResponse struct {
-	RFQ              *domain.RFQ             `json:"rfq"`
-	Quotations       []domain.Quotation      `json:"quotations"`
+	RFQ              *domain.RFQ            `json:"rfq"`
+	Quotations       []domain.Quotation     `json:"quotations"`
 	CommissionConfig commissionConfigPayload `json:"commission_config"`
 }
 

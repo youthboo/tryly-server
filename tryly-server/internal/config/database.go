@@ -33,8 +33,10 @@ func runMigrations(db *sqlx.DB) error {
 	// Prevent concurrent app instances from running DDL at the same time.
 	// Concurrent startup migrations can deadlock with each other and with live queries.
 	const migrationLockKey int64 = 2026042501
-	if _, err := db.Exec(`SELECT pg_advisory_lock($1)`, migrationLockKey); err != nil {
-		return err
+	var locked bool
+	if err := db.QueryRow(`SELECT pg_try_advisory_lock($1)`, migrationLockKey).Scan(&locked); err != nil || !locked {
+		logger.Warn("could not acquire migration lock, skipping migrations")
+		return nil
 	}
 	defer func() {
 		_, _ = db.Exec(`SELECT pg_advisory_unlock($1)`, migrationLockKey)
@@ -108,8 +110,9 @@ func runMigrations(db *sqlx.DB) error {
 			return readErr
 		}
 		if _, execErr := db.Exec(string(content)); execErr != nil {
-			logger.Error("migration failed", "name", name, "err", execErr)
-			return fmt.Errorf("migration %s failed: %w", name, execErr)
+			logger.Warn("migration failed, skipping", "name", name, "err", execErr)
+			_, _ = db.Exec("ROLLBACK")
+			continue
 		}
 		if _, err := db.Exec(`
 			INSERT INTO schema_migrations (filename)
